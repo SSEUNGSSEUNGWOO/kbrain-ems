@@ -16,11 +16,12 @@ Monorepo with two subprojects:
 Run from `frontend/`:
 
 ```bash
-bun run dev      # dev server → http://localhost:3100
-bun run build    # production build
-bun run lint     # oxlint
-bun run lint:fix # oxlint --fix + format
-bun run format   # oxfmt
+bun run dev         # dev server → http://localhost:3100
+bun run build       # production build
+bun run lint        # oxlint
+bun run lint:fix    # oxlint --fix + format
+bun run lint:strict # oxlint --deny-warnings (CI-style)
+bun run format      # oxfmt
 ```
 
 No test suite configured yet.
@@ -31,15 +32,16 @@ No test suite configured yet.
 
 ### Routing — cohort-scoped
 
-Operators pick a cohort first, then manage its 6 domains:
+Operators pick a cohort first, then manage its domains. `students/` is a cross-cutting roster page (used by 출결·과제 등 모든 도메인이 공유), not one of the 6 lifecycle domains.
 
 ```
 /dashboard/cohorts                          Cohort list (entry point — /dashboard redirects here)
-/dashboard/cohorts/[cohortId]               Cohort overview (links to 6 domain pages)
+/dashboard/cohorts/[cohortId]               Cohort overview (links to domain pages)
+/dashboard/cohorts/[cohortId]/students      교육생 명단 (공통 마스터)
 /dashboard/cohorts/[cohortId]/recruitment   모집
 /dashboard/cohorts/[cohortId]/selection     선발
-/dashboard/cohorts/[cohortId]/attendance    출결
-/dashboard/cohorts/[cohortId]/assignments   과제
+/dashboard/cohorts/[cohortId]/attendance    출결  (회차 상세: /attendance/[sessionId])
+/dashboard/cohorts/[cohortId]/assignments   과제  (과제 상세: /assignments/[assignmentId])
 /dashboard/cohorts/[cohortId]/completion    수료
 /dashboard/cohorts/[cohortId]/certification 인증
 ```
@@ -56,16 +58,32 @@ Operators pick a cohort first, then manage its 6 domains:
 - `src/lib/supabase/client.ts` — browser / Client Components
 - `src/lib/supabase/server.ts` — Server Components, Route Handlers, Server Actions (async, uses `cookies()`)
 
-**Schema** (`supabase/migrations/20260428090138_initial_schema.sql`):
+**Schema** — split across migrations in `supabase/migrations/` (apply in timestamp order):
+
+| Migration | Adds |
+|---|---|
+| `20260428090138_initial_schema.sql` | `cohorts`, `organizations`, `students` (+ `set_updated_at()` trigger) |
+| `20260429000000_attendance_schema.sql` | `sessions`, `attendance_records` |
+| `20260429100000_attendance_time.sql` | `sessions.start_time/end_time`, `attendance_records.arrival_time/departure_time/credited_hours`, `early_leave` status |
+| `20260429110000_session_break.sql` | `sessions.break_minutes` |
+| `20260429120000_assignments_schema.sql` | `assignments`, `assignment_submissions` |
+| `20260429130000_assignment_submission_files.sql` | `assignment_submissions` 파일 컬럼 + Storage 버킷 `assignment-submissions` |
+
 | Table | Purpose | Notable constraints |
 |---|---|---|
-| `cohorts` | 교육 기수 | unique `name`, `updated_at` trigger |
-| `organizations` | 소속 기관 | unique `name`, `updated_at` trigger |
-| `students` | 교육생 마스터 | FK → `cohorts` (RESTRICT), → `organizations` (SET NULL), `updated_at` trigger |
+| `cohorts` | 교육 기수 | unique `name` |
+| `organizations` | 소속 기관 | unique `name` |
+| `students` | 교육생 마스터 | FK → `cohorts` (RESTRICT), → `organizations` (SET NULL) |
+| `sessions` | 수업 회차(날짜·시간·휴게) | FK → `cohorts` (CASCADE) |
+| `attendance_records` | 회차×학생 출결 | unique `(session_id, student_id)`, status: present/absent/late/early_leave/excused |
+| `assignments` | 기수별 과제 | FK → `cohorts` (CASCADE) |
+| `assignment_submissions` | 과제×학생 제출 | unique `(assignment_id, student_id)`, status: not_submitted/submitted/late, 파일 메타 포함 |
 
-**RLS**: enabled on all tables. Current policy (`*_dev_open_all`) is fully open — **dev scaffold only**. When Supabase Auth is added, drop these policies and replace with operator-whitelist row-level policies.
+모든 테이블에 `updated_at` 트리거 적용.
 
-**Applying migrations**: `supabase link` is not configured. Apply SQL manually via the Supabase Dashboard SQL Editor.
+**RLS**: enabled on all tables (Storage 버킷 정책 포함). Current policies (`*_dev_open_all` / `assignment_submission_files_dev_*`) are fully open — **dev scaffold only**. When Supabase Auth is added, drop these and replace with operator-whitelist row-level policies.
+
+**Applying migrations**: `supabase link` is not configured. Apply SQL manually via the Supabase Dashboard SQL Editor in timestamp order. Seed data for 교육생 is in the repo root at `seed_students.sql` (run after `students` 테이블 생성).
 
 ### Server Actions
 

@@ -11,7 +11,7 @@ import { NavGroup } from '@/types';
  */
 export const navGroups: NavGroup[] = [
   {
-    label: 'Overview',
+    label: '메뉴',
     items: [
       {
         title: '대시보드',
@@ -22,7 +22,7 @@ export const navGroups: NavGroup[] = [
         items: []
       },
       {
-        title: '기수 목록',
+        title: '교육과정',
         url: '/dashboard/cohorts',
         icon: 'galleryVerticalEnd',
         isActive: false,
