@@ -1,17 +1,9 @@
 'use client';
+
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger
-} from '@/components/ui/dropdown-menu';
 import {
   Sidebar,
   SidebarContent,
-  SidebarFooter,
   SidebarGroup,
   SidebarGroupLabel,
   SidebarHeader,
@@ -23,139 +15,145 @@ import {
   SidebarMenuSubItem,
   SidebarRail
 } from '@/components/ui/sidebar';
-import { navGroups } from '@/config/nav-config';
-import { useMediaQuery } from '@/hooks/use-media-query';
-import { useFilteredNavGroups } from '@/hooks/use-nav';
-import type { NavGroup } from '@/types';
+import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import * as React from 'react';
 import { Icons } from '../icons';
 
+type Cohort = { id: string; name: string };
+
+const DOMAINS = [
+  { slug: 'students', label: '인원 관리' },
+  { slug: 'attendance', label: '출결' },
+  { slug: 'assignments', label: '과제' },
+  { slug: 'completion', label: '수료' }
+] as const;
+
 export default function AppSidebar() {
   const pathname = usePathname();
-  const { isOpen } = useMediaQuery();
+  const [cohorts, setCohorts] = React.useState<Cohort[]>([]);
 
-  const dynamicGroups = React.useMemo<NavGroup[]>(() => {
-    const cohortMatch = pathname.match(/^\/dashboard\/cohorts\/([^/]+)/);
-    const cohortId = cohortMatch?.[1];
-    if (!cohortId) return navGroups;
-    return [
-      ...navGroups,
-      {
-        label: '교육과정',
-        items: [
-          {
-            title: '모집',
-            url: `/dashboard/cohorts/${cohortId}/recruitment`,
-            icon: 'teams',
-            isActive: false,
-            items: []
-          },
-          {
-            title: '선발',
-            url: `/dashboard/cohorts/${cohortId}/selection`,
-            icon: 'checks',
-            isActive: false,
-            items: []
-          },
-          {
-            title: '출결',
-            url: `/dashboard/cohorts/${cohortId}/attendance`,
-            icon: 'calendar',
-            isActive: false,
-            items: []
-          },
-          {
-            title: '과제',
-            url: `/dashboard/cohorts/${cohortId}/assignments`,
-            icon: 'forms',
-            isActive: false,
-            items: []
-          },
-          {
-            title: '수료',
-            url: `/dashboard/cohorts/${cohortId}/completion`,
-            icon: 'circleCheck',
-            isActive: false,
-            items: []
-          },
-          {
-            title: '인증',
-            url: `/dashboard/cohorts/${cohortId}/certification`,
-            icon: 'badgeCheck',
-            isActive: false,
-            items: []
-          }
-        ]
-      }
-    ];
-  }, [pathname]);
-
-  const filteredGroups = useFilteredNavGroups(dynamicGroups);
+  const activeCohortId = pathname.match(/^\/dashboard\/cohorts\/([^/]+)/)?.[1] ?? null;
+  const isInsideCohorts = pathname.startsWith('/dashboard/cohorts');
 
   React.useEffect(() => {
-    // Side effects based on sidebar state changes
-  }, [isOpen]);
+    const supabase = createClient();
+    supabase
+      .from('cohorts')
+      .select('id, name')
+      .order('created_at', { ascending: false })
+      .then(({ data }) => setCohorts(data ?? []));
+  }, []);
 
   return (
     <Sidebar collapsible='icon'>
-      <SidebarHeader />
+      <SidebarHeader className='p-4'>
+        <Link href='/dashboard/cohorts' className='flex items-center gap-2 font-semibold'>
+          <Icons.galleryVerticalEnd className='h-5 w-5 shrink-0' />
+          <span className='truncate text-sm'>교육과정 관리</span>
+        </Link>
+      </SidebarHeader>
+
       <SidebarContent className='overflow-x-hidden'>
-        {filteredGroups.map((group) => (
-          <SidebarGroup key={group.label || 'ungrouped'} className='py-0'>
-            {group.label && <SidebarGroupLabel>{group.label}</SidebarGroupLabel>}
-            <SidebarMenu>
-              {group.items.map((item) => {
-                const Icon = item.icon ? Icons[item.icon] : Icons.logo;
-                return item?.items && item?.items?.length > 0 ? (
-                  <Collapsible
-                    key={item.title}
+        <SidebarGroup className='py-0'>
+          <SidebarGroupLabel>메뉴</SidebarGroupLabel>
+          <SidebarMenu>
+
+            {/* 대시보드 */}
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                tooltip='대시보드'
+                isActive={pathname === '/dashboard/overview'}
+              >
+                <Link href='/dashboard/overview'>
+                  <Icons.dashboard />
+                  <span>대시보드</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+
+            {/* 기수 목록 — 펼치면 기수 트리 표시 */}
+            <Collapsible
+              asChild
+              defaultOpen={isInsideCohorts}
+              className='group/collapsible'
+            >
+              <SidebarMenuItem>
+                <div className='flex items-center'>
+                  <SidebarMenuButton
                     asChild
-                    defaultOpen={item.isActive}
-                    className='group/collapsible'
+                    tooltip='교육과정'
+                    isActive={pathname === '/dashboard/cohorts'}
+                    className='flex-1'
                   >
-                    <SidebarMenuItem>
-                      <CollapsibleTrigger asChild>
-                        <SidebarMenuButton tooltip={item.title} isActive={pathname === item.url}>
-                          {item.icon && <Icon />}
-                          <span>{item.title}</span>
-                          <Icons.chevronRight className='ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90' />
-                        </SidebarMenuButton>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent>
-                        <SidebarMenuSub>
-                          {item.items?.map((subItem) => (
-                            <SidebarMenuSubItem key={subItem.title}>
-                              <SidebarMenuSubButton asChild isActive={pathname === subItem.url}>
-                                <Link href={subItem.url}>
-                                  <span>{subItem.title}</span>
-                                </Link>
-                              </SidebarMenuSubButton>
-                            </SidebarMenuSubItem>
-                          ))}
-                        </SidebarMenuSub>
-                      </CollapsibleContent>
-                    </SidebarMenuItem>
-                  </Collapsible>
-                ) : (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton
-                      asChild
-                      tooltip={item.title}
-                      isActive={pathname === item.url}
-                    >
-                      <Link href={item.url}>
-                        <Icon />
-                        <span>{item.title}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
-          </SidebarGroup>
-        ))}
+                    <Link href='/dashboard/cohorts'>
+                      <Icons.galleryVerticalEnd />
+                      <span>교육과정</span>
+                    </Link>
+                  </SidebarMenuButton>
+                  <CollapsibleTrigger className='hover:bg-accent mr-1 rounded p-1'>
+                    <Icons.chevronRight className='h-4 w-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90' />
+                  </CollapsibleTrigger>
+                </div>
+
+                <CollapsibleContent>
+                  <SidebarMenuSub>
+                    {cohorts.length === 0 && (
+                      <SidebarMenuSubItem>
+                        <span className='text-muted-foreground px-2 py-1 text-xs'>등록된 기수 없음</span>
+                      </SidebarMenuSubItem>
+                    )}
+                    {cohorts.map((cohort) => (
+                      <SidebarMenuSubItem key={cohort.id}>
+                        <Collapsible
+                          defaultOpen={activeCohortId === cohort.id}
+                          className='group/cohort w-full'
+                        >
+                          <div className='flex items-center'>
+                            <SidebarMenuSubButton
+                              asChild
+                              isActive={pathname === `/dashboard/cohorts/${cohort.id}`}
+                              className='flex-1'
+                            >
+                              <Link href={`/dashboard/cohorts/${cohort.id}`}>
+                                <span className='truncate'>{cohort.name}</span>
+                              </Link>
+                            </SidebarMenuSubButton>
+                            <CollapsibleTrigger className='hover:bg-accent mr-1 rounded p-1'>
+                              <Icons.chevronRight className='h-3 w-3 transition-transform duration-200 group-data-[state=open]/cohort:rotate-90' />
+                            </CollapsibleTrigger>
+                          </div>
+
+                          <CollapsibleContent>
+                            <SidebarMenuSub>
+                              {DOMAINS.map((d) => (
+                                <SidebarMenuSubItem key={d.slug}>
+                                  <SidebarMenuSubButton
+                                    asChild
+                                    isActive={pathname.startsWith(
+                                      `/dashboard/cohorts/${cohort.id}/${d.slug}`
+                                    )}
+                                  >
+                                    <Link href={`/dashboard/cohorts/${cohort.id}/${d.slug}`}>
+                                      <span>{d.label}</span>
+                                    </Link>
+                                  </SidebarMenuSubButton>
+                                </SidebarMenuSubItem>
+                              ))}
+                            </SidebarMenuSub>
+                          </CollapsibleContent>
+                        </Collapsible>
+                      </SidebarMenuSubItem>
+                    ))}
+                  </SidebarMenuSub>
+                </CollapsibleContent>
+              </SidebarMenuItem>
+            </Collapsible>
+
+          </SidebarMenu>
+        </SidebarGroup>
       </SidebarContent>
       <SidebarRail />
     </Sidebar>
