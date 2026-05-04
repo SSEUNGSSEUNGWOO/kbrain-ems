@@ -1,7 +1,9 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import PageContainer from '@/components/layout/page-container';
-import { createClient } from '@/lib/supabase/server';
+import { db } from '@/lib/db';
+import { cohorts, students, sessions, attendanceRecords } from '@/lib/db/schema';
+import { eq, count, desc, inArray } from 'drizzle-orm';
 
 function formatDate(dateStr: string): string {
   const [y, m, d] = dateStr.split('-');
@@ -21,39 +23,58 @@ export default async function CohortOverviewPage({
   params: Promise<{ cohortId: string }>;
 }) {
   const { cohortId } = await params;
-  const supabase = await createClient();
 
-  const [
-    { data: cohort },
-    { count: studentCount },
-    { data: sessions }
-  ] = await Promise.all([
-    supabase
-      .from('cohorts')
-      .select('id, name, started_at, ended_at')
-      .eq('id', cohortId)
-      .single(),
-    supabase
-      .from('students')
-      .select('*', { count: 'exact', head: true })
-      .eq('cohort_id', cohortId),
-    supabase
-      .from('sessions')
-      .select('id, session_date, attendance_records(status)')
-      .eq('cohort_id', cohortId)
-      .order('session_date', { ascending: false })
+  const [cohortRows, studentCountRows, sessionRows] = await Promise.all([
+    db
+      .select({
+        id: cohorts.id,
+        name: cohorts.name,
+        started_at: cohorts.startedAt,
+        ended_at: cohorts.endedAt
+      })
+      .from(cohorts)
+      .where(eq(cohorts.id, cohortId))
+      .limit(1),
+    db
+      .select({ count: count() })
+      .from(students)
+      .where(eq(students.cohortId, cohortId)),
+    db
+      .select({
+        id: sessions.id,
+        session_date: sessions.sessionDate
+      })
+      .from(sessions)
+      .where(eq(sessions.cohortId, cohortId))
+      .orderBy(desc(sessions.sessionDate))
   ]);
 
+  const cohort = cohortRows[0];
   if (!cohort) notFound();
 
+  const studentCount = studentCountRows[0]?.count ?? 0;
+
+  // Fetch attendance records for all sessions
+  const sessionIds = sessionRows.map((s) => s.id);
+  let allRecords: { status: string; session_id: string }[] = [];
+  if (sessionIds.length > 0) {
+    allRecords = await db
+      .select({
+        status: attendanceRecords.status,
+        session_id: attendanceRecords.sessionId
+      })
+      .from(attendanceRecords)
+      .where(
+        sessionIds.length === 1
+          ? eq(attendanceRecords.sessionId, sessionIds[0])
+          : inArray(attendanceRecords.sessionId, sessionIds)
+      );
+  }
+
   const today = new Date().toISOString().split('T')[0];
-  const totalSessions = sessions?.length ?? 0;
+  const totalSessions = sessionRows.length;
+  const doneSessions = sessionRows.filter((s) => s.session_date < today).length;
 
-  // 진행된 수업: 날짜가 오늘 이전인 것만
-  const doneSessions = sessions?.filter((s) => s.session_date < today).length ?? 0;
-
-  // 전체 출석률 계산
-  const allRecords = sessions?.flatMap((s) => s.attendance_records ?? []) ?? [];
   const totalRecords = allRecords.length;
   const presentCount = allRecords.filter((r) => r.status === 'present').length;
   const attendanceRate = totalRecords > 0 ? Math.round((presentCount / totalRecords) * 100) : null;
@@ -61,7 +82,7 @@ export default async function CohortOverviewPage({
   const stats = [
     {
       label: '인원',
-      value: studentCount != null ? `${studentCount}명` : '-',
+      value: `${studentCount}명`,
       sub: '등록된 인원'
     },
     {

@@ -3,7 +3,6 @@
 import { useState, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { createClient } from '@/lib/supabase/client';
 import {
   Select,
   SelectContent,
@@ -12,8 +11,6 @@ import {
   SelectValue
 } from '@/components/ui/select';
 import { saveAssignmentSubmissions } from '../_actions';
-
-const BUCKET = 'assignment-submissions';
 
 const STATUS_OPTIONS = [
   { value: 'not_submitted', label: '미제출' },
@@ -56,17 +53,6 @@ function parseScore(value: string): number | null {
   return Number.isFinite(score) ? score : null;
 }
 
-function formatFileSize(size: number | null): string {
-  if (!size) return '';
-  if (size < 1024) return `${size}B`;
-  if (size < 1024 * 1024) return `${Math.round(size / 1024)}KB`;
-  return `${(size / 1024 / 1024).toFixed(1)}MB`;
-}
-
-function sanitizeFileName(name: string): string {
-  return name.replaceAll(/[^\w.-]+/g, '_');
-}
-
 export function AssignmentSubmissionTable({
   assignmentId,
   cohortId,
@@ -90,19 +76,6 @@ export function AssignmentSubmissionTable({
   const [notes, setNotes] = useState<Record<string, string>>(
     Object.fromEntries(students.map((s) => [s.id, recordMap[s.id]?.note ?? '']))
   );
-  const [filePaths, setFilePaths] = useState<Record<string, string | null>>(
-    Object.fromEntries(students.map((s) => [s.id, recordMap[s.id]?.file_path ?? null]))
-  );
-  const [fileNames, setFileNames] = useState<Record<string, string | null>>(
-    Object.fromEntries(students.map((s) => [s.id, recordMap[s.id]?.file_name ?? null]))
-  );
-  const [fileSizes, setFileSizes] = useState<Record<string, number | null>>(
-    Object.fromEntries(students.map((s) => [s.id, recordMap[s.id]?.file_size ?? null]))
-  );
-  const [fileTypes, setFileTypes] = useState<Record<string, string | null>>(
-    Object.fromEntries(students.map((s) => [s.id, recordMap[s.id]?.file_type ?? null]))
-  );
-  const [selectedFiles, setSelectedFiles] = useState<Record<string, File | undefined>>({});
   const [filter, setFilter] = useState('all');
   const [pending, startTransition] = useTransition();
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -137,41 +110,6 @@ export function AssignmentSubmissionTable({
     setSaveError(null);
     setSaved(false);
     startTransition(async () => {
-      const supabase = createClient();
-      const nextFilePaths = { ...filePaths };
-      const nextFileNames = { ...fileNames };
-      const nextFileSizes = { ...fileSizes };
-      const nextFileTypes = { ...fileTypes };
-
-      for (const student of students) {
-        const file = selectedFiles[student.id];
-        if (!file) continue;
-
-        const storagePath = [
-          cohortId,
-          assignmentId,
-          `${student.id}-${Date.now()}-${sanitizeFileName(file.name)}`
-        ].join('/');
-
-        const { error } = await supabase.storage
-          .from(BUCKET)
-          .upload(storagePath, file, {
-            cacheControl: '3600',
-            upsert: true,
-            contentType: file.type || 'application/octet-stream'
-          });
-
-        if (error) {
-          setSaveError(`${student.name} 파일 업로드 실패: ${error.message}`);
-          return;
-        }
-
-        nextFilePaths[student.id] = storagePath;
-        nextFileNames[student.id] = file.name;
-        nextFileSizes[student.id] = file.size;
-        nextFileTypes[student.id] = file.type || null;
-      }
-
       const records = students.map((s) => {
         const status = statuses[s.id] ?? 'not_submitted';
         return {
@@ -180,10 +118,10 @@ export function AssignmentSubmissionTable({
           submitted_at: submittedDates[s.id] || null,
           score: parseScore(scores[s.id] ?? ''),
           note: notes[s.id] || null,
-          file_path: nextFilePaths[s.id] ?? null,
-          file_name: nextFileNames[s.id] ?? null,
-          file_size: nextFileSizes[s.id] ?? null,
-          file_type: nextFileTypes[s.id] ?? null
+          file_path: null,
+          file_name: null,
+          file_size: null,
+          file_type: null
         };
       });
       const result = await saveAssignmentSubmissions(assignmentId, cohortId, records);
@@ -191,27 +129,8 @@ export function AssignmentSubmissionTable({
         setSaveError(result.error);
         return;
       }
-      setFilePaths(nextFilePaths);
-      setFileNames(nextFileNames);
-      setFileSizes(nextFileSizes);
-      setFileTypes(nextFileTypes);
-      setSelectedFiles({});
       setSaved(true);
     });
-  };
-
-  const openFile = async (path: string) => {
-    const supabase = createClient();
-    const { data, error } = await supabase.storage
-      .from(BUCKET)
-      .createSignedUrl(path, 60);
-
-    if (error) {
-      setSaveError(`파일 링크 생성 실패: ${error.message}`);
-      return;
-    }
-
-    window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
   };
 
   if (students.length === 0) {
@@ -255,7 +174,7 @@ export function AssignmentSubmissionTable({
       </div>
 
       <div className='overflow-x-auto rounded-md border'>
-        <table className='w-full min-w-[1100px] text-sm'>
+        <table className='w-full min-w-[900px] text-sm'>
           <thead>
             <tr className='bg-muted/50 border-b'>
               <th className='px-4 py-3 text-left font-medium'>이름</th>
@@ -263,7 +182,6 @@ export function AssignmentSubmissionTable({
               <th className='w-32 px-4 py-3 text-left font-medium'>제출 상태</th>
               <th className='w-40 px-4 py-3 text-left font-medium'>제출일</th>
               <th className='w-28 px-4 py-3 text-left font-medium'>점수</th>
-              <th className='w-64 px-4 py-3 text-left font-medium'>제출 파일</th>
               <th className='px-4 py-3 text-left font-medium'>비고</th>
             </tr>
           </thead>
@@ -271,9 +189,6 @@ export function AssignmentSubmissionTable({
             {filteredStudents.map((student) => {
               const status = statuses[student.id] ?? 'not_submitted';
               const isNotSubmitted = status === 'not_submitted';
-              const filePath = filePaths[student.id];
-              const fileName = fileNames[student.id];
-              const fileSize = fileSizes[student.id];
 
               return (
                 <tr key={student.id} className='border-b last:border-0'>
@@ -324,32 +239,6 @@ export function AssignmentSubmissionTable({
                       }}
                       className='h-8 text-sm'
                     />
-                  </td>
-                  <td className='px-4 py-2'>
-                    <div className='grid gap-1'>
-                      {filePath && fileName && (
-                        <button
-                          type='button'
-                          onClick={() => openFile(filePath)}
-                          className='text-primary truncate text-left text-xs hover:underline'
-                        >
-                          {fileName}
-                          {fileSize ? ` (${formatFileSize(fileSize)})` : ''}
-                        </button>
-                      )}
-                      <Input
-                        type='file'
-                        disabled={isNotSubmitted}
-                        onChange={(event) => {
-                          setSelectedFiles((prev) => ({
-                            ...prev,
-                            [student.id]: event.target.files?.[0]
-                          }));
-                          setSaved(false);
-                        }}
-                        className='h-8 text-xs'
-                      />
-                    </div>
                   </td>
                   <td className='px-4 py-2'>
                     <Input

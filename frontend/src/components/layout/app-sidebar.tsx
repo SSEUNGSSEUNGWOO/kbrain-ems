@@ -15,7 +15,6 @@ import {
   SidebarMenuSubItem,
   SidebarRail
 } from '@/components/ui/sidebar';
-import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import * as React from 'react';
@@ -38,12 +37,10 @@ export default function AppSidebar() {
   const isInsideCohorts = pathname.startsWith('/dashboard/cohorts');
 
   React.useEffect(() => {
-    const supabase = createClient();
-    supabase
-      .from('cohorts')
-      .select('id, name')
-      .order('created_at', { ascending: false })
-      .then(({ data }) => setCohorts(data ?? []));
+    fetch('/api/cohorts-list')
+      .then((res) => res.json())
+      .then((data) => setCohorts(data ?? []))
+      .catch(() => setCohorts([]));
   }, []);
 
   return (

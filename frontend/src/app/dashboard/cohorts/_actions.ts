@@ -1,6 +1,8 @@
 'use server';
 
-import { createClient } from '@/lib/supabase/server';
+import { db } from '@/lib/db';
+import { cohorts } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 
 type ActionResult = { error?: string };
@@ -12,14 +14,15 @@ export async function createCohort(formData: FormData): Promise<ActionResult> {
 
   if (!name) return { error: '기수 이름은 필수입니다.' };
 
-  const supabase = await createClient();
-  const { error } = await supabase.from('cohorts').insert({
-    name,
-    started_at: startedAt || null,
-    ended_at: endedAt || null
-  });
-
-  if (error) return { error: error.message };
+  try {
+    await db.insert(cohorts).values({
+      name,
+      startedAt: startedAt || null,
+      endedAt: endedAt || null
+    });
+  } catch (e: unknown) {
+    return { error: e instanceof Error ? e.message : '알 수 없는 오류가 발생했습니다.' };
+  }
 
   revalidatePath('/dashboard/cohorts');
   return {};
@@ -32,25 +35,29 @@ export async function updateCohort(id: string, formData: FormData): Promise<Acti
 
   if (!name) return { error: '기수 이름은 필수입니다.' };
 
-  const supabase = await createClient();
-  const { error } = await supabase
-    .from('cohorts')
-    .update({ name, started_at: startedAt || null, ended_at: endedAt || null })
-    .eq('id', id);
-
-  if (error) return { error: error.message };
+  try {
+    await db.update(cohorts).set({
+      name,
+      startedAt: startedAt || null,
+      endedAt: endedAt || null
+    }).where(eq(cohorts.id, id));
+  } catch (e: unknown) {
+    return { error: e instanceof Error ? e.message : '알 수 없는 오류가 발생했습니다.' };
+  }
 
   revalidatePath('/dashboard/cohorts');
   return {};
 }
 
 export async function deleteCohort(id: string): Promise<ActionResult> {
-  const supabase = await createClient();
-  const { error } = await supabase.from('cohorts').delete().eq('id', id);
-
-  if (error) {
-    if (error.code === '23503') return { error: '교육생이 등록된 기수는 삭제할 수 없습니다.' };
-    return { error: error.message };
+  try {
+    await db.delete(cohorts).where(eq(cohorts.id, id));
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : '알 수 없는 오류가 발생했습니다.';
+    if (message.includes('23503') || message.includes('violates foreign key constraint')) {
+      return { error: '교육생이 등록된 기수는 삭제할 수 없습니다.' };
+    }
+    return { error: message };
   }
 
   revalidatePath('/dashboard/cohorts');

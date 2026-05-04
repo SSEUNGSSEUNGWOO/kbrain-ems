@@ -1,6 +1,5 @@
 'use client';
 
-import { createClient } from '@/lib/supabase/client';
 import { usePathname } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 
@@ -39,19 +38,18 @@ export function useBreadcrumbs() {
 
   useEffect(() => {
     if (!cohortId) { setCohortName(null); return; }
-    const supabase = createClient();
-    supabase.from('cohorts').select('name').eq('id', cohortId).single()
-      .then(({ data }) => setCohortName(data?.name ?? null));
+    fetch(`/api/cohort-name?id=${cohortId}`)
+      .then((res) => res.json())
+      .then((data) => setCohortName(data.name ?? null))
+      .catch(() => setCohortName(null));
   }, [cohortId]);
 
   useEffect(() => {
     if (!sessionId) { setSessionTitle(null); return; }
-    const supabase = createClient();
-    supabase.from('sessions').select('session_date, title').eq('id', sessionId).single()
-      .then(({ data }) => {
-        if (!data) return;
-        setSessionTitle(data.title ?? data.session_date);
-      });
+    fetch(`/api/session-title?id=${sessionId}`)
+      .then((res) => res.json())
+      .then((data) => setSessionTitle(data.title ?? null))
+      .catch(() => setSessionTitle(null));
   }, [sessionId]);
 
   return useMemo(() => {

@@ -4,10 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository layout
 
-Monorepo with two subprojects:
+Monorepo:
 
 - `frontend/` — Next.js 16 (App Router) web app. All frontend work happens here.
-- `supabase/` — Supabase CLI config (`config.toml`) and SQL migrations.
 
 `frontend/CLAUDE.md` has detailed frontend conventions (data fetching, forms, icons, page headers) — read it before touching frontend code. `frontend/AGENTS.md` is the original template's agent guide and references Clerk/Sentry that were removed; ignore it.
 
@@ -52,22 +51,15 @@ Operators pick a cohort first, then manage its domains. `students/` is a cross-c
 
 `src/config/nav-config.ts` is intentionally minimal (two static items). Domain links are built at runtime.
 
-### Supabase
+### Database (Neon + Drizzle ORM)
 
-**Clients** — always import from here, never instantiate directly:
-- `src/lib/supabase/client.ts` — browser / Client Components
-- `src/lib/supabase/server.ts` — Server Components, Route Handlers, Server Actions (async, uses `cookies()`)
+**DB 연결**: `src/lib/db/index.ts` — Neon serverless driver + Drizzle ORM
+**스키마**: `src/lib/db/schema.ts` — 7개 테이블 정의 (Drizzle pgTable)
 
-**Schema** — split across migrations in `supabase/migrations/` (apply in timestamp order):
-
-| Migration | Adds |
-|---|---|
-| `20260428090138_initial_schema.sql` | `cohorts`, `organizations`, `students` (+ `set_updated_at()` trigger) |
-| `20260429000000_attendance_schema.sql` | `sessions`, `attendance_records` |
-| `20260429100000_attendance_time.sql` | `sessions.start_time/end_time`, `attendance_records.arrival_time/departure_time/credited_hours`, `early_leave` status |
-| `20260429110000_session_break.sql` | `sessions.break_minutes` |
-| `20260429120000_assignments_schema.sql` | `assignments`, `assignment_submissions` |
-| `20260429130000_assignment_submission_files.sql` | `assignment_submissions` 파일 컬럼 + Storage 버킷 `assignment-submissions` |
+```ts
+import { db } from '@/lib/db';
+import { cohorts, students, ... } from '@/lib/db/schema';
+```
 
 | Table | Purpose | Notable constraints |
 |---|---|---|
@@ -75,15 +67,11 @@ Operators pick a cohort first, then manage its domains. `students/` is a cross-c
 | `organizations` | 소속 기관 | unique `name` |
 | `students` | 교육생 마스터 | FK → `cohorts` (RESTRICT), → `organizations` (SET NULL) |
 | `sessions` | 수업 회차(날짜·시간·휴게) | FK → `cohorts` (CASCADE) |
-| `attendance_records` | 회차×학생 출결 | unique `(session_id, student_id)`, status: present/absent/late/early_leave/excused |
+| `attendanceRecords` | 회차×학생 출결 | unique `(session_id, student_id)`, status: present/absent/late/early_leave/excused |
 | `assignments` | 기수별 과제 | FK → `cohorts` (CASCADE) |
-| `assignment_submissions` | 과제×학생 제출 | unique `(assignment_id, student_id)`, status: not_submitted/submitted/late, 파일 메타 포함 |
+| `assignmentSubmissions` | 과제×학생 제출 | unique `(assignment_id, student_id)`, status: not_submitted/submitted/late |
 
-모든 테이블에 `updated_at` 트리거 적용.
-
-**RLS**: enabled on all tables (Storage 버킷 정책 포함). Current policies (`*_dev_open_all` / `assignment_submission_files_dev_*`) are fully open — **dev scaffold only**. When Supabase Auth is added, drop these and replace with operator-whitelist row-level policies.
-
-**Applying migrations**: `supabase link` is not configured. Apply SQL manually via the Supabase Dashboard SQL Editor in timestamp order. Seed data for 교육생 is in the repo root at `seed_students.sql` (run after `students` 테이블 생성).
+환경변수: `.env.local`에 `DATABASE_URL` (Neon pooled connection string). Seed data: `seed_students.sql`.
 
 ### Server Actions
 

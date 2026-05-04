@@ -1,6 +1,8 @@
 import { notFound } from 'next/navigation';
 import PageContainer from '@/components/layout/page-container';
-import { createClient } from '@/lib/supabase/server';
+import { db } from '@/lib/db';
+import { sessions, students, organizations, attendanceRecords } from '@/lib/db/schema';
+import { eq, asc } from 'drizzle-orm';
 import { AttendanceTable } from './_components/attendance-table';
 
 const DOW = ['일', '월', '화', '수', '목', '금', '토'] as const;
@@ -17,36 +19,62 @@ export default async function SessionAttendancePage({
   params: Promise<{ cohortId: string; sessionId: string }>;
 }) {
   const { cohortId, sessionId } = await params;
-  const supabase = await createClient();
 
-  const [{ data: session }, { data: students }, { data: records }] = await Promise.all([
-    supabase
-      .from('sessions')
-      .select('id, session_date, title, start_time, end_time, break_minutes')
-      .eq('id', sessionId)
-      .single(),
-    supabase
-      .from('students')
-      .select('id, name, organizations(name)')
-      .eq('cohort_id', cohortId)
-      .order('name'),
-    supabase
-      .from('attendance_records')
-      .select('student_id, status, note, arrival_time, departure_time, credited_hours')
-      .eq('session_id', sessionId)
+  const [sessionRows, studentRows, recordRows] = await Promise.all([
+    db
+      .select({
+        id: sessions.id,
+        session_date: sessions.sessionDate,
+        title: sessions.title,
+        start_time: sessions.startTime,
+        end_time: sessions.endTime,
+        break_minutes: sessions.breakMinutes
+      })
+      .from(sessions)
+      .where(eq(sessions.id, sessionId))
+      .limit(1),
+    db
+      .select({
+        id: students.id,
+        name: students.name,
+        orgName: organizations.name
+      })
+      .from(students)
+      .leftJoin(organizations, eq(students.organizationId, organizations.id))
+      .where(eq(students.cohortId, cohortId))
+      .orderBy(asc(students.name)),
+    db
+      .select({
+        student_id: attendanceRecords.studentId,
+        status: attendanceRecords.status,
+        note: attendanceRecords.note,
+        arrival_time: attendanceRecords.arrivalTime,
+        departure_time: attendanceRecords.departureTime,
+        credited_hours: attendanceRecords.creditedHours
+      })
+      .from(attendanceRecords)
+      .where(eq(attendanceRecords.sessionId, sessionId))
   ]);
 
+  const session = sessionRows[0];
   if (!session) notFound();
 
+  // Map students to expected shape: organizations as { name: string } | null
+  const mappedStudents = studentRows.map((s) => ({
+    id: s.id,
+    name: s.name,
+    organizations: s.orgName ? { name: s.orgName } : null
+  }));
+
   const recordMap = Object.fromEntries(
-    (records ?? []).map((r) => [
+    recordRows.map((r) => [
       r.student_id,
       {
         status: r.status,
         note: r.note,
         arrival_time: r.arrival_time,
         departure_time: r.departure_time,
-        credited_hours: r.credited_hours
+        credited_hours: r.credited_hours ? Number(r.credited_hours) : null
       }
     ])
   );
@@ -63,12 +91,12 @@ export default async function SessionAttendancePage({
   return (
     <PageContainer
       pageTitle={title}
-      pageDescription={[timeDesc, `총 ${(students ?? []).length}명`].filter(Boolean).join(' · ')}
+      pageDescription={[timeDesc, `총 ${mappedStudents.length}명`].filter(Boolean).join(' · ')}
     >
       <AttendanceTable
         sessionId={sessionId}
         cohortId={cohortId}
-        students={students ?? []}
+        students={mappedStudents}
         recordMap={recordMap}
         sessionStartTime={session.start_time?.slice(0, 5) ?? null}
         sessionEndTime={session.end_time?.slice(0, 5) ?? null}
