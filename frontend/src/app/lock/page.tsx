@@ -49,7 +49,7 @@ export default function LockPage() {
   // 환영 화면
   if (welcome) {
     return (
-      <div className='fixed inset-0 z-50 flex items-center justify-center bg-white dark:bg-slate-950'>
+      <div className='fixed inset-0 z-50 flex items-center justify-center bg-white'>
         <div className='flex flex-col items-center gap-3'>
           {/* 이름 */}
           <div
@@ -64,7 +64,7 @@ export default function LockPage() {
 
           {/* 직급 */}
           <div
-            className='text-lg font-medium text-blue-600 dark:text-blue-400'
+            className='text-lg font-medium text-blue-600'
             style={{
               animation: 'welcomeFadeUp 0.6s ease-out 0.4s forwards',
               opacity: 0
@@ -124,12 +124,12 @@ export default function LockPage() {
 
   // 입장 폼
   return (
-    <div className='flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 to-blue-50 px-4 dark:from-slate-950 dark:to-blue-950/30'>
+    <div className='flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 to-blue-50 px-4'>
       <div className='w-full max-w-sm'>
         {/* 상단 악센트 */}
         <div className='mx-auto mb-6 h-1 w-16 rounded-full bg-gradient-to-r from-blue-500 to-violet-500' />
 
-        <div className='rounded-2xl border bg-white/80 px-8 py-10 shadow-lg backdrop-blur dark:bg-slate-900/80'>
+        <div className='rounded-2xl border bg-white/80 px-8 py-10 shadow-lg backdrop-blur'>
           {/* 로고 */}
           <div className='mb-8 flex flex-col items-center gap-2'>
             <Image
@@ -137,7 +137,7 @@ export default function LockPage() {
               alt='K-Brain'
               width={3233}
               height={1326}
-              className='h-8 w-auto dark:brightness-0 dark:invert'
+              className='h-8 w-auto'
             />
             <span className='text-[10.5px] font-semibold uppercase tracking-[0.15em] text-muted-foreground'>
               Education Management System
@@ -164,7 +164,7 @@ export default function LockPage() {
             </div>
 
             {error && (
-              <div className='rounded-lg bg-red-50 px-4 py-2.5 text-center text-sm font-medium text-red-600 dark:bg-red-950/40 dark:text-red-400'>
+              <div className='rounded-lg bg-red-50 px-4 py-2.5 text-center text-sm font-medium text-red-600'>
                 {error}
               </div>
             )}
@@ -172,7 +172,7 @@ export default function LockPage() {
             <button
               type='submit'
               disabled={loading || !name.trim()}
-              className='w-full rounded-lg bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-3 text-sm font-semibold text-white transition-all hover:from-blue-700 hover:to-blue-800 disabled:cursor-not-allowed disabled:opacity-50 dark:from-blue-500 dark:to-blue-600'
+              className='w-full rounded-lg bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-3 text-sm font-semibold text-white transition-all hover:from-blue-700 hover:to-blue-800 disabled:cursor-not-allowed disabled:opacity-50'
             >
               {loading ? '확인 중...' : '입장하기'}
             </button>
