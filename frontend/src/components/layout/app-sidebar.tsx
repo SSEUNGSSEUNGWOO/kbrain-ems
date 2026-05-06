@@ -67,7 +67,7 @@ export default function AppSidebar() {
           <div className='relative flex items-center gap-1.5 group-data-[collapsible=icon]:hidden'>
             <span className='inline-block h-1 w-1 rounded-full bg-blue-500' />
             <span className='text-[10.5px] font-semibold uppercase tracking-[0.15em] text-muted-foreground'>
-              Education Management
+              Education Management System
             </span>
           </div>
           <Icons.galleryVerticalEnd className='relative hidden h-6 w-6 shrink-0 text-primary group-data-[collapsible=icon]:block' />
