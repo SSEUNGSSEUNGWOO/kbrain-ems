@@ -140,7 +140,7 @@ export default function LockPage() {
               className='h-8 w-auto dark:brightness-0 dark:invert'
             />
             <span className='text-[10.5px] font-semibold uppercase tracking-[0.15em] text-muted-foreground'>
-              Education Management
+              Education Management System
             </span>
           </div>
 
