@@ -1,8 +1,8 @@
 import { notFound } from 'next/navigation';
 import PageContainer from '@/components/layout/page-container';
 import { db } from '@/lib/db';
-import { cohorts, students, organizations } from '@/lib/db/schema';
-import { eq, asc } from 'drizzle-orm';
+import { cohorts, students, organizations, sessions, attendanceRecords } from '@/lib/db/schema';
+import { eq, asc, sql, and, ne } from 'drizzle-orm';
 import { Button } from '@/components/ui/button';
 import { StudentSheet } from './_components/student-sheet';
 import { StudentTable } from './_components/student-table';
@@ -42,7 +42,30 @@ export default async function StudentsPage({
       .where(eq(students.cohortId, cohortId))
       .orderBy(asc(students.name));
 
-    // Map to match the shape StudentTable expects: organizations as { name: string } | null
+    // Total sessions count for this cohort
+    const [{ count: totalSessions }] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(sessions)
+      .where(eq(sessions.cohortId, cohortId));
+
+    // Per-student attended session count (present, late, early_leave, excused)
+    const attendanceRows = await db
+      .select({
+        studentId: attendanceRecords.studentId,
+        attended: sql<number>`count(*)::int`
+      })
+      .from(attendanceRecords)
+      .innerJoin(sessions, eq(attendanceRecords.sessionId, sessions.id))
+      .where(
+        and(
+          eq(sessions.cohortId, cohortId),
+          ne(attendanceRecords.status, 'absent')
+        )
+      )
+      .groupBy(attendanceRecords.studentId);
+
+    const attendanceMap = new Map(attendanceRows.map((r) => [r.studentId, r.attended]));
+
     const mapped = rows.map((r) => ({
       id: r.id,
       name: r.name,
@@ -53,7 +76,9 @@ export default async function StudentsPage({
       birth_date: r.birth_date,
       email: r.email,
       phone: r.phone,
-      notes: r.notes
+      notes: r.notes,
+      attendedSessions: attendanceMap.get(r.id) ?? 0,
+      totalSessions
     }));
 
     return (

@@ -10,9 +10,25 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import {
+  classifyOrganization,
+  ORGANIZATION_CATEGORY_LABEL,
+  type OrganizationCategory
+} from '@/lib/organization-category';
 import { saveAttendance } from '../_actions';
 
+const CATEGORY_CLASS: Record<OrganizationCategory, string> = {
+  central: 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-300',
+  basic_local: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300',
+  metro_local: 'border-cyan-200 bg-cyan-50 text-cyan-700 dark:border-cyan-900 dark:bg-cyan-950/40 dark:text-cyan-300',
+  public: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300',
+  education: 'border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-900 dark:bg-violet-950/40 dark:text-violet-300',
+  unknown: 'border-border bg-muted text-muted-foreground'
+};
+
 const STATUS_OPTIONS = [
+  { value: 'none', label: '-' },
   { value: 'present', label: '출석' },
   { value: 'absent', label: '결석' },
   { value: 'late', label: '지각' },
@@ -21,6 +37,7 @@ const STATUS_OPTIONS = [
 ] as const;
 
 const STATUS_CLASS: Record<string, string> = {
+  none: 'text-muted-foreground',
   present: 'text-green-600',
   absent: 'text-destructive',
   late: 'text-orange-500',
@@ -42,6 +59,7 @@ function calcCreditedHours(
   departureTime: string
 ): number | null {
   if (!sessionStart || !sessionEnd) return null;
+  if (status === 'none') return null;
   const round = (min: number) => Math.round((Math.max(0, min) / 60) * 10) / 10;
   const totalMin = toMinutes(sessionEnd) - toMinutes(sessionStart) - breakMinutes;
   if (status === 'present') return round(totalMin);
@@ -95,7 +113,7 @@ export function AttendanceTable({
   breakMinutes
 }: AttendanceTableProps) {
   const [statuses, setStatuses] = useState<Record<string, string>>(
-    Object.fromEntries(students.map((s) => [s.id, recordMap[s.id]?.status ?? 'present']))
+    Object.fromEntries(students.map((s) => [s.id, recordMap[s.id]?.status ?? 'none']))
   );
   const [notes, setNotes] = useState<Record<string, string>>(
     Object.fromEntries(students.map((s) => [s.id, recordMap[s.id]?.note ?? '']))
@@ -121,8 +139,8 @@ export function AttendanceTable({
     setSaveError(null);
     setSaved(false);
     startTransition(async () => {
-      const records = students.map((s) => {
-        const status = statuses[s.id] ?? 'present';
+      const records = students.filter((s) => statuses[s.id] && statuses[s.id] !== 'none').map((s) => {
+        const status = statuses[s.id];
         const arrivalTime = arrivalTimes[s.id] || null;
         const departureTime = departureTimes[s.id] || null;
         const credited = calcCreditedHours(status, sessionStartTime, sessionEndTime, breakMinutes, arrivalTimes[s.id], departureTimes[s.id]);
@@ -192,25 +210,25 @@ export function AttendanceTable({
         </div>
       </div>
 
-      <div className='rounded-md border'>
+      <div className='overflow-x-auto rounded-md border'>
         <table className='w-full text-sm'>
           <thead>
             <tr className='bg-muted/50 border-b'>
-              <th className='px-4 py-3 text-left font-medium'>이름</th>
-              <th className='px-4 py-3 text-left font-medium'>소속</th>
-              <th className='w-28 px-4 py-3 text-left font-medium'>출결</th>
-              <th className='w-28 px-4 py-3 text-left font-medium'>
+              <th className='whitespace-nowrap px-4 py-3 text-left font-medium'>이름</th>
+              <th className='whitespace-nowrap px-4 py-3 text-left font-medium'>소속</th>
+              <th className='w-28 whitespace-nowrap px-4 py-3 text-left font-medium'>출결</th>
+              <th className='w-28 whitespace-nowrap px-4 py-3 text-left font-medium'>
                 {hasTime ? '도착 / 퇴장' : '시간'}
               </th>
               {hasTime && (
-                <th className='w-20 px-4 py-3 text-center font-medium'>인정시간</th>
+                <th className='w-20 whitespace-nowrap px-4 py-3 text-center font-medium'>인정시간</th>
               )}
-              <th className='px-4 py-3 text-left font-medium'>비고</th>
+              <th className='whitespace-nowrap px-4 py-3 text-left font-medium'>비고</th>
             </tr>
           </thead>
           <tbody>
             {filteredStudents.map((s) => {
-              const status = statuses[s.id] ?? 'present';
+              const status = statuses[s.id] ?? 'none';
               const credited = calcCreditedHours(
                 status, sessionStartTime, sessionEndTime,
                 breakMinutes, arrivalTimes[s.id], departureTimes[s.id]
@@ -219,7 +237,20 @@ export function AttendanceTable({
               return (
                 <tr key={s.id} className='border-b last:border-0'>
                   <td className='px-4 py-2 font-medium'>{s.name}</td>
-                  <td className='text-muted-foreground px-4 py-2'>{getOrgName(s.organizations)}</td>
+                  <td className='px-4 py-2'>
+                    {(() => {
+                      const orgName = getOrgName(s.organizations);
+                      const category = classifyOrganization(orgName);
+                      return (
+                        <div className='flex min-w-0 items-center gap-2'>
+                          <Badge variant='outline' className={`shrink-0 ${CATEGORY_CLASS[category]}`}>
+                            {ORGANIZATION_CATEGORY_LABEL[category]}
+                          </Badge>
+                          <span className='text-muted-foreground truncate'>{orgName}</span>
+                        </div>
+                      );
+                    })()}
+                  </td>
                   <td className='px-4 py-2'>
                     <Select
                       value={status}

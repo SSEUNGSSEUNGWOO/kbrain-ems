@@ -1,7 +1,8 @@
 import PageContainer from '@/components/layout/page-container';
 import { db } from '@/lib/db';
 import { cohorts } from '@/lib/db/schema';
-import { desc } from 'drizzle-orm';
+import { desc, sql } from 'drizzle-orm';
+import { Icons } from '@/components/icons';
 import { CreateCohortSheet } from './_components/create-cohort-sheet';
 import { CohortCard } from './_components/cohort-card';
 
@@ -13,7 +14,9 @@ export default async function CohortsPage() {
         name: cohorts.name,
         started_at: cohorts.startedAt,
         ended_at: cohorts.endedAt,
-        created_at: cohorts.createdAt
+        created_at: cohorts.createdAt,
+        student_count: sql<number>`(select count(*)::int from students s where s.cohort_id = cohorts.id)`,
+        session_count: sql<number>`(select count(*)::int from sessions ss where ss.cohort_id = cohorts.id)`
       })
       .from(cohorts)
       .orderBy(desc(cohorts.createdAt));
@@ -25,11 +28,15 @@ export default async function CohortsPage() {
         pageHeaderAction={<CreateCohortSheet />}
       >
         {!data || data.length === 0 ? (
-          <div className='text-muted-foreground rounded-md border p-8 text-center'>
-            등록된 기수가 없습니다. 우측 상단 [+ 기수 추가]로 등록해주세요.
+          <div className='flex flex-col items-center justify-center rounded-xl border border-dashed py-16'>
+            <div className='mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-violet-100 dark:bg-violet-900/40'>
+              <Icons.galleryVerticalEnd className='h-6 w-6 text-violet-500' />
+            </div>
+            <p className='text-foreground mb-1 font-medium'>등록된 기수가 없습니다</p>
+            <p className='text-muted-foreground mb-4 text-sm'>우측 상단 [+ 기수 추가]로 첫 교육과정을 등록해주세요.</p>
           </div>
         ) : (
-          <ul className='grid gap-3 sm:grid-cols-2 lg:grid-cols-3'>
+          <ul className='grid gap-4 sm:grid-cols-2 lg:grid-cols-3'>
             {data.map((c) => (
               <li key={c.id}>
                 <CohortCard cohort={c} />

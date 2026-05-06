@@ -97,6 +97,7 @@ const METRO_OVERRIDES = [
 ];
 
 const BASIC_LOCAL_PREFIXES = [
+  '경기도',
   '경상남도',
   '경상북도',
   '서울시',

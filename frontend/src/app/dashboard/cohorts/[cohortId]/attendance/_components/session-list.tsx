@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { Fragment, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
@@ -162,8 +162,8 @@ export function SessionList({
         </div>
       )}
 
-      <div className='rounded-md border'>
-        <table className='w-full table-fixed text-sm'>
+      <div className='overflow-x-auto rounded-md border'>
+        <table className='w-full text-sm'>
           <thead>
             <tr className='bg-muted/50 border-b'>
               <th className='w-10 px-4 py-3'>
@@ -175,14 +175,14 @@ export function SessionList({
                   className={isIndeterminate ? 'opacity-60' : ''}
                 />
               </th>
-              <th className='w-44 px-4 py-3 text-left font-medium'>날짜</th>
+              <th className='whitespace-nowrap px-4 py-3 text-left font-medium'>날짜</th>
               <th className='px-4 py-3 text-left font-medium'>제목</th>
-              <th className='w-32 px-4 py-3 text-left font-medium'>수업 시간</th>
-              <th className='w-14 px-4 py-3 text-center font-medium'>출석</th>
-              <th className='w-14 px-4 py-3 text-center font-medium'>결석</th>
-              <th className='w-14 px-4 py-3 text-center font-medium'>지각</th>
-              <th className='w-14 px-4 py-3 text-center font-medium'>조퇴</th>
-              <th className='w-14 px-4 py-3 text-center font-medium'>공결</th>
+              <th className='whitespace-nowrap px-4 py-3 text-left font-medium'>수업 시간</th>
+              <th className='whitespace-nowrap px-4 py-3 text-center font-medium'>출석</th>
+              <th className='whitespace-nowrap px-4 py-3 text-center font-medium'>결석</th>
+              <th className='whitespace-nowrap px-4 py-3 text-center font-medium'>지각</th>
+              <th className='whitespace-nowrap px-4 py-3 text-center font-medium'>조퇴</th>
+              <th className='whitespace-nowrap px-4 py-3 text-center font-medium'>공결</th>
               <th className='w-16 px-4 py-3'></th>
             </tr>
           </thead>
@@ -198,14 +198,22 @@ export function SessionList({
               const excused = byStatus('excused');
               const total = records.length;
               const breakMin = s.break_minutes ?? 0;
-              const timeLabel = s.start_time && s.end_time
-                ? `${s.start_time.slice(0, 5)} ~ ${s.end_time.slice(0, 5)}${breakMin > 0 ? ` (휴식 ${breakMin}분)` : ''}`
-                : '-';
+              let timeLabel = '-';
+              let hoursLabel = '';
+              if (s.start_time && s.end_time) {
+                const [sh, sm] = s.start_time.split(':').map(Number);
+                const [eh, em] = s.end_time.split(':').map(Number);
+                const totalMin = (eh * 60 + em) - (sh * 60 + sm) - breakMin;
+                const hours = Math.floor(totalMin / 60);
+                const mins = totalMin % 60;
+                hoursLabel = mins > 0 ? `${hours}시간 ${mins}분` : `${hours}시간`;
+                timeLabel = `${s.start_time.slice(0, 5)} ~ ${s.end_time.slice(0, 5)}`;
+              }
 
               return (
-              <>
+              <Fragment key={s.id}>
                 {i === pastStartIndex && pastStartIndex > 0 && pastStartIndex < sessions.length && (
-                  <tr key='divider'>
+                  <tr>
                     <td colSpan={9} className='px-4 py-2'>
                       <div className='text-muted-foreground flex items-center gap-2 text-xs'>
                         <div className='bg-border h-px flex-1' />
@@ -215,7 +223,7 @@ export function SessionList({
                     </td>
                   </tr>
                 )}
-                <tr key={s.id} className={`hover:bg-muted/30 group border-b transition-colors last:border-0 ${selected.has(s.id) ? 'bg-muted/40' : ''}`}>
+                <tr className={`hover:bg-muted/30 group border-b transition-colors last:border-0 ${selected.has(s.id) ? 'bg-muted/40' : ''}`}>
                   <td className='px-4 py-3'>
                     <Checkbox
                       checked={selected.has(s.id)}
@@ -224,12 +232,26 @@ export function SessionList({
                     />
                   </td>
                   <td className='px-4 py-3'>
-                    <Link href={`/dashboard/cohorts/${cohortId}/attendance/${s.id}`} className='font-medium hover:underline'>
-                      {formatDate(s.session_date)}
-                    </Link>
+                    <div className='flex items-center gap-2'>
+                      {total === 0 && (
+                        <span className='h-2 w-2 shrink-0 rounded-full bg-muted-foreground/30' title='미입력' />
+                      )}
+                      {total > 0 && absent.length === 0 && (
+                        <span className='h-2 w-2 shrink-0 rounded-full bg-emerald-500' title='전원 출석' />
+                      )}
+                      {total > 0 && absent.length > 0 && (
+                        <span className='h-2 w-2 shrink-0 rounded-full bg-amber-500' title='결석 있음' />
+                      )}
+                      <Link href={`/dashboard/cohorts/${cohortId}/attendance/${s.id}`} className='font-medium hover:underline'>
+                        {formatDate(s.session_date)}
+                      </Link>
+                    </div>
                   </td>
                   <td className='text-muted-foreground px-4 py-3'>{s.title ?? '-'}</td>
-                  <td className='text-muted-foreground px-4 py-3 text-xs'>{timeLabel}</td>
+                  <td className='whitespace-nowrap px-4 py-3 text-xs'>
+                    <span className='text-muted-foreground'>{timeLabel}</span>
+                    {hoursLabel && <span className='text-foreground ml-1.5 font-medium'>({hoursLabel})</span>}
+                  </td>
                   <td className='px-4 py-3 text-center'>
                     {total > 0 ? <StatusCell count={present.length} names={present} className='text-green-600' /> : <span className='text-muted-foreground'>-</span>}
                   </td>
@@ -256,7 +278,7 @@ export function SessionList({
                     </div>
                   </td>
                 </tr>
-              </>
+              </Fragment>
             );
           })}
           </tbody>
