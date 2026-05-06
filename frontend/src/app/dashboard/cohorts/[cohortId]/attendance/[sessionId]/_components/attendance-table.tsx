@@ -50,25 +50,49 @@ function toMinutes(t: string): number {
   return h * 60 + m;
 }
 
+function calcBreakOverlap(
+  attendStart: number,
+  attendEnd: number,
+  breakStartTime: string | null,
+  breakMinutes: number
+): number {
+  if (!breakStartTime || breakMinutes <= 0) return 0;
+  const bStart = toMinutes(breakStartTime);
+  const bEnd = bStart + breakMinutes;
+  // 참석 구간과 휴식 구간의 겹침
+  const overlapStart = Math.max(attendStart, bStart);
+  const overlapEnd = Math.min(attendEnd, bEnd);
+  return Math.max(0, overlapEnd - overlapStart);
+}
+
 function calcCreditedHours(
   status: string,
   sessionStart: string | null,
   sessionEnd: string | null,
   breakMinutes: number,
   arrivalTime: string,
-  departureTime: string
+  departureTime: string,
+  breakStartTime: string | null
 ): number | null {
   if (!sessionStart || !sessionEnd) return null;
   if (status === 'none') return null;
   const round = (min: number) => Math.round((Math.max(0, min) / 60) * 10) / 10;
-  const totalMin = toMinutes(sessionEnd) - toMinutes(sessionStart) - breakMinutes;
+  const sStart = toMinutes(sessionStart);
+  const sEnd = toMinutes(sessionEnd);
+  const totalMin = sEnd - sStart - breakMinutes;
   if (status === 'present') return round(totalMin);
   if (status === 'absent' || status === 'excused') return 0;
   if (status === 'late' && arrivalTime) {
-    return round(toMinutes(sessionEnd) - toMinutes(arrivalTime) - breakMinutes);
+    const aStart = toMinutes(arrivalTime);
+    const attended = sEnd - aStart;
+    const breakUsed = calcBreakOverlap(aStart, sEnd, breakStartTime, breakMinutes);
+    return round(attended - breakUsed);
   }
   if (status === 'early_leave' && departureTime) {
-    return round(toMinutes(departureTime) - toMinutes(sessionStart) - breakMinutes);
+    const dEnd = toMinutes(departureTime);
+    const attended = dEnd - sStart;
+    const breakUsed = calcBreakOverlap(sStart, dEnd, breakStartTime, breakMinutes);
+    return round(attended - breakUsed);
   }
   return null;
 }
@@ -101,6 +125,7 @@ interface AttendanceTableProps {
   sessionStartTime: string | null;
   sessionEndTime: string | null;
   breakMinutes: number;
+  breakStartTime: string | null;
 }
 
 export function AttendanceTable({
@@ -110,7 +135,8 @@ export function AttendanceTable({
   recordMap,
   sessionStartTime,
   sessionEndTime,
-  breakMinutes
+  breakMinutes,
+  breakStartTime
 }: AttendanceTableProps) {
   const [statuses, setStatuses] = useState<Record<string, string>>(
     Object.fromEntries(students.map((s) => [s.id, recordMap[s.id]?.status ?? 'none']))
@@ -143,7 +169,7 @@ export function AttendanceTable({
         const status = statuses[s.id];
         const arrivalTime = arrivalTimes[s.id] || null;
         const departureTime = departureTimes[s.id] || null;
-        const credited = calcCreditedHours(status, sessionStartTime, sessionEndTime, breakMinutes, arrivalTimes[s.id], departureTimes[s.id]);
+        const credited = calcCreditedHours(status, sessionStartTime, sessionEndTime, breakMinutes, arrivalTimes[s.id], departureTimes[s.id], breakStartTime);
         return {
           student_id: s.id,
           status,
@@ -231,7 +257,7 @@ export function AttendanceTable({
               const status = statuses[s.id] ?? 'none';
               const credited = calcCreditedHours(
                 status, sessionStartTime, sessionEndTime,
-                breakMinutes, arrivalTimes[s.id], departureTimes[s.id]
+                breakMinutes, arrivalTimes[s.id], departureTimes[s.id], breakStartTime
               );
 
               return (
@@ -243,7 +269,7 @@ export function AttendanceTable({
                       const category = classifyOrganization(orgName);
                       return (
                         <div className='flex min-w-0 items-center gap-2'>
-                          <Badge variant='outline' className={`shrink-0 ${CATEGORY_CLASS[category]}`}>
+                          <Badge variant='outline' className={`min-w-[4.5rem] shrink-0 justify-center text-center ${CATEGORY_CLASS[category]}`}>
                             {ORGANIZATION_CATEGORY_LABEL[category]}
                           </Badge>
                           <span className='text-muted-foreground truncate'>{orgName}</span>

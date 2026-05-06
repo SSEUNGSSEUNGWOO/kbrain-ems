@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/lib/auth-context';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -63,6 +64,7 @@ export function StudentTable({ cohortId, students }: { cohortId: string; student
   const [bulkDeleteError, setBulkDeleteError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const router = useRouter();
+  const { isDeveloper } = useAuth();
 
   const categoryCounts = students.reduce((acc, student) => {
     const category = classifyOrganization(getOrgName(student.organizations));
@@ -141,7 +143,7 @@ export function StudentTable({ cohortId, students }: { cohortId: string; student
   return (
     <>
       {/* 선택 툴바 */}
-      {selected.size > 0 && (
+      {isDeveloper && selected.size > 0 && (
         <div className='bg-muted/60 mb-2 flex items-center justify-between rounded-md border px-4 py-2'>
           <span className='text-sm'>{selected.size}명 선택됨</span>
           <Button
@@ -176,15 +178,17 @@ export function StudentTable({ cohortId, students }: { cohortId: string; student
         <table className='w-full text-sm'>
           <thead>
             <tr className='bg-muted/50 border-b'>
-              <th className='w-10 px-4 py-3'>
-                <Checkbox
-                  checked={isAllSelected}
-                  data-indeterminate={isIndeterminate}
-                  onCheckedChange={toggleAll}
-                  aria-label='전체 선택'
-                  className={isIndeterminate ? 'opacity-60' : ''}
-                />
-              </th>
+              {isDeveloper && (
+                <th className='w-10 px-4 py-3'>
+                  <Checkbox
+                    checked={isAllSelected}
+                    data-indeterminate={isIndeterminate}
+                    onCheckedChange={toggleAll}
+                    aria-label='전체 선택'
+                    className={isIndeterminate ? 'opacity-60' : ''}
+                  />
+                </th>
+              )}
               <th className='px-4 py-3 text-left font-medium'>이름</th>
               <th className='px-4 py-3 text-left font-medium'>소속</th>
               <th className='whitespace-nowrap px-4 py-3 text-left font-medium'>생년월일</th>
@@ -204,17 +208,19 @@ export function StudentTable({ cohortId, students }: { cohortId: string; student
                   key={s.id}
                   className={`group border-b transition-colors last:border-0 hover:bg-muted/30 ${selected.has(s.id) ? 'bg-muted/40' : ''}`}
                 >
-                  <td className='px-4 py-3'>
-                    <Checkbox
-                      checked={selected.has(s.id)}
-                      onCheckedChange={() => toggleOne(s.id)}
-                      aria-label={`${s.name} 선택`}
-                    />
-                  </td>
+                  {isDeveloper && (
+                    <td className='px-4 py-3'>
+                      <Checkbox
+                        checked={selected.has(s.id)}
+                        onCheckedChange={() => toggleOne(s.id)}
+                        aria-label={`${s.name} 선택`}
+                      />
+                    </td>
+                  )}
                   <td className='px-4 py-3 font-medium'>{s.name}</td>
                   <td className='px-4 py-3'>
                     <div className='flex min-w-0 items-center gap-2'>
-                      <Badge variant='outline' className={`shrink-0 ${CATEGORY_CLASS[category]}`}>
+                      <Badge variant='outline' className={`min-w-[4.5rem] shrink-0 justify-center text-center ${CATEGORY_CLASS[category]}`}>
                         {ORGANIZATION_CATEGORY_LABEL[category]}
                       </Badge>
                       <span className='text-muted-foreground truncate'>{orgName}</span>
@@ -254,14 +260,16 @@ export function StudentTable({ cohortId, students }: { cohortId: string; student
                           </Button>
                         }
                       />
-                      <Button
-                        variant='ghost'
-                        size='icon'
-                        className='text-destructive hover:text-destructive h-7 w-7'
-                        onClick={() => { setDeleteError(null); setDeleteTarget(s); }}
-                      >
-                        <Icons.trash className='h-3.5 w-3.5' />
-                      </Button>
+                      {isDeveloper && (
+                        <Button
+                          variant='ghost'
+                          size='icon'
+                          className='text-destructive hover:text-destructive h-7 w-7'
+                          onClick={() => { setDeleteError(null); setDeleteTarget(s); }}
+                        >
+                          <Icons.trash className='h-3.5 w-3.5' />
+                        </Button>
+                      )}
                     </div>
                   </td>
                 </tr>

@@ -28,7 +28,9 @@ export default async function SessionAttendancePage({
         title: sessions.title,
         start_time: sessions.startTime,
         end_time: sessions.endTime,
-        break_minutes: sessions.breakMinutes
+        break_minutes: sessions.breakMinutes,
+        break_start_time: sessions.breakStartTime,
+        break_end_time: sessions.breakEndTime
       })
       .from(sessions)
       .where(eq(sessions.id, sessionId))
@@ -101,6 +103,7 @@ export default async function SessionAttendancePage({
         sessionStartTime={session.start_time?.slice(0, 5) ?? null}
         sessionEndTime={session.end_time?.slice(0, 5) ?? null}
         breakMinutes={breakMin}
+        breakStartTime={session.break_start_time?.slice(0, 5) ?? null}
       />
     </PageContainer>
   );

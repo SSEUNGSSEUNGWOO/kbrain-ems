@@ -1,11 +1,13 @@
 import Link from 'next/link';
 import PageContainer from '@/components/layout/page-container';
 import { db } from '@/lib/db';
-import { cohorts, students, sessions, attendanceRecords } from '@/lib/db/schema';
+import { cohorts, students, sessions, attendanceRecords, organizations } from '@/lib/db/schema';
 import { eq, asc, sql, ne, and, lt } from 'drizzle-orm';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Icons } from '@/components/icons';
+import { classifyOrganization, ORGANIZATION_CATEGORY_LABEL, type OrganizationCategory } from '@/lib/organization-category';
+import { CategoryPieChart } from './_components/category-pie-chart';
 
 const DOW = ['일', '월', '화', '수', '목', '금', '토'] as const;
 
@@ -129,6 +131,33 @@ export default async function OverviewPage() {
   }
   const globalRate = globalTotal > 0 ? Math.round((globalPresent / globalTotal) * 100) : null;
 
+  // 소속 카테고리별 집계
+  const allStudentOrgs = await db
+    .select({ orgName: organizations.name })
+    .from(students)
+    .leftJoin(organizations, eq(students.organizationId, organizations.id));
+
+  const CATEGORY_COLORS: Record<OrganizationCategory, string> = {
+    central: '#3b82f6',
+    basic_local: '#10b981',
+    metro_local: '#06b6d4',
+    public: '#f59e0b',
+    education: '#8b5cf6',
+    unknown: '#94a3b8'
+  };
+
+  const categoryCounts = allStudentOrgs.reduce((acc, r) => {
+    const cat = classifyOrganization(r.orgName);
+    acc[cat] = (acc[cat] ?? 0) + 1;
+    return acc;
+  }, {} as Record<OrganizationCategory, number>);
+
+  const categoryChartData = (Object.keys(ORGANIZATION_CATEGORY_LABEL) as OrganizationCategory[]).map((key) => ({
+    name: ORGANIZATION_CATEGORY_LABEL[key],
+    value: categoryCounts[key] ?? 0,
+    color: CATEGORY_COLORS[key]
+  }));
+
   return (
     <PageContainer
       pageTitle='대시보드'
@@ -221,6 +250,18 @@ export default async function OverviewPage() {
           </Card>
         </div>
       )}
+
+      {/* 소속 분포 */}
+      <div className='mb-8'>
+        <Card>
+          <CardHeader className='pb-3'>
+            <CardTitle className='text-base'>소속 분포</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <CategoryPieChart data={categoryChartData} />
+          </CardContent>
+        </Card>
+      </div>
 
       {/* 교육과정별 현황 */}
       <div className='text-muted-foreground mb-3 text-sm font-medium'>교육과정 현황</div>

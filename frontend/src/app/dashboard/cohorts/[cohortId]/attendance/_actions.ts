@@ -12,9 +12,14 @@ function getTime(formData: FormData, key: string): string | null {
   return v || null;
 }
 
-function getBreakMinutes(formData: FormData): number {
-  const v = parseInt(String(formData.get('break_minutes') ?? '0'), 10);
-  return isNaN(v) || v < 0 ? 0 : v;
+function calcBreakMinutes(formData: FormData): number {
+  const start = String(formData.get('break_start_time') ?? '').trim();
+  const end = String(formData.get('break_end_time') ?? '').trim();
+  if (!start || !end) return 0;
+  const [sh, sm] = start.split(':').map(Number);
+  const [eh, em] = end.split(':').map(Number);
+  const diff = (eh * 60 + em) - (sh * 60 + sm);
+  return diff > 0 ? diff : 0;
 }
 
 export async function createSession(
@@ -32,7 +37,9 @@ export async function createSession(
       title: title || null,
       startTime: getTime(formData, 'start_time'),
       endTime: getTime(formData, 'end_time'),
-      breakMinutes: getBreakMinutes(formData)
+      breakMinutes: calcBreakMinutes(formData),
+      breakStartTime: getTime(formData, 'break_start_time'),
+      breakEndTime: getTime(formData, 'break_end_time')
     });
   } catch (e: unknown) {
     return { error: e instanceof Error ? e.message : '알 수 없는 오류가 발생했습니다.' };
@@ -82,7 +89,9 @@ export async function updateSession(
       title: title || null,
       startTime: getTime(formData, 'start_time'),
       endTime: getTime(formData, 'end_time'),
-      breakMinutes: getBreakMinutes(formData)
+      breakMinutes: calcBreakMinutes(formData),
+      breakStartTime: getTime(formData, 'break_start_time'),
+      breakEndTime: getTime(formData, 'break_end_time')
     }).where(eq(sessions.id, id));
   } catch (e: unknown) {
     return { error: e instanceof Error ? e.message : '알 수 없는 오류가 발생했습니다.' };

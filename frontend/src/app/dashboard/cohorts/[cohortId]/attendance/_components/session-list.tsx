@@ -3,6 +3,7 @@
 import { Fragment, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/lib/auth-context';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -44,6 +45,8 @@ type Session = {
   start_time: string | null;
   end_time: string | null;
   break_minutes: number | null;
+  break_start_time: string | null;
+  break_end_time: string | null;
   attendance_records: AttendanceRecord[];
 };
 
@@ -96,6 +99,7 @@ export function SessionList({
   const [bulkDeleteError, setBulkDeleteError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const router = useRouter();
+  const { isDeveloper } = useAuth();
 
   const allIds = sessions.map((s) => s.id);
   const isAllSelected = allIds.length > 0 && allIds.every((id) => selected.has(id));
@@ -149,7 +153,7 @@ export function SessionList({
   return (
     <>
       {/* 선택 삭제 툴바 */}
-      {selected.size > 0 && (
+      {isDeveloper && selected.size > 0 && (
         <div className='bg-muted/60 mb-2 flex items-center justify-between rounded-md border px-4 py-2'>
           <span className='text-sm'>{selected.size}개 선택됨</span>
           <Button
@@ -166,15 +170,17 @@ export function SessionList({
         <table className='w-full text-sm'>
           <thead>
             <tr className='bg-muted/50 border-b'>
-              <th className='w-10 px-4 py-3'>
-                <Checkbox
-                  checked={isAllSelected}
-                  data-indeterminate={isIndeterminate}
-                  onCheckedChange={toggleAll}
-                  aria-label='전체 선택'
-                  className={isIndeterminate ? 'opacity-60' : ''}
-                />
-              </th>
+              {isDeveloper && (
+                <th className='w-10 px-4 py-3'>
+                  <Checkbox
+                    checked={isAllSelected}
+                    data-indeterminate={isIndeterminate}
+                    onCheckedChange={toggleAll}
+                    aria-label='전체 선택'
+                    className={isIndeterminate ? 'opacity-60' : ''}
+                  />
+                </th>
+              )}
               <th className='whitespace-nowrap px-4 py-3 text-left font-medium'>날짜</th>
               <th className='px-4 py-3 text-left font-medium'>제목</th>
               <th className='whitespace-nowrap px-4 py-3 text-left font-medium'>수업 시간</th>
@@ -200,6 +206,7 @@ export function SessionList({
               const breakMin = s.break_minutes ?? 0;
               let timeLabel = '-';
               let hoursLabel = '';
+              let breakLabel = '';
               if (s.start_time && s.end_time) {
                 const [sh, sm] = s.start_time.split(':').map(Number);
                 const [eh, em] = s.end_time.split(':').map(Number);
@@ -208,6 +215,9 @@ export function SessionList({
                 const mins = totalMin % 60;
                 hoursLabel = mins > 0 ? `${hours}시간 ${mins}분` : `${hours}시간`;
                 timeLabel = `${s.start_time.slice(0, 5)} ~ ${s.end_time.slice(0, 5)}`;
+              }
+              if (s.break_start_time && s.break_end_time) {
+                breakLabel = `휴식 ${s.break_start_time.slice(0, 5)}~${s.break_end_time.slice(0, 5)} (${breakMin}분)`;
               }
 
               return (
@@ -224,13 +234,15 @@ export function SessionList({
                   </tr>
                 )}
                 <tr className={`hover:bg-muted/30 group border-b transition-colors last:border-0 ${selected.has(s.id) ? 'bg-muted/40' : ''}`}>
-                  <td className='px-4 py-3'>
-                    <Checkbox
-                      checked={selected.has(s.id)}
-                      onCheckedChange={() => toggleOne(s.id)}
-                      aria-label={`${formatDate(s.session_date)} 선택`}
-                    />
-                  </td>
+                  {isDeveloper && (
+                    <td className='px-4 py-3'>
+                      <Checkbox
+                        checked={selected.has(s.id)}
+                        onCheckedChange={() => toggleOne(s.id)}
+                        aria-label={`${formatDate(s.session_date)} 선택`}
+                      />
+                    </td>
+                  )}
                   <td className='px-4 py-3'>
                     <div className='flex items-center gap-2'>
                       {total === 0 && (
@@ -249,8 +261,11 @@ export function SessionList({
                   </td>
                   <td className='text-muted-foreground px-4 py-3'>{s.title ?? '-'}</td>
                   <td className='whitespace-nowrap px-4 py-3 text-xs'>
-                    <span className='text-muted-foreground'>{timeLabel}</span>
-                    {hoursLabel && <span className='text-foreground ml-1.5 font-medium'>({hoursLabel})</span>}
+                    <div>
+                      <span className='text-muted-foreground'>{timeLabel}</span>
+                      {hoursLabel && <span className='text-foreground ml-1.5 font-medium'>({hoursLabel})</span>}
+                    </div>
+                    {breakLabel && <div className='text-muted-foreground/70 mt-0.5'>{breakLabel}</div>}
                   </td>
                   <td className='px-4 py-3 text-center'>
                     {total > 0 ? <StatusCell count={present.length} names={present} className='text-green-600' /> : <span className='text-muted-foreground'>-</span>}
@@ -272,9 +287,11 @@ export function SessionList({
                       <Button variant='ghost' size='icon' className='h-7 w-7' onClick={() => { setEditError(null); setEditTarget(s); }}>
                         <Icons.edit className='h-3.5 w-3.5' />
                       </Button>
-                      <Button variant='ghost' size='icon' className='text-destructive hover:text-destructive h-7 w-7' onClick={() => { setDeleteError(null); setDeleteTarget(s); }}>
-                        <Icons.trash className='h-3.5 w-3.5' />
-                      </Button>
+                      {isDeveloper && (
+                        <Button variant='ghost' size='icon' className='text-destructive hover:text-destructive h-7 w-7' onClick={() => { setDeleteError(null); setDeleteTarget(s); }}>
+                          <Icons.trash className='h-3.5 w-3.5' />
+                        </Button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -306,10 +323,17 @@ export function SessionList({
                 <Input id='edit-end' name='end_time' type='time' defaultValue={editTarget?.end_time?.slice(0, 5) ?? ''} key={editTarget?.id + '-end'} />
               </div>
             </div>
-            <div className='grid gap-2'>
-              <Label htmlFor='edit-break'>휴식 시간 (분)</Label>
-              <Input id='edit-break' name='break_minutes' type='number' min='0' step='10'
-                defaultValue={editTarget?.break_minutes ?? 60} key={editTarget?.id + '-break'} />
+            <div className='grid grid-cols-2 gap-3'>
+              <div className='grid gap-2'>
+                <Label htmlFor='edit-break-start'>휴식 시작</Label>
+                <Input id='edit-break-start' name='break_start_time' type='time'
+                  defaultValue={editTarget?.break_start_time?.slice(0, 5) ?? ''} key={editTarget?.id + '-break-start'} />
+              </div>
+              <div className='grid gap-2'>
+                <Label htmlFor='edit-break-end'>휴식 끝</Label>
+                <Input id='edit-break-end' name='break_end_time' type='time'
+                  defaultValue={editTarget?.break_end_time?.slice(0, 5) ?? ''} key={editTarget?.id + '-break-end'} />
+              </div>
             </div>
             <div className='grid gap-2'>
               <Label htmlFor='edit-title'>제목 (선택)</Label>

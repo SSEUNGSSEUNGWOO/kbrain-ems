@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/lib/auth-context';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -43,6 +44,7 @@ export function CohortCard({ cohort }: { cohort: Cohort }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+  const { isDeveloper } = useAuth();
 
   const onUpdate = (formData: FormData) => {
     setError(null);
@@ -86,24 +88,26 @@ export function CohortCard({ cohort }: { cohort: Cohort }) {
             </Badge>
           </div>
         </Link>
-        <div className='absolute right-2 top-2 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100'>
-          <Button
-            variant='ghost'
-            size='icon'
-            className='h-7 w-7'
-            onClick={(e) => { e.preventDefault(); setEditOpen(true); }}
-          >
-            <Icons.edit className='h-3.5 w-3.5' />
-          </Button>
-          <Button
-            variant='ghost'
-            size='icon'
-            className='text-destructive hover:text-destructive h-7 w-7'
-            onClick={(e) => { e.preventDefault(); setError(null); setDeleteOpen(true); }}
-          >
-            <Icons.trash className='h-3.5 w-3.5' />
-          </Button>
-        </div>
+        {isDeveloper && (
+          <div className='absolute right-2 top-2 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100'>
+            <Button
+              variant='ghost'
+              size='icon'
+              className='h-7 w-7'
+              onClick={(e) => { e.preventDefault(); setEditOpen(true); }}
+            >
+              <Icons.edit className='h-3.5 w-3.5' />
+            </Button>
+            <Button
+              variant='ghost'
+              size='icon'
+              className='text-destructive hover:text-destructive h-7 w-7'
+              onClick={(e) => { e.preventDefault(); setError(null); setDeleteOpen(true); }}
+            >
+              <Icons.trash className='h-3.5 w-3.5' />
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* 수정 Sheet */}

@@ -60,9 +60,15 @@ export function CreateSessionSheet({ cohortId }: { cohortId: string }) {
               <Input id='end_time' name='end_time' type='time' />
             </div>
           </div>
-          <div className='grid gap-2'>
-            <Label htmlFor='break_minutes'>휴식 시간 (분)</Label>
-            <Input id='break_minutes' name='break_minutes' type='number' min='0' step='10' defaultValue='60' placeholder='예: 60' />
+          <div className='grid grid-cols-2 gap-3'>
+            <div className='grid gap-2'>
+              <Label htmlFor='break_start_time'>휴식 시작</Label>
+              <Input id='break_start_time' name='break_start_time' type='time' defaultValue='12:00' />
+            </div>
+            <div className='grid gap-2'>
+              <Label htmlFor='break_end_time'>휴식 끝</Label>
+              <Input id='break_end_time' name='break_end_time' type='time' defaultValue='13:00' />
+            </div>
           </div>
           <div className='grid gap-2'>
             <Label htmlFor='title'>제목 (선택)</Label>
