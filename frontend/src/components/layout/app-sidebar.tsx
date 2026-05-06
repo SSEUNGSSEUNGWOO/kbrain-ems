@@ -19,6 +19,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import * as React from 'react';
+import { useAuth } from '@/lib/auth-context';
 import { Icons } from '../icons';
 
 type Cohort = { id: string; name: string };
@@ -32,6 +33,7 @@ const DOMAINS = [
 
 export default function AppSidebar() {
   const pathname = usePathname();
+  const { isDeveloper } = useAuth();
   const [cohorts, setCohorts] = React.useState<Cohort[]>([]);
 
   const activeCohortId = pathname.match(/^\/dashboard\/cohorts\/([^/]+)/)?.[1] ?? null;
@@ -173,6 +175,22 @@ export default function AppSidebar() {
                 </CollapsibleContent>
               </SidebarMenuItem>
             </Collapsible>
+
+            {/* 운영자 관리 — 개발자만 */}
+            {isDeveloper && (
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  tooltip='운영자 관리'
+                  isActive={pathname === '/dashboard/operators'}
+                >
+                  <Link href='/dashboard/operators'>
+                    <Icons.settings className='text-muted-foreground' />
+                    <span>운영자 관리</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )}
 
           </SidebarMenu>
         </SidebarGroup>

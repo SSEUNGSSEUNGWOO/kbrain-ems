@@ -14,6 +14,20 @@ import {
   unique,
 } from "drizzle-orm/pg-core";
 
+export const operators = pgTable(
+  "operators",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    name: text("name").notNull(),
+    role: text("role").notNull().default("operator"), // 'developer' | 'operator'
+    title: text("title"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [uniqueIndex("operators_name_unique_idx").on(t.name)],
+);
+
 export const cohorts = pgTable(
   "cohorts",
   {
@@ -87,6 +101,8 @@ export const sessions = pgTable("sessions", {
   startTime: time("start_time"),
   endTime: time("end_time"),
   breakMinutes: integer("break_minutes").default(0),
+  breakStartTime: time("break_start_time"),
+  breakEndTime: time("break_end_time"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),

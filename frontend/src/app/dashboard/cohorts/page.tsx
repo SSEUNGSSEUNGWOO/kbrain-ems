@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { cohorts } from '@/lib/db/schema';
 import { desc, sql } from 'drizzle-orm';
 import { Icons } from '@/components/icons';
+import { isDeveloper } from '@/lib/auth';
 import { CreateCohortSheet } from './_components/create-cohort-sheet';
 import { CohortCard } from './_components/cohort-card';
 
@@ -21,11 +22,13 @@ export default async function CohortsPage() {
       .from(cohorts)
       .orderBy(desc(cohorts.createdAt));
 
+    const dev = await isDeveloper();
+
     return (
       <PageContainer
         pageTitle='교육과정'
         pageDescription='교육 기수를 선택해 인원·출결·과제·수료 등을 관리합니다.'
-        pageHeaderAction={<CreateCohortSheet />}
+        pageHeaderAction={dev ? <CreateCohortSheet /> : undefined}
       >
         {!data || data.length === 0 ? (
           <div className='flex flex-col items-center justify-center rounded-xl border border-dashed py-16'>

@@ -214,7 +214,7 @@ export function AssignmentSubmissionTable({
                       const category = classifyOrganization(orgName);
                       return (
                         <div className='flex min-w-0 items-center gap-2'>
-                          <Badge variant='outline' className={`shrink-0 ${CATEGORY_CLASS[category]}`}>
+                          <Badge variant='outline' className={`min-w-[4.5rem] shrink-0 justify-center text-center ${CATEGORY_CLASS[category]}`}>
                             {ORGANIZATION_CATEGORY_LABEL[category]}
                           </Badge>
                           <span className='text-muted-foreground truncate'>{orgName}</span>

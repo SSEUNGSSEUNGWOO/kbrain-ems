@@ -32,7 +32,9 @@ export default async function AttendancePage({
         title: sessions.title,
         start_time: sessions.startTime,
         end_time: sessions.endTime,
-        break_minutes: sessions.breakMinutes
+        break_minutes: sessions.breakMinutes,
+        break_start_time: sessions.breakStartTime,
+        break_end_time: sessions.breakEndTime
       })
       .from(sessions)
       .where(eq(sessions.cohortId, cohortId));

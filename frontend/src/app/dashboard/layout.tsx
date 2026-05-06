@@ -4,12 +4,14 @@ import Header from '@/components/layout/header';
 import { InfoSidebar } from '@/components/layout/info-sidebar';
 import { InfobarProvider } from '@/components/ui/infobar';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
+import { AuthProvider } from '@/lib/auth-context';
+import { getOperator } from '@/lib/auth';
 import type { Metadata } from 'next';
 import { cookies } from 'next/headers';
 
 export const metadata: Metadata = {
-  title: 'Next Shadcn Dashboard Starter',
-  description: 'Basic dashboard with Next.js and Shadcn',
+  title: 'K-Brain EMS',
+  description: '교육과정 관리 시스템',
   robots: {
     index: false,
     follow: false
@@ -17,21 +19,24 @@ export const metadata: Metadata = {
 };
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
-  // Persisting the sidebar state in the cookie.
   const cookieStore = await cookies();
   const defaultOpen = cookieStore.get('sidebar_state')?.value === 'true';
+  const operator = await getOperator();
+
   return (
-    <KBar>
-      <SidebarProvider defaultOpen={defaultOpen}>
-        <AppSidebar />
-        <SidebarInset>
-          <Header />
-          <InfobarProvider defaultOpen={false}>
-            {children}
-            <InfoSidebar side='right' />
-          </InfobarProvider>
-        </SidebarInset>
-      </SidebarProvider>
-    </KBar>
+    <AuthProvider name={operator?.name ?? ''} role={operator?.role ?? 'operator'} title={operator?.title ?? ''}>
+      <KBar>
+        <SidebarProvider defaultOpen={defaultOpen}>
+          <AppSidebar />
+          <SidebarInset>
+            <Header />
+            <InfobarProvider defaultOpen={false}>
+              {children}
+              <InfoSidebar side='right' />
+            </InfobarProvider>
+          </SidebarInset>
+        </SidebarProvider>
+      </KBar>
+    </AuthProvider>
   );
 }
