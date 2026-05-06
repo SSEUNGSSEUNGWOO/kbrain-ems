@@ -53,7 +53,7 @@ export default function LockPage() {
         <div className='flex flex-col items-center gap-3'>
           {/* 이름 */}
           <div
-            className='text-3xl font-bold text-foreground'
+            className='text-3xl font-bold text-slate-900'
             style={{
               animation: 'welcomeFadeUp 0.6s ease-out forwards',
               opacity: 0
@@ -75,7 +75,7 @@ export default function LockPage() {
 
           {/* 인사 */}
           <div
-            className='mt-2 text-base text-muted-foreground'
+            className='mt-2 text-base text-slate-500'
             style={{
               animation: 'welcomeFadeUp 0.6s ease-out 0.8s forwards',
               opacity: 0
@@ -139,15 +139,15 @@ export default function LockPage() {
               height={1326}
               className='h-8 w-auto'
             />
-            <span className='text-[10.5px] font-semibold uppercase tracking-[0.15em] text-muted-foreground'>
+            <span className='text-[10.5px] font-semibold uppercase tracking-[0.15em] text-slate-400'>
               Education Management System
             </span>
           </div>
 
           {/* 안내 */}
           <div className='mb-6 text-center'>
-            <h1 className='text-lg font-semibold text-foreground'>입장</h1>
-            <p className='mt-1 text-sm text-muted-foreground'>이름을 입력해주세요</p>
+            <h1 className='text-lg font-semibold text-slate-900'>입장</h1>
+            <p className='mt-1 text-sm text-slate-500'>이름을 입력해주세요</p>
           </div>
 
           {/* 입력 폼 */}
@@ -159,7 +159,7 @@ export default function LockPage() {
                 onChange={(e) => { setName(e.target.value); setError(''); }}
                 placeholder='홍길동'
                 autoFocus
-                className='w-full rounded-lg border bg-background px-4 py-3 text-center text-base outline-none transition-colors placeholder:text-muted-foreground/50 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20'
+                className='w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-center text-base text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20'
               />
             </div>
 
@@ -179,7 +179,7 @@ export default function LockPage() {
           </form>
         </div>
 
-        <p className='mt-4 text-center text-xs text-muted-foreground'>
+        <p className='mt-4 text-center text-xs text-slate-400'>
           등록된 운영자만 입장할 수 있습니다
         </p>
       </div>
