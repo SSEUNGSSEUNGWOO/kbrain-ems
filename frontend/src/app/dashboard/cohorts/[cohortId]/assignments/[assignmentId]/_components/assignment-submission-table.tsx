@@ -10,7 +10,22 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import {
+  classifyOrganization,
+  ORGANIZATION_CATEGORY_LABEL,
+  type OrganizationCategory
+} from '@/lib/organization-category';
 import { saveAssignmentSubmissions } from '../_actions';
+
+const CATEGORY_CLASS: Record<OrganizationCategory, string> = {
+  central: 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-300',
+  basic_local: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300',
+  metro_local: 'border-cyan-200 bg-cyan-50 text-cyan-700 dark:border-cyan-900 dark:bg-cyan-950/40 dark:text-cyan-300',
+  public: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300',
+  education: 'border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-900 dark:bg-violet-950/40 dark:text-violet-300',
+  unknown: 'border-border bg-muted text-muted-foreground'
+};
 
 const STATUS_OPTIONS = [
   { value: 'not_submitted', label: '미제출' },
@@ -193,7 +208,20 @@ export function AssignmentSubmissionTable({
               return (
                 <tr key={student.id} className='border-b last:border-0'>
                   <td className='px-4 py-2 font-medium'>{student.name}</td>
-                  <td className='text-muted-foreground px-4 py-2'>{getOrgName(student.organizations)}</td>
+                  <td className='px-4 py-2'>
+                    {(() => {
+                      const orgName = getOrgName(student.organizations);
+                      const category = classifyOrganization(orgName);
+                      return (
+                        <div className='flex min-w-0 items-center gap-2'>
+                          <Badge variant='outline' className={`shrink-0 ${CATEGORY_CLASS[category]}`}>
+                            {ORGANIZATION_CATEGORY_LABEL[category]}
+                          </Badge>
+                          <span className='text-muted-foreground truncate'>{orgName}</span>
+                        </div>
+                      );
+                    })()}
+                  </td>
                   <td className='px-4 py-2'>
                     <Select
                       value={status}

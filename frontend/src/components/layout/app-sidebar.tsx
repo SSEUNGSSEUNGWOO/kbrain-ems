@@ -15,6 +15,7 @@ import {
   SidebarMenuSubItem,
   SidebarRail
 } from '@/components/ui/sidebar';
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import * as React from 'react';
@@ -23,10 +24,10 @@ import { Icons } from '../icons';
 type Cohort = { id: string; name: string };
 
 const DOMAINS = [
-  { slug: 'students', label: '인원 관리' },
-  { slug: 'attendance', label: '출결' },
-  { slug: 'assignments', label: '과제' },
-  { slug: 'completion', label: '수료' }
+  { slug: 'students', label: '인원 관리', icon: 'teams' as const, color: 'text-blue-500' },
+  { slug: 'attendance', label: '출결', icon: 'circleCheck' as const, color: 'text-emerald-500' },
+  { slug: 'assignments', label: '과제', icon: 'forms' as const, color: 'text-amber-500' },
+  { slug: 'completion', label: '수료', icon: 'badgeCheck' as const, color: 'text-violet-500' }
 ] as const;
 
 export default function AppSidebar() {
@@ -45,10 +46,29 @@ export default function AppSidebar() {
 
   return (
     <Sidebar collapsible='icon'>
-      <SidebarHeader className='p-4'>
-        <Link href='/dashboard/cohorts' className='flex items-center gap-2 font-semibold'>
-          <Icons.galleryVerticalEnd className='h-5 w-5 shrink-0' />
-          <span className='truncate text-sm'>교육과정 관리</span>
+      <SidebarHeader className='border-sidebar-border border-b p-0'>
+        <Link
+          href='/dashboard/overview'
+          className='relative flex flex-col items-start gap-2 overflow-hidden px-5 py-5 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-3'
+        >
+          {/* 배경 장식 */}
+          <div className='pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full bg-blue-400/10 blur-2xl' />
+          <div className='pointer-events-none absolute -bottom-4 -left-4 h-16 w-16 rounded-full bg-violet-400/10 blur-2xl' />
+
+          <Image
+            src='/k-brain-logo.png'
+            alt='K-Brain'
+            width={3233}
+            height={1326}
+            className='relative h-7 w-auto shrink-0 dark:brightness-0 dark:invert group-data-[collapsible=icon]:hidden'
+          />
+          <div className='relative flex items-center gap-1.5 group-data-[collapsible=icon]:hidden'>
+            <span className='inline-block h-1 w-1 rounded-full bg-blue-500' />
+            <span className='text-[10.5px] font-semibold uppercase tracking-[0.15em] text-muted-foreground'>
+              Education Management
+            </span>
+          </div>
+          <Icons.galleryVerticalEnd className='relative hidden h-6 w-6 shrink-0 text-primary group-data-[collapsible=icon]:block' />
         </Link>
       </SidebarHeader>
 
@@ -65,7 +85,7 @@ export default function AppSidebar() {
                 isActive={pathname === '/dashboard/overview'}
               >
                 <Link href='/dashboard/overview'>
-                  <Icons.dashboard />
+                  <Icons.dashboard className='text-blue-600 dark:text-blue-400' />
                   <span>대시보드</span>
                 </Link>
               </SidebarMenuButton>
@@ -78,7 +98,7 @@ export default function AppSidebar() {
               className='group/collapsible'
             >
               <SidebarMenuItem>
-                <div className='flex items-center'>
+                <div className='flex w-full items-center'>
                   <SidebarMenuButton
                     asChild
                     tooltip='교육과정'
@@ -86,11 +106,11 @@ export default function AppSidebar() {
                     className='flex-1'
                   >
                     <Link href='/dashboard/cohorts'>
-                      <Icons.galleryVerticalEnd />
+                      <Icons.galleryVerticalEnd className='text-violet-600 dark:text-violet-400' />
                       <span>교육과정</span>
                     </Link>
                   </SidebarMenuButton>
-                  <CollapsibleTrigger className='hover:bg-accent mr-1 rounded p-1'>
+                  <CollapsibleTrigger className='hover:bg-accent shrink-0 rounded p-1 group-data-[collapsible=icon]:hidden'>
                     <Icons.chevronRight className='h-4 w-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90' />
                   </CollapsibleTrigger>
                 </div>
@@ -108,37 +128,42 @@ export default function AppSidebar() {
                           defaultOpen={activeCohortId === cohort.id}
                           className='group/cohort w-full'
                         >
-                          <div className='flex items-center'>
+                          <div className='flex w-full items-center'>
                             <SidebarMenuSubButton
                               asChild
-                              isActive={pathname === `/dashboard/cohorts/${cohort.id}`}
                               className='flex-1'
+                              isActive={pathname === `/dashboard/cohorts/${cohort.id}`}
                             >
                               <Link href={`/dashboard/cohorts/${cohort.id}`}>
+                                <span className={`h-2 w-2 shrink-0 rounded-full ${activeCohortId === cohort.id ? 'bg-emerald-500' : 'bg-muted-foreground/40'}`} />
                                 <span className='truncate'>{cohort.name}</span>
                               </Link>
                             </SidebarMenuSubButton>
-                            <CollapsibleTrigger className='hover:bg-accent mr-1 rounded p-1'>
+                            <CollapsibleTrigger className='hover:bg-accent shrink-0 rounded p-1'>
                               <Icons.chevronRight className='h-3 w-3 transition-transform duration-200 group-data-[state=open]/cohort:rotate-90' />
                             </CollapsibleTrigger>
                           </div>
 
                           <CollapsibleContent>
                             <SidebarMenuSub>
-                              {DOMAINS.map((d) => (
-                                <SidebarMenuSubItem key={d.slug}>
-                                  <SidebarMenuSubButton
-                                    asChild
-                                    isActive={pathname.startsWith(
-                                      `/dashboard/cohorts/${cohort.id}/${d.slug}`
-                                    )}
-                                  >
-                                    <Link href={`/dashboard/cohorts/${cohort.id}/${d.slug}`}>
-                                      <span>{d.label}</span>
-                                    </Link>
-                                  </SidebarMenuSubButton>
-                                </SidebarMenuSubItem>
-                              ))}
+                              {DOMAINS.map((d) => {
+                                const DomainIcon = Icons[d.icon];
+                                return (
+                                  <SidebarMenuSubItem key={d.slug}>
+                                    <SidebarMenuSubButton
+                                      asChild
+                                      isActive={pathname.startsWith(
+                                        `/dashboard/cohorts/${cohort.id}/${d.slug}`
+                                      )}
+                                    >
+                                      <Link href={`/dashboard/cohorts/${cohort.id}/${d.slug}`}>
+                                        <DomainIcon className={`h-3.5 w-3.5 shrink-0 ${d.color}`} />
+                                        <span>{d.label}</span>
+                                      </Link>
+                                    </SidebarMenuSubButton>
+                                  </SidebarMenuSubItem>
+                                );
+                              })}
                             </SidebarMenuSub>
                           </CollapsibleContent>
                         </Collapsible>

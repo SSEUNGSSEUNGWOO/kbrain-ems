@@ -24,6 +24,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle
 } from '@/components/ui/alert-dialog';
+import { Badge } from '@/components/ui/badge';
 import { Icons } from '@/components/icons';
 import { updateCohort, deleteCohort } from '../_actions';
 
@@ -32,6 +33,8 @@ type Cohort = {
   name: string;
   started_at: string | null;
   ended_at: string | null;
+  student_count: number;
+  session_count: number;
 };
 
 export function CohortCard({ cohort }: { cohort: Cohort }) {
@@ -61,11 +64,26 @@ export function CohortCard({ cohort }: { cohort: Cohort }) {
 
   return (
     <>
-      <div className='hover:bg-accent group relative rounded-md border p-4 transition-colors'>
-        <Link href={`/dashboard/cohorts/${cohort.id}`} className='block'>
-          <div className='pr-16 font-semibold'>{cohort.name}</div>
-          <div className='text-muted-foreground mt-1 text-xs'>
-            {cohort.started_at ?? '시작일 미정'} ~ {cohort.ended_at ?? '종료일 미정'}
+      <div className='group relative overflow-hidden rounded-xl border transition-all hover:shadow-md'>
+        <div className='absolute left-0 top-0 h-full w-1 bg-gradient-to-b from-blue-500 to-violet-500' />
+        <Link href={`/dashboard/cohorts/${cohort.id}`} className='block p-5 pl-5'>
+          <div className='flex items-start justify-between'>
+            <div className='pr-16'>
+              <div className='font-semibold'>{cohort.name}</div>
+              <div className='text-muted-foreground mt-1 text-xs'>
+                {cohort.started_at ?? '시작일 미정'} ~ {cohort.ended_at ?? '종료일 미정'}
+              </div>
+            </div>
+          </div>
+          <div className='mt-3 flex items-center gap-3'>
+            <Badge variant='outline' className='gap-1 border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-300'>
+              <Icons.teams className='h-3 w-3' />
+              {cohort.student_count}명
+            </Badge>
+            <Badge variant='outline' className='gap-1 border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-900 dark:bg-violet-950/40 dark:text-violet-300'>
+              <Icons.calendar className='h-3 w-3' />
+              {cohort.session_count}회
+            </Badge>
           </div>
         </Link>
         <div className='absolute right-2 top-2 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100'>

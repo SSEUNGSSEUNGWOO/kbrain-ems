@@ -3,6 +3,7 @@ import PageContainer from '@/components/layout/page-container';
 import { db } from '@/lib/db';
 import { cohorts, sessions, attendanceRecords, students } from '@/lib/db/schema';
 import { eq, inArray } from 'drizzle-orm';
+import { Icons } from '@/components/icons';
 import { CreateSessionSheet } from './_components/create-session-sheet';
 import { BulkCreateSessionSheet } from './_components/bulk-create-session-sheet';
 import { SessionList } from './_components/session-list';
@@ -95,8 +96,12 @@ export default async function AttendancePage({
         }
       >
         {allSessions.length === 0 ? (
-          <div className='text-muted-foreground rounded-md border p-8 text-center'>
-            등록된 수업이 없습니다. 우측 상단 [+ 수업 추가]로 등록해주세요.
+          <div className='flex flex-col items-center justify-center rounded-xl border border-dashed py-16'>
+            <div className='mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/40'>
+              <Icons.calendar className='h-6 w-6 text-emerald-500' />
+            </div>
+            <p className='text-foreground mb-1 font-medium'>등록된 수업이 없습니다</p>
+            <p className='text-muted-foreground text-sm'>우측 상단에서 수업을 추가해주세요.</p>
           </div>
         ) : (
           <SessionList cohortId={cohortId} sessions={allSessions} pastStartIndex={future.length} />

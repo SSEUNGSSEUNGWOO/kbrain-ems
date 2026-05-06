@@ -35,6 +35,8 @@ type Student = {
   email: string | null;
   phone: string | null;
   notes: string | null;
+  attendedSessions: number;
+  totalSessions: number;
 };
 
 function getOrgName(org: Student['organizations']): string {
@@ -74,7 +76,7 @@ export function StudentTable({ cohortId, students }: { cohortId: string; student
     { value: 'metro_local', label: ORGANIZATION_CATEGORY_LABEL.metro_local, count: categoryCounts.metro_local ?? 0 },
     { value: 'public', label: ORGANIZATION_CATEGORY_LABEL.public, count: categoryCounts.public ?? 0 },
     { value: 'education', label: ORGANIZATION_CATEGORY_LABEL.education, count: categoryCounts.education ?? 0 },
-    { value: 'unknown', label: ORGANIZATION_CATEGORY_LABEL.unknown, count: categoryCounts.unknown ?? 0 }
+    ...((categoryCounts.unknown ?? 0) > 0 ? [{ value: 'unknown' as const, label: ORGANIZATION_CATEGORY_LABEL.unknown, count: categoryCounts.unknown ?? 0 }] : [])
   ];
   const filteredStudents = categoryFilter === 'all'
     ? students
@@ -126,8 +128,12 @@ export function StudentTable({ cohortId, students }: { cohortId: string; student
 
   if (students.length === 0) {
     return (
-      <div className='text-muted-foreground rounded-md border p-8 text-center'>
-        등록된 인원이 없습니다.
+      <div className='flex flex-col items-center justify-center rounded-xl border border-dashed py-16'>
+        <div className='mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/40'>
+          <Icons.teams className='h-6 w-6 text-blue-500' />
+        </div>
+        <p className='text-foreground mb-1 font-medium'>등록된 인원이 없습니다</p>
+        <p className='text-muted-foreground text-sm'>우측 상단에서 인원을 추가해주세요.</p>
       </div>
     );
   }
@@ -181,8 +187,10 @@ export function StudentTable({ cohortId, students }: { cohortId: string; student
               </th>
               <th className='px-4 py-3 text-left font-medium'>이름</th>
               <th className='px-4 py-3 text-left font-medium'>소속</th>
-              <th className='px-4 py-3 text-left font-medium'>생년월일</th>
+              <th className='whitespace-nowrap px-4 py-3 text-left font-medium'>생년월일</th>
+              <th className='px-4 py-3 text-left font-medium'>전화번호</th>
               <th className='px-4 py-3 text-left font-medium'>이메일</th>
+              <th className='w-28 px-4 py-3 text-left font-medium'>출석률</th>
               <th className='w-20 px-4 py-3'></th>
             </tr>
           </thead>
@@ -212,8 +220,29 @@ export function StudentTable({ cohortId, students }: { cohortId: string; student
                       <span className='text-muted-foreground truncate'>{orgName}</span>
                     </div>
                   </td>
-                  <td className='text-muted-foreground px-4 py-3'>{s.birth_date ?? '-'}</td>
+                  <td className='text-muted-foreground whitespace-nowrap px-4 py-3'>{s.birth_date ?? '-'}</td>
+                  <td className='text-muted-foreground px-4 py-3'>{s.phone ?? '-'}</td>
                   <td className='text-muted-foreground px-4 py-3'>{s.email ?? '-'}</td>
+                  <td className='px-4 py-3'>
+                    {s.totalSessions > 0 ? (() => {
+                      const pct = Math.round((s.attendedSessions / s.totalSessions) * 100);
+                      const color = pct >= 80 ? 'bg-emerald-500' : pct >= 50 ? 'bg-amber-500' : 'bg-red-500';
+                      const textColor = pct >= 80 ? 'text-emerald-700 dark:text-emerald-400' : pct >= 50 ? 'text-amber-700 dark:text-amber-400' : 'text-red-700 dark:text-red-400';
+                      return (
+                        <div className='flex items-center gap-2'>
+                          <div className='bg-muted h-2 w-16 overflow-hidden rounded-full'>
+                            <div
+                              className={`h-full rounded-full transition-all ${color}`}
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                          <span className={`text-xs font-medium ${textColor}`}>
+                            {pct}%
+                          </span>
+                        </div>
+                      );
+                    })() : <span className='text-muted-foreground text-xs'>-</span>}
+                  </td>
                   <td className='px-4 py-3'>
                     <div className='flex justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100'>
                       <StudentSheet
