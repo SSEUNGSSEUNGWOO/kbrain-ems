@@ -2,7 +2,6 @@ import React from 'react';
 import { SidebarTrigger } from '../ui/sidebar';
 import { Separator } from '../ui/separator';
 import { Breadcrumbs } from '../breadcrumbs';
-import { ThemeModeToggle } from '../themes/theme-mode-toggle';
 import { UserNav } from './user-nav';
 
 export default function Header() {
@@ -14,7 +13,6 @@ export default function Header() {
         <Breadcrumbs />
       </div>
       <div className='flex items-center gap-2 px-4'>
-        <ThemeModeToggle />
         <UserNav />
       </div>
     </header>
