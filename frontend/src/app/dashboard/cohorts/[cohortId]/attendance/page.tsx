@@ -4,6 +4,7 @@ import { db } from '@/lib/db';
 import { cohorts, sessions, attendanceRecords, students } from '@/lib/db/schema';
 import { eq, inArray } from 'drizzle-orm';
 import { Icons } from '@/components/icons';
+import { Button } from '@/components/ui/button';
 import { CreateSessionSheet } from './_components/create-session-sheet';
 import { BulkCreateSessionSheet } from './_components/bulk-create-session-sheet';
 import { SessionList } from './_components/session-list';
@@ -92,6 +93,11 @@ export default async function AttendancePage({
         pageDescription='수업 회차별 출결 현황을 관리합니다.'
         pageHeaderAction={
           <div className='flex gap-2'>
+            <Button variant='outline' asChild>
+              <a href={`/api/cohorts/${cohortId}/attendance/export`}>
+                엑셀 다운로드
+              </a>
+            </Button>
             <BulkCreateSessionSheet cohortId={cohortId} />
             <CreateSessionSheet cohortId={cohortId} />
           </div>
