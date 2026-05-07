@@ -63,7 +63,10 @@ export const organizations = pgTable(
 export const students = pgTable(
   "students",
   {
-    id: uuid("id").defaultRandom().primaryKey(),
+    id: uuid("id")
+      .defaultRandom()
+      .primaryKey()
+      .references(() => applicants.id, { onDelete: "cascade" }),
     cohortId: uuid("cohort_id")
       .notNull()
       .references(() => cohorts.id, { onDelete: "restrict" }),
@@ -156,6 +159,60 @@ export const assignments = pgTable("assignments", {
     .defaultNow()
     .notNull(),
 });
+
+export const applicants = pgTable(
+  "applicants",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    name: text("name").notNull(),
+    email: text("email"),
+    phone: text("phone"),
+    organizationId: uuid("organization_id").references(() => organizations.id, {
+      onDelete: "set null",
+    }),
+    department: text("department"),
+    jobTitle: text("job_title"),
+    jobRole: text("job_role"),
+    birthDate: date("birth_date"),
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [index("applicants_organization_idx").on(t.organizationId)],
+);
+
+export const applications = pgTable(
+  "applications",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    applicantId: uuid("applicant_id")
+      .notNull()
+      .references(() => applicants.id, { onDelete: "cascade" }),
+    cohortId: uuid("cohort_id")
+      .notNull()
+      .references(() => cohorts.id, { onDelete: "restrict" }),
+    status: text("status").notNull().default("applied"),
+    rejectedStage: text("rejected_stage"),
+    appliedAt: date("applied_at"),
+    decidedAt: date("decided_at"),
+    note: text("note"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    unique("applications_applicant_cohort_key").on(t.applicantId, t.cohortId),
+    index("applications_applicant_idx").on(t.applicantId),
+    index("applications_cohort_idx").on(t.cohortId),
+  ],
+);
 
 export const assignmentSubmissions = pgTable(
   "assignment_submissions",

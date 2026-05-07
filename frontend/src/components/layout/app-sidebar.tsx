@@ -176,6 +176,20 @@ export default function AppSidebar() {
               </SidebarMenuItem>
             </Collapsible>
 
+            {/* 지원자 관리 — 글로벌 (기수 무관) */}
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                tooltip='지원자 관리'
+                isActive={pathname.startsWith('/dashboard/applicants')}
+              >
+                <Link href='/dashboard/applicants'>
+                  <Icons.teams className='text-amber-600 dark:text-amber-400' />
+                  <span>지원자 관리</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+
             {/* 운영자 관리 — 개발자만 */}
             {isDeveloper && (
               <SidebarMenuItem>
