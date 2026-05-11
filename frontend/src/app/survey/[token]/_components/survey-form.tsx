@@ -100,7 +100,7 @@ export function SurveyForm({ token, surveyTitle, studentName, questions }: Props
     startTransition(async () => {
       const result = await submitSurvey({ token, responses });
       if ('error' in result) {
-        setError(result.error);
+        setError(result.error ?? '제출에 실패했습니다.');
       } else {
         setDone(true);
       }
