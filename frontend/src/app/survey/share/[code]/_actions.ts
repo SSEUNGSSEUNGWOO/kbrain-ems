@@ -47,7 +47,18 @@ export async function lookupStudent({ code, name }: LookupInput): Promise<Lookup
 
   const org = student.organizations as unknown as { name: string } | null;
 
-  // 토큰 조회·발급
+  // 완료 여부 체크 — 응답 내용과 분리된 별도 테이블에서만 추적
+  const { data: completion } = await supabase
+    .from('survey_completions')
+    .select('id')
+    .eq('survey_id', survey.id)
+    .eq('student_id', student.id)
+    .maybeSingle();
+  if (completion) {
+    return { error: '이미 응답하신 설문입니다. 참여해 주셔서 감사합니다.' };
+  }
+
+  // 토큰 조회·발급 — 응답 진행 중에는 student_id 유지, 제출 시 submit action이 NULL로 변환
   let token: string;
   const { data: existing } = await supabase
     .from('survey_responses')
