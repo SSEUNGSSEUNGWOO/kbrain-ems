@@ -1,9 +1,27 @@
 'use server';
 
 import { createAdminClient } from '@/lib/supabase/server';
+import { getOperator } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
 
 type ActionResult = { error?: string };
+
+/** 로그인한 운영자의 cohort 표시 순서를 저장. drag&drop에서 호출. */
+export async function reorderCohorts(order: string[]): Promise<ActionResult> {
+  const operator = await getOperator();
+  if (!operator) return { error: '인증이 필요합니다.' };
+
+  const supabase = createAdminClient();
+  const { error } = await supabase
+    .from('operators')
+    .update({ cohort_order: order })
+    .eq('id', operator.id);
+  if (error) return { error: error.message };
+
+  revalidatePath('/dashboard/cohorts');
+  revalidatePath('/dashboard');
+  return {};
+}
 
 function val(formData: FormData, key: string): string {
   return String(formData.get(key) ?? '').trim();

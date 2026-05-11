@@ -19,6 +19,7 @@ export type Database = {
           role: string;
           title: string | null;
           auth_user_id: string | null;
+          cohort_order: string[];
           created_at: string;
         };
         Insert: {
@@ -27,6 +28,7 @@ export type Database = {
           role?: string;
           title?: string | null;
           auth_user_id?: string | null;
+          cohort_order?: string[];
           created_at?: string;
         };
         Update: {
@@ -35,6 +37,7 @@ export type Database = {
           role?: string;
           title?: string | null;
           auth_user_id?: string | null;
+          cohort_order?: string[];
           created_at?: string;
         };
         Relationships: [];

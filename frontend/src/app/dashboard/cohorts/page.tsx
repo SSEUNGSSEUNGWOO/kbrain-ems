@@ -1,13 +1,15 @@
 import PageContainer from '@/components/layout/page-container';
 import { createAdminClient } from '@/lib/supabase/server';
 import { Icons } from '@/components/icons';
-import { isDeveloper } from '@/lib/auth';
+import { getOperator, isDeveloper } from '@/lib/auth';
+import { sortCohortsByPreference } from '@/lib/cohort-sort';
 import { CreateCohortSheet } from './_components/create-cohort-sheet';
-import { CohortCard } from './_components/cohort-card';
+import { SortableCohortList } from './_components/sortable-cohort-list';
 
 export default async function CohortsPage() {
   try {
     const supabase = createAdminClient();
+    const operator = await getOperator();
 
     const { data: cohortRows, error: cohortError } = await supabase
       .from('cohorts')
@@ -17,7 +19,7 @@ export default async function CohortsPage() {
       .order('created_at', { ascending: false });
     if (cohortError) throw new Error(cohortError.message);
 
-    const cohorts = cohortRows ?? [];
+    const cohorts = sortCohortsByPreference(cohortRows ?? [], operator?.cohort_order ?? []);
 
     // Per-cohort student & session counts (group by 미지원 → JS reduce)
     const { data: studentRows } = await supabase
@@ -67,13 +69,7 @@ export default async function CohortsPage() {
             <p className='text-muted-foreground mb-4 text-sm'>우측 상단 [+ 기수 추가]로 첫 교육과정을 등록해주세요.</p>
           </div>
         ) : (
-          <ul className='grid gap-4 sm:grid-cols-2 lg:grid-cols-3'>
-            {data.map((c) => (
-              <li key={c.id}>
-                <CohortCard cohort={c} />
-              </li>
-            ))}
-          </ul>
+          <SortableCohortList cohorts={data} />
         )}
       </PageContainer>
     );
