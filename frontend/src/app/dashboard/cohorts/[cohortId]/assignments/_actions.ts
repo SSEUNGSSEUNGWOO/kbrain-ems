@@ -1,8 +1,6 @@
 'use server';
 
-import { db } from '@/lib/db';
-import { assignments } from '@/lib/db/schema';
-import { eq, inArray } from 'drizzle-orm';
+import { createAdminClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 
 type ActionResult = { error?: string };
@@ -13,16 +11,14 @@ export async function createAssignment(cohortId: string, formData: FormData): Pr
   const title = String(formData.get('title') ?? '').trim();
   if (!title) return { error: '과제명은 필수입니다.' };
 
-  try {
-    await db.insert(assignments).values({
-      cohortId,
-      title,
-      description: String(formData.get('description') ?? '').trim() || null,
-      dueDate: String(formData.get('due_date') ?? '').trim() || null
-    });
-  } catch (e: unknown) {
-    return { error: e instanceof Error ? e.message : '알 수 없는 오류가 발생했습니다.' };
-  }
+  const supabase = createAdminClient();
+  const { error } = await supabase.from('assignments').insert({
+    cohort_id: cohortId,
+    title,
+    description: String(formData.get('description') ?? '').trim() || null,
+    due_date: String(formData.get('due_date') ?? '').trim() || null
+  });
+  if (error) return { error: error.message };
 
   revalidatePath(path(cohortId));
   return {};
@@ -32,26 +28,25 @@ export async function updateAssignment(id: string, cohortId: string, formData: F
   const title = String(formData.get('title') ?? '').trim();
   if (!title) return { error: '과제명은 필수입니다.' };
 
-  try {
-    await db.update(assignments).set({
+  const supabase = createAdminClient();
+  const { error } = await supabase
+    .from('assignments')
+    .update({
       title,
       description: String(formData.get('description') ?? '').trim() || null,
-      dueDate: String(formData.get('due_date') ?? '').trim() || null
-    }).where(eq(assignments.id, id));
-  } catch (e: unknown) {
-    return { error: e instanceof Error ? e.message : '알 수 없는 오류가 발생했습니다.' };
-  }
+      due_date: String(formData.get('due_date') ?? '').trim() || null
+    })
+    .eq('id', id);
+  if (error) return { error: error.message };
 
   revalidatePath(path(cohortId));
   return {};
 }
 
 export async function deleteAssignment(id: string, cohortId: string): Promise<ActionResult> {
-  try {
-    await db.delete(assignments).where(eq(assignments.id, id));
-  } catch (e: unknown) {
-    return { error: e instanceof Error ? e.message : '알 수 없는 오류가 발생했습니다.' };
-  }
+  const supabase = createAdminClient();
+  const { error } = await supabase.from('assignments').delete().eq('id', id);
+  if (error) return { error: error.message };
 
   revalidatePath(path(cohortId));
   return {};
@@ -60,11 +55,9 @@ export async function deleteAssignment(id: string, cohortId: string): Promise<Ac
 export async function deleteAssignments(ids: string[], cohortId: string): Promise<ActionResult> {
   if (ids.length === 0) return {};
 
-  try {
-    await db.delete(assignments).where(inArray(assignments.id, ids));
-  } catch (e: unknown) {
-    return { error: e instanceof Error ? e.message : '알 수 없는 오류가 발생했습니다.' };
-  }
+  const supabase = createAdminClient();
+  const { error } = await supabase.from('assignments').delete().in('id', ids);
+  if (error) return { error: error.message };
 
   revalidatePath(path(cohortId));
   return {};

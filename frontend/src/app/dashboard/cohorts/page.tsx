@@ -1,7 +1,5 @@
 import PageContainer from '@/components/layout/page-container';
-import { db } from '@/lib/db';
-import { cohorts } from '@/lib/db/schema';
-import { desc, sql } from 'drizzle-orm';
+import { createAdminClient } from '@/lib/supabase/server';
 import { Icons } from '@/components/icons';
 import { isDeveloper } from '@/lib/auth';
 import { CreateCohortSheet } from './_components/create-cohort-sheet';
@@ -9,18 +7,48 @@ import { CohortCard } from './_components/cohort-card';
 
 export default async function CohortsPage() {
   try {
-    const data = await db
-      .select({
-        id: cohorts.id,
-        name: cohorts.name,
-        started_at: cohorts.startedAt,
-        ended_at: cohorts.endedAt,
-        created_at: cohorts.createdAt,
-        student_count: sql<number>`(select count(*)::int from students s where s.cohort_id = cohorts.id)`,
-        session_count: sql<number>`(select count(*)::int from sessions ss where ss.cohort_id = cohorts.id)`
-      })
-      .from(cohorts)
-      .orderBy(desc(cohorts.createdAt));
+    const supabase = createAdminClient();
+
+    const { data: cohortRows, error: cohortError } = await supabase
+      .from('cohorts')
+      .select(
+        'id, name, started_at, ended_at, recruiting_slug, application_start_at, application_end_at, max_capacity, created_at'
+      )
+      .order('created_at', { ascending: false });
+    if (cohortError) throw new Error(cohortError.message);
+
+    const cohorts = cohortRows ?? [];
+
+    // Per-cohort student & session counts (group by 미지원 → JS reduce)
+    const { data: studentRows } = await supabase
+      .from('students')
+      .select('cohort_id');
+    const { data: sessionRows } = await supabase
+      .from('sessions')
+      .select('cohort_id');
+
+    const studentCountMap = new Map<string, number>();
+    for (const r of studentRows ?? []) {
+      studentCountMap.set(r.cohort_id, (studentCountMap.get(r.cohort_id) ?? 0) + 1);
+    }
+    const sessionCountMap = new Map<string, number>();
+    for (const r of sessionRows ?? []) {
+      sessionCountMap.set(r.cohort_id, (sessionCountMap.get(r.cohort_id) ?? 0) + 1);
+    }
+
+    const data = cohorts.map((c) => ({
+      id: c.id,
+      name: c.name,
+      started_at: c.started_at,
+      ended_at: c.ended_at,
+      recruiting_slug: c.recruiting_slug,
+      application_start_at: c.application_start_at,
+      application_end_at: c.application_end_at,
+      max_capacity: c.max_capacity,
+      created_at: c.created_at,
+      student_count: studentCountMap.get(c.id) ?? 0,
+      session_count: sessionCountMap.get(c.id) ?? 0
+    }));
 
     const dev = await isDeveloper();
 

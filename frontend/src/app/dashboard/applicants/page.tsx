@@ -1,42 +1,61 @@
 import PageContainer from '@/components/layout/page-container';
-import { db } from '@/lib/db';
-import { applicants, applications, organizations } from '@/lib/db/schema';
-import { asc, eq, sql } from 'drizzle-orm';
+import { createAdminClient } from '@/lib/supabase/server';
 import { Button } from '@/components/ui/button';
 import { ApplicantSheet } from './_components/applicant-sheet';
 import { ApplicantTable } from './_components/applicant-table';
 
 export default async function ApplicantsPage() {
   try {
-    const rows = await db
-      .select({
-        id: applicants.id,
-        name: applicants.name,
-        organizationName: organizations.name,
-        department: applicants.department,
-        job_title: applicants.jobTitle,
-        job_role: applicants.jobRole,
-        birth_date: applicants.birthDate,
-        email: applicants.email,
-        phone: applicants.phone,
-        notes: applicants.notes
-      })
-      .from(applicants)
-      .leftJoin(organizations, eq(applicants.organizationId, organizations.id))
-      .orderBy(asc(applicants.name));
+    const supabase = createAdminClient();
 
-    const counts = await db
-      .select({
-        applicantId: applications.applicantId,
-        total: sql<number>`count(*)::int`,
-        selected: sql<number>`count(*) FILTER (WHERE ${applications.status} = 'selected')::int`
-      })
-      .from(applications)
-      .groupBy(applications.applicantId);
+    type ApplicantRow = {
+      id: string;
+      name: string;
+      department: string | null;
+      job_title: string | null;
+      job_role: string | null;
+      birth_date: string | null;
+      email: string | null;
+      phone: string | null;
+      notes: string | null;
+      organizations: { name: string } | null;
+    };
 
-    const countMap = new Map(
-      counts.map((c) => [c.applicantId, { total: c.total, selected: c.selected }])
-    );
+    const { data: applicantRows, error: applicantError } = await supabase
+      .from('applicants')
+      .select(
+        'id, name, department, job_title, job_role, birth_date, email, phone, notes, organizations(name)'
+      )
+      .order('name', { ascending: true })
+      .returns<ApplicantRow[]>();
+    if (applicantError) throw new Error(applicantError.message);
+
+    const rows = (applicantRows ?? []).map((r) => ({
+      id: r.id,
+      name: r.name,
+      organizationName: r.organizations?.name ?? null,
+      department: r.department,
+      job_title: r.job_title,
+      job_role: r.job_role,
+      birth_date: r.birth_date,
+      email: r.email,
+      phone: r.phone,
+      notes: r.notes
+    }));
+
+    // group by 미지원 → 전체 applications를 가져와 JS로 집계
+    const { data: applicationRows, error: applicationError } = await supabase
+      .from('applications')
+      .select('applicant_id, status');
+    if (applicationError) throw new Error(applicationError.message);
+
+    const countMap = new Map<string, { total: number; selected: number }>();
+    for (const a of applicationRows ?? []) {
+      const entry = countMap.get(a.applicant_id) ?? { total: 0, selected: 0 };
+      entry.total++;
+      if (a.status === 'selected') entry.selected++;
+      countMap.set(a.applicant_id, entry);
+    }
 
     const mapped = rows.map((r) => ({
       ...r,

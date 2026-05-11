@@ -1,11 +1,11 @@
 import { notFound } from 'next/navigation';
 import PageContainer from '@/components/layout/page-container';
-import { db } from '@/lib/db';
-import { cohorts, students, organizations, sessions, attendanceRecords } from '@/lib/db/schema';
-import { eq, asc, sql, and, ne } from 'drizzle-orm';
+import { createAdminClient } from '@/lib/supabase/server';
+import { computeCohortStage, STAGE_LABEL } from '@/lib/cohort-stage';
 import { Button } from '@/components/ui/button';
 import { StudentSheet } from './_components/student-sheet';
 import { StudentTable } from './_components/student-table';
+import { ApplicantsTable } from './_components/applicants-table';
 
 export default async function StudentsPage({
   params
@@ -13,63 +13,141 @@ export default async function StudentsPage({
   params: Promise<{ cohortId: string }>;
 }) {
   const { cohortId } = await params;
+  const supabase = createAdminClient();
 
-  const cohortRows = await db
-    .select({ id: cohorts.id, name: cohorts.name })
-    .from(cohorts)
-    .where(eq(cohorts.id, cohortId))
+  const { data: cohortRows, error: cohortError } = await supabase
+    .from('cohorts')
+    .select(
+      'id, name, started_at, ended_at, application_start_at, application_end_at'
+    )
+    .eq('id', cohortId)
     .limit(1);
+  if (cohortError) {
+    return (
+      <PageContainer pageTitle='인원 관리'>
+        <div className='text-destructive'>불러오기 실패: {cohortError.message}</div>
+      </PageContainer>
+    );
+  }
 
-  const cohort = cohortRows[0];
+  const cohort = cohortRows?.[0];
   if (!cohort) notFound();
 
+  const stage = computeCohortStage(cohort);
+
+  // === 모집 단계 — 신청자 목록 + 합격 처리 ===
+  if (stage === 'recruiting') {
+    type ApplicationRow = {
+      id: string;
+      applicant_id: string;
+      status: string;
+      applied_at: string | null;
+      motivation: string | null;
+      applicants: {
+        name: string;
+        email: string | null;
+        phone: string | null;
+        organizations: { name: string } | null;
+      } | null;
+    };
+
+    const { data: appRows, error: appErr } = await supabase
+      .from('applications')
+      .select(
+        'id, applicant_id, status, applied_at, motivation, applicants(name, email, phone, organizations(name))'
+      )
+      .eq('cohort_id', cohortId)
+      .order('created_at', { ascending: false })
+      .returns<ApplicationRow[]>();
+    if (appErr) {
+      return (
+        <PageContainer pageTitle='인원 관리'>
+          <div className='text-destructive'>불러오기 실패: {appErr.message}</div>
+        </PageContainer>
+      );
+    }
+
+    const rows = (appRows ?? []).map((r) => ({
+      applicationId: r.id,
+      applicantId: r.applicant_id,
+      name: r.applicants?.name ?? '',
+      organizationName: r.applicants?.organizations?.name ?? null,
+      email: r.applicants?.email ?? null,
+      phone: r.applicants?.phone ?? null,
+      appliedAt: r.applied_at,
+      status: r.status,
+      motivation: r.motivation
+    }));
+
+    return (
+      <PageContainer
+        pageTitle='인원 관리'
+        pageDescription={`${cohort.name} · ${STAGE_LABEL[stage]} · 신청 ${rows.length}건`}
+      >
+        <ApplicantsTable cohortId={cohortId} rows={rows} />
+      </PageContainer>
+    );
+  }
+
   try {
-    const rows = await db
-      .select({
-        id: students.id,
-        name: students.name,
-        orgName: organizations.name,
-        department: students.department,
-        job_title: students.jobTitle,
-        job_role: students.jobRole,
-        birth_date: students.birthDate,
-        email: students.email,
-        phone: students.phone,
-        notes: students.notes
-      })
-      .from(students)
-      .leftJoin(organizations, eq(students.organizationId, organizations.id))
-      .where(eq(students.cohortId, cohortId))
-      .orderBy(asc(students.name));
+    type StudentRow = {
+      id: string;
+      name: string;
+      department: string | null;
+      job_title: string | null;
+      job_role: string | null;
+      birth_date: string | null;
+      email: string | null;
+      phone: string | null;
+      notes: string | null;
+      organizations: { name: string } | null;
+    };
+
+    const { data: studentRows, error: studentError } = await supabase
+      .from('students')
+      .select(
+        'id, name, department, job_title, job_role, birth_date, email, phone, notes, organizations(name)'
+      )
+      .eq('cohort_id', cohortId)
+      .order('name', { ascending: true })
+      .returns<StudentRow[]>();
+    if (studentError) throw new Error(studentError.message);
 
     // Total sessions count for this cohort
-    const [{ count: totalSessions }] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(sessions)
-      .where(eq(sessions.cohortId, cohortId));
+    const { count: totalSessions, error: sessionCountError } = await supabase
+      .from('sessions')
+      .select('id', { count: 'exact', head: true })
+      .eq('cohort_id', cohortId);
+    if (sessionCountError) throw new Error(sessionCountError.message);
 
-    // Per-student attended session count (present, late, early_leave, excused)
-    const attendanceRows = await db
-      .select({
-        studentId: attendanceRecords.studentId,
-        attended: sql<number>`count(*)::int`
-      })
-      .from(attendanceRecords)
-      .innerJoin(sessions, eq(attendanceRecords.sessionId, sessions.id))
-      .where(
-        and(
-          eq(sessions.cohortId, cohortId),
-          ne(attendanceRecords.status, 'absent')
-        )
-      )
-      .groupBy(attendanceRecords.studentId);
+    // Per-student attended session count (status !== 'absent')
+    // Drizzle의 inner join + group by 대체: cohort 세션 id를 먼저 가져와서 in 필터
+    const { data: cohortSessions } = await supabase
+      .from('sessions')
+      .select('id')
+      .eq('cohort_id', cohortId);
+    const cohortSessionIds = (cohortSessions ?? []).map((s) => s.id);
 
-    const attendanceMap = new Map(attendanceRows.map((r) => [r.studentId, r.attended]));
+    let attendanceRows: { student_id: string; status: string }[] = [];
+    if (cohortSessionIds.length > 0) {
+      const { data: attData, error: attError } = await supabase
+        .from('attendance_records')
+        .select('student_id, status')
+        .in('session_id', cohortSessionIds)
+        .neq('status', 'absent');
+      if (attError) throw new Error(attError.message);
+      attendanceRows = attData ?? [];
+    }
 
-    const mapped = rows.map((r) => ({
+    const attendanceMap = new Map<string, number>();
+    for (const r of attendanceRows) {
+      attendanceMap.set(r.student_id, (attendanceMap.get(r.student_id) ?? 0) + 1);
+    }
+
+    const mapped = (studentRows ?? []).map((r) => ({
       id: r.id,
       name: r.name,
-      organizations: r.orgName ? { name: r.orgName } : null,
+      organizations: r.organizations ? { name: r.organizations.name } : null,
       department: r.department,
       job_title: r.job_title,
       job_role: r.job_role,
@@ -78,7 +156,7 @@ export default async function StudentsPage({
       phone: r.phone,
       notes: r.notes,
       attendedSessions: attendanceMap.get(r.id) ?? 0,
-      totalSessions
+      totalSessions: totalSessions ?? 0
     }));
 
     return (

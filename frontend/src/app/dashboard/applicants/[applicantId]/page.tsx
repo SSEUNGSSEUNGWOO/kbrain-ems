@@ -1,14 +1,7 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import PageContainer from '@/components/layout/page-container';
-import { db } from '@/lib/db';
-import {
-  applicants,
-  applications,
-  cohorts,
-  organizations
-} from '@/lib/db/schema';
-import { asc, desc, eq } from 'drizzle-orm';
+import { createAdminClient } from '@/lib/supabase/server';
 import { Button } from '@/components/ui/button';
 import { Icons } from '@/components/icons';
 import { ApplicantSheet } from '../_components/applicant-sheet';
@@ -21,48 +14,84 @@ export default async function ApplicantDetailPage({
   params: Promise<{ applicantId: string }>;
 }) {
   const { applicantId } = await params;
+  const supabase = createAdminClient();
 
-  const rows = await db
-    .select({
-      id: applicants.id,
-      name: applicants.name,
-      organizationName: organizations.name,
-      department: applicants.department,
-      job_title: applicants.jobTitle,
-      job_role: applicants.jobRole,
-      birth_date: applicants.birthDate,
-      email: applicants.email,
-      phone: applicants.phone,
-      notes: applicants.notes
-    })
-    .from(applicants)
-    .leftJoin(organizations, eq(applicants.organizationId, organizations.id))
-    .where(eq(applicants.id, applicantId))
-    .limit(1);
+  type ApplicantRow = {
+    id: string;
+    name: string;
+    department: string | null;
+    job_title: string | null;
+    job_role: string | null;
+    birth_date: string | null;
+    email: string | null;
+    phone: string | null;
+    notes: string | null;
+    organizations: { name: string } | null;
+  };
 
-  const applicant = rows[0];
-  if (!applicant) notFound();
+  const { data: applicantRows, error: applicantError } = await supabase
+    .from('applicants')
+    .select(
+      'id, name, department, job_title, job_role, birth_date, email, phone, notes, organizations(name)'
+    )
+    .eq('id', applicantId)
+    .limit(1)
+    .returns<ApplicantRow[]>();
+  if (applicantError) throw new Error(applicantError.message);
 
-  const cohortRows = await db
-    .select({ id: cohorts.id, name: cohorts.name })
-    .from(cohorts)
-    .orderBy(asc(cohorts.name));
+  const row = applicantRows?.[0];
+  if (!row) notFound();
 
-  const applicationRows = await db
-    .select({
-      id: applications.id,
-      cohort_id: applications.cohortId,
-      cohortName: cohorts.name,
-      status: applications.status,
-      rejected_stage: applications.rejectedStage,
-      applied_at: applications.appliedAt,
-      decided_at: applications.decidedAt,
-      note: applications.note
-    })
-    .from(applications)
-    .leftJoin(cohorts, eq(applications.cohortId, cohorts.id))
-    .where(eq(applications.applicantId, applicantId))
-    .orderBy(desc(applications.appliedAt));
+  const applicant = {
+    id: row.id,
+    name: row.name,
+    organizationName: row.organizations?.name ?? null,
+    department: row.department,
+    job_title: row.job_title,
+    job_role: row.job_role,
+    birth_date: row.birth_date,
+    email: row.email,
+    phone: row.phone,
+    notes: row.notes
+  };
+
+  const { data: cohortRows, error: cohortError } = await supabase
+    .from('cohorts')
+    .select('id, name')
+    .order('name', { ascending: true });
+  if (cohortError) throw new Error(cohortError.message);
+
+  type ApplicationRow = {
+    id: string;
+    cohort_id: string;
+    status: string;
+    rejected_stage: string | null;
+    applied_at: string | null;
+    decided_at: string | null;
+    note: string | null;
+    cohorts: { name: string } | null;
+  };
+
+  const { data: applicationRowsRaw, error: applicationError } = await supabase
+    .from('applications')
+    .select(
+      'id, cohort_id, status, rejected_stage, applied_at, decided_at, note, cohorts(name)'
+    )
+    .eq('applicant_id', applicantId)
+    .order('applied_at', { ascending: false })
+    .returns<ApplicationRow[]>();
+  if (applicationError) throw new Error(applicationError.message);
+
+  const applicationRows = (applicationRowsRaw ?? []).map((a) => ({
+    id: a.id,
+    cohort_id: a.cohort_id,
+    cohortName: a.cohorts?.name ?? null,
+    status: a.status,
+    rejected_stage: a.rejected_stage,
+    applied_at: a.applied_at,
+    decided_at: a.decided_at,
+    note: a.note
+  }));
 
   return (
     <PageContainer
@@ -112,13 +141,13 @@ export default async function ApplicantDetailPage({
             </h2>
             <ApplicationSheet
               applicantId={applicantId}
-              cohorts={cohortRows}
+              cohorts={cohortRows ?? []}
               trigger={<Button size='sm'>+ 이력 추가</Button>}
             />
           </div>
           <ApplicationTable
             applicantId={applicantId}
-            cohorts={cohortRows}
+            cohorts={cohortRows ?? []}
             applications={applicationRows}
           />
         </section>

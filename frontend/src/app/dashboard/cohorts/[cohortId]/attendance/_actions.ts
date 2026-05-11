@@ -1,8 +1,6 @@
 'use server';
 
-import { db } from '@/lib/db';
-import { sessions } from '@/lib/db/schema';
-import { eq, inArray } from 'drizzle-orm';
+import { createAdminClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 
 type ActionResult = { error?: string };
@@ -30,20 +28,18 @@ export async function createSession(
   const title = String(formData.get('title') ?? '').trim();
   if (!sessionDate) return { error: '수업 날짜는 필수입니다.' };
 
-  try {
-    await db.insert(sessions).values({
-      cohortId,
-      sessionDate,
-      title: title || null,
-      startTime: getTime(formData, 'start_time'),
-      endTime: getTime(formData, 'end_time'),
-      breakMinutes: calcBreakMinutes(formData),
-      breakStartTime: getTime(formData, 'break_start_time'),
-      breakEndTime: getTime(formData, 'break_end_time')
-    });
-  } catch (e: unknown) {
-    return { error: e instanceof Error ? e.message : '알 수 없는 오류가 발생했습니다.' };
-  }
+  const supabase = createAdminClient();
+  const { error } = await supabase.from('sessions').insert({
+    cohort_id: cohortId,
+    session_date: sessionDate,
+    title: title || null,
+    start_time: getTime(formData, 'start_time'),
+    end_time: getTime(formData, 'end_time'),
+    break_minutes: calcBreakMinutes(formData),
+    break_start_time: getTime(formData, 'break_start_time'),
+    break_end_time: getTime(formData, 'break_end_time')
+  });
+  if (error) return { error: error.message };
 
   revalidatePath(`/dashboard/cohorts/${cohortId}/attendance`);
   return {};
@@ -55,20 +51,18 @@ export async function createSessions(
 ): Promise<ActionResult> {
   if (sessionRows.length === 0) return { error: '추가할 수업이 없습니다.' };
 
-  try {
-    await db.insert(sessions).values(
-      sessionRows.map((s) => ({
-        cohortId,
-        sessionDate: s.session_date,
-        title: s.title,
-        startTime: s.start_time,
-        endTime: s.end_time,
-        breakMinutes: s.break_minutes
-      }))
-    );
-  } catch (e: unknown) {
-    return { error: e instanceof Error ? e.message : '알 수 없는 오류가 발생했습니다.' };
-  }
+  const supabase = createAdminClient();
+  const { error } = await supabase.from('sessions').insert(
+    sessionRows.map((s) => ({
+      cohort_id: cohortId,
+      session_date: s.session_date,
+      title: s.title,
+      start_time: s.start_time,
+      end_time: s.end_time,
+      break_minutes: s.break_minutes
+    }))
+  );
+  if (error) return { error: error.message };
 
   revalidatePath(`/dashboard/cohorts/${cohortId}/attendance`);
   return {};
@@ -83,19 +77,20 @@ export async function updateSession(
   const title = String(formData.get('title') ?? '').trim();
   if (!sessionDate) return { error: '수업 날짜는 필수입니다.' };
 
-  try {
-    await db.update(sessions).set({
-      sessionDate,
+  const supabase = createAdminClient();
+  const { error } = await supabase
+    .from('sessions')
+    .update({
+      session_date: sessionDate,
       title: title || null,
-      startTime: getTime(formData, 'start_time'),
-      endTime: getTime(formData, 'end_time'),
-      breakMinutes: calcBreakMinutes(formData),
-      breakStartTime: getTime(formData, 'break_start_time'),
-      breakEndTime: getTime(formData, 'break_end_time')
-    }).where(eq(sessions.id, id));
-  } catch (e: unknown) {
-    return { error: e instanceof Error ? e.message : '알 수 없는 오류가 발생했습니다.' };
-  }
+      start_time: getTime(formData, 'start_time'),
+      end_time: getTime(formData, 'end_time'),
+      break_minutes: calcBreakMinutes(formData),
+      break_start_time: getTime(formData, 'break_start_time'),
+      break_end_time: getTime(formData, 'break_end_time')
+    })
+    .eq('id', id);
+  if (error) return { error: error.message };
 
   revalidatePath(`/dashboard/cohorts/${cohortId}/attendance`);
   return {};
@@ -105,11 +100,9 @@ export async function deleteSession(
   id: string,
   cohortId: string
 ): Promise<ActionResult> {
-  try {
-    await db.delete(sessions).where(eq(sessions.id, id));
-  } catch (e: unknown) {
-    return { error: e instanceof Error ? e.message : '알 수 없는 오류가 발생했습니다.' };
-  }
+  const supabase = createAdminClient();
+  const { error } = await supabase.from('sessions').delete().eq('id', id);
+  if (error) return { error: error.message };
 
   revalidatePath(`/dashboard/cohorts/${cohortId}/attendance`);
   return {};
@@ -121,11 +114,9 @@ export async function deleteSessions(
 ): Promise<ActionResult> {
   if (ids.length === 0) return {};
 
-  try {
-    await db.delete(sessions).where(inArray(sessions.id, ids));
-  } catch (e: unknown) {
-    return { error: e instanceof Error ? e.message : '알 수 없는 오류가 발생했습니다.' };
-  }
+  const supabase = createAdminClient();
+  const { error } = await supabase.from('sessions').delete().in('id', ids);
+  if (error) return { error: error.message };
 
   revalidatePath(`/dashboard/cohorts/${cohortId}/attendance`);
   return {};

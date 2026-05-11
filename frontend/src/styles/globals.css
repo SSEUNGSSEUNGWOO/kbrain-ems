@@ -14,6 +14,9 @@
   }
   body {
     @apply bg-background text-foreground;
+    /* 한글 단어 단위 줄바꿈 — 좁은 화면에서 이름·라벨이 글자 단위로 깨지는 거 방지 */
+    word-break: keep-all;
+    overflow-wrap: break-word;
   }
 
   /* Global scrollbar styling to match ScrollArea */

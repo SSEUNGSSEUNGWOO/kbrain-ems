@@ -1,8 +1,6 @@
 import { notFound } from 'next/navigation';
 import PageContainer from '@/components/layout/page-container';
-import { db } from '@/lib/db';
-import { sessions, students, organizations, attendanceRecords } from '@/lib/db/schema';
-import { eq, asc } from 'drizzle-orm';
+import { createAdminClient } from '@/lib/supabase/server';
 import { AttendanceTable } from './_components/attendance-table';
 
 const DOW = ['일', '월', '화', '수', '목', '금', '토'] as const;
@@ -19,53 +17,49 @@ export default async function SessionAttendancePage({
   params: Promise<{ cohortId: string; sessionId: string }>;
 }) {
   const { cohortId, sessionId } = await params;
+  const supabase = createAdminClient();
 
-  const [sessionRows, studentRows, recordRows] = await Promise.all([
-    db
-      .select({
-        id: sessions.id,
-        session_date: sessions.sessionDate,
-        title: sessions.title,
-        start_time: sessions.startTime,
-        end_time: sessions.endTime,
-        break_minutes: sessions.breakMinutes,
-        break_start_time: sessions.breakStartTime,
-        break_end_time: sessions.breakEndTime
-      })
-      .from(sessions)
-      .where(eq(sessions.id, sessionId))
+  type StudentRow = {
+    id: string;
+    name: string;
+    organizations: { name: string } | null;
+  };
+
+  const [sessionRes, studentRes, recordRes] = await Promise.all([
+    supabase
+      .from('sessions')
+      .select(
+        'id, session_date, title, start_time, end_time, break_minutes, break_start_time, break_end_time'
+      )
+      .eq('id', sessionId)
       .limit(1),
-    db
-      .select({
-        id: students.id,
-        name: students.name,
-        orgName: organizations.name
-      })
-      .from(students)
-      .leftJoin(organizations, eq(students.organizationId, organizations.id))
-      .where(eq(students.cohortId, cohortId))
-      .orderBy(asc(students.name)),
-    db
-      .select({
-        student_id: attendanceRecords.studentId,
-        status: attendanceRecords.status,
-        note: attendanceRecords.note,
-        arrival_time: attendanceRecords.arrivalTime,
-        departure_time: attendanceRecords.departureTime,
-        credited_hours: attendanceRecords.creditedHours
-      })
-      .from(attendanceRecords)
-      .where(eq(attendanceRecords.sessionId, sessionId))
+    supabase
+      .from('students')
+      .select('id, name, organizations(name)')
+      .eq('cohort_id', cohortId)
+      .order('name', { ascending: true })
+      .returns<StudentRow[]>(),
+    supabase
+      .from('attendance_records')
+      .select('student_id, status, note, arrival_time, departure_time, credited_hours')
+      .eq('session_id', sessionId)
   ]);
 
-  const session = sessionRows[0];
+  if (sessionRes.error) throw new Error(sessionRes.error.message);
+  if (studentRes.error) throw new Error(studentRes.error.message);
+  if (recordRes.error) throw new Error(recordRes.error.message);
+
+  const session = sessionRes.data?.[0];
   if (!session) notFound();
+
+  const studentRows = studentRes.data ?? [];
+  const recordRows = recordRes.data ?? [];
 
   // Map students to expected shape: organizations as { name: string } | null
   const mappedStudents = studentRows.map((s) => ({
     id: s.id,
     name: s.name,
-    organizations: s.orgName ? { name: s.orgName } : null
+    organizations: s.organizations ? { name: s.organizations.name } : null
   }));
 
   const recordMap = Object.fromEntries(

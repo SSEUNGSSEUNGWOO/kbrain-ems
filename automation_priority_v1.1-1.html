@@ -1,0 +1,1425 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>바이브 코딩 자동화 우선순위 v1.1 — 2026 NIA AI·데이터기반행정</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+<style>
+  :root {
+    --bg: #fafaf9;
+    --surface: #ffffff;
+    --ink: #0f172a;
+    --ink-soft: #334155;
+    --ink-mute: #64748b;
+    --line: #e2e8f0;
+    --line-soft: #f1f5f9;
+
+    /* 우선순위 */
+    --q1: #dc2626;    /* 즉시 (시급↑/중요↑) */
+    --q1-bg: #fef2f2;
+    --q2: #ea580c;    /* 예약 (시급↓/중요↑) */
+    --q2-bg: #fff7ed;
+    --q3: #ca8a04;    /* 경량 (시급↑/중요↓) */
+    --q3-bg: #fefce8;
+    --q4: #64748b;    /* 후순위 */
+    --q4-bg: #f8fafc;
+
+    /* 영역 액센트 (7개 영역) */
+    --a-doc:   #7c3aed;  /* 행정서류 */
+    --a-app:   #2563eb;  /* 신청서 */
+    --a-sel:   #0891b2;  /* 선발모집 */
+    --a-ops:   #16a34a;  /* 운영 */
+    --a-sat:   #d97706;  /* 만족도 */
+    --a-diag:  #db2777;  /* 진단 */
+    --a-dash:  #475569;  /* 대시보드 */
+
+    --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
+    --shadow-md: 0 4px 12px rgba(15, 23, 42, 0.06);
+    --radius: 10px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: 'Pretendard', -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.65;
+    font-size: 15px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* === 레이아웃 === */
+  .layout {
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+  .toc {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    padding: 28px 20px;
+    border-right: 1px solid var(--line);
+    background: var(--surface);
+    overflow-y: auto;
+    font-size: 13px;
+  }
+  .toc-brand {
+    font-weight: 700;
+    color: var(--ink);
+    margin-bottom: 6px;
+    font-size: 14px;
+    letter-spacing: -0.02em;
+  }
+  .toc-meta {
+    font-size: 11.5px;
+    color: var(--ink-mute);
+    margin-bottom: 24px;
+    padding-bottom: 18px;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .toc h4 {
+    font-size: 11px;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    letter-spacing: 0.08em;
+    margin: 18px 0 8px;
+    font-weight: 600;
+  }
+  .toc ul { list-style: none; }
+  .toc li { margin: 0; }
+  .toc a {
+    display: block;
+    padding: 6px 10px;
+    color: var(--ink-soft);
+    text-decoration: none;
+    border-radius: 6px;
+    transition: all 0.15s;
+    font-weight: 500;
+  }
+  .toc a:hover { background: var(--line-soft); color: var(--ink); }
+
+  .main {
+    padding: 48px 56px 80px;
+    max-width: 1100px;
+  }
+
+  /* === 헤더 === */
+  .hero {
+    margin-bottom: 56px;
+    padding-bottom: 32px;
+    border-bottom: 2px solid var(--ink);
+  }
+  .hero-tag {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--a-doc);
+    background: #f3e8ff;
+    padding: 4px 10px;
+    border-radius: 4px;
+    letter-spacing: 0.05em;
+    margin-bottom: 16px;
+  }
+  .hero h1 {
+    font-size: 36px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.2;
+    margin-bottom: 12px;
+  }
+  .hero h1 .accent { color: var(--a-doc); }
+  .hero p.lede {
+    font-size: 16px;
+    color: var(--ink-soft);
+    max-width: 720px;
+    line-height: 1.6;
+  }
+  .hero-meta {
+    display: flex;
+    gap: 24px;
+    margin-top: 20px;
+    font-size: 12.5px;
+    color: var(--ink-mute);
+  }
+  .hero-meta span strong { color: var(--ink); margin-right: 6px; }
+
+  /* === 섹션 공통 === */
+  section { margin-bottom: 56px; scroll-margin-top: 24px; }
+  .sec-head {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 20px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--line);
+  }
+  .sec-num {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--ink-mute);
+    font-variant-numeric: tabular-nums;
+  }
+  .sec-head h2 {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+  .sec-sub {
+    font-size: 14px;
+    color: var(--ink-mute);
+    margin-bottom: 24px;
+  }
+
+  /* === 핵심 요약 카드 === */
+  .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  .summary-card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 18px 18px 16px;
+  }
+  .summary-card .num {
+    font-size: 32px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1;
+    margin-bottom: 4px;
+    font-variant-numeric: tabular-nums;
+  }
+  .summary-card .lbl {
+    font-size: 12px;
+    color: var(--ink-mute);
+    font-weight: 500;
+  }
+  .summary-card.q1 .num { color: var(--q1); }
+  .summary-card.q2 .num { color: var(--q2); }
+  .summary-card.q3 .num { color: var(--q3); }
+  .summary-card.tot .num { color: var(--ink); }
+
+  /* === 원칙 === */
+  .principles {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .principle {
+    background: linear-gradient(180deg, #fff 0%, #f8fafc 100%);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 20px;
+  }
+  .principle .pn {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--a-doc);
+    letter-spacing: 0.08em;
+    margin-bottom: 8px;
+  }
+  .principle .pt {
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    color: var(--ink);
+  }
+  .principle .pd {
+    font-size: 13px;
+    color: var(--ink-soft);
+    line-height: 1.55;
+  }
+
+  /* === 매트릭스 === */
+  .matrix-wrap {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 28px 32px;
+    margin-bottom: 16px;
+  }
+  .matrix {
+    position: relative;
+    width: 100%;
+    height: 480px;
+    display: grid;
+    grid-template-columns: 36px 1fr;
+    grid-template-rows: 1fr 36px;
+  }
+  .y-axis {
+    grid-column: 1; grid-row: 1;
+    position: relative;
+  }
+  .y-axis-label {
+    position: absolute;
+    transform: rotate(-90deg);
+    transform-origin: center;
+    top: 50%; left: 50%;
+    margin-left: -8px;
+    margin-top: -8px;
+    font-size: 11px;
+    color: var(--ink-mute);
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    white-space: nowrap;
+  }
+  .y-axis-label::before { content: '↑ '; }
+  .x-axis {
+    grid-column: 2; grid-row: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .x-axis-label {
+    font-size: 11px;
+    color: var(--ink-mute);
+    font-weight: 600;
+    letter-spacing: 0.08em;
+  }
+  .x-axis-label::after { content: ' →'; }
+
+  .quadrants {
+    grid-column: 2; grid-row: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 2px;
+    background: var(--line);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .quad {
+    position: relative;
+    padding: 14px 16px;
+    background: var(--surface);
+  }
+  .quad-q1 { background: var(--q1-bg); }
+  .quad-q2 { background: var(--q2-bg); }
+  .quad-q3 { background: var(--q3-bg); }
+  .quad-q4 { background: var(--q4-bg); }
+  .quad-tag {
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .quad-q1 .quad-tag { color: var(--q1); }
+  .quad-q2 .quad-tag { color: var(--q2); }
+  .quad-q3 .quad-tag { color: var(--q3); }
+  .quad-q4 .quad-tag { color: var(--q4); }
+  .quad-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--ink);
+    margin-bottom: 2px;
+  }
+  .quad-desc {
+    font-size: 11.5px;
+    color: var(--ink-mute);
+    line-height: 1.4;
+    margin-bottom: 10px;
+  }
+
+  .dots {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    align-content: flex-start;
+  }
+  .dot {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--ink-soft);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .dot:hover {
+    background: var(--ink);
+    color: white;
+    border-color: var(--ink);
+  }
+  .dot::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--dot-color, var(--ink-mute));
+  }
+  .dot[data-area="doc"]  { --dot-color: var(--a-doc); }
+  .dot[data-area="app"]  { --dot-color: var(--a-app); }
+  .dot[data-area="sel"]  { --dot-color: var(--a-sel); }
+  .dot[data-area="ops"]  { --dot-color: var(--a-ops); }
+  .dot[data-area="sat"]  { --dot-color: var(--a-sat); }
+  .dot[data-area="diag"] { --dot-color: var(--a-diag); }
+  .dot[data-area="dash"] { --dot-color: var(--a-dash); }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-top: 12px;
+    padding-top: 16px;
+    border-top: 1px solid var(--line-soft);
+    font-size: 11.5px;
+    color: var(--ink-mute);
+  }
+  .legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .legend i {
+    width: 8px; height: 8px; border-radius: 50%; display: inline-block;
+  }
+
+  /* === 영역 카드 === */
+  .area {
+    margin-bottom: 36px;
+  }
+  .area-head {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 16px;
+    padding: 14px 18px;
+    background: var(--surface);
+    border-left: 4px solid var(--area-color);
+    border-radius: 0 var(--radius) var(--radius) 0;
+    box-shadow: var(--shadow-sm);
+  }
+  .area[data-area="doc"]  { --area-color: var(--a-doc); }
+  .area[data-area="app"]  { --area-color: var(--a-app); }
+  .area[data-area="sel"]  { --area-color: var(--a-sel); }
+  .area[data-area="ops"]  { --area-color: var(--a-ops); }
+  .area[data-area="sat"]  { --area-color: var(--a-sat); }
+  .area[data-area="diag"] { --area-color: var(--a-diag); }
+  .area[data-area="dash"] { --area-color: var(--a-dash); }
+
+  .area-num {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--area-color);
+    font-variant-numeric: tabular-nums;
+    min-width: 24px;
+  }
+  .area-title {
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    flex: 1;
+  }
+  .area-count {
+    font-size: 12px;
+    color: var(--ink-mute);
+    font-weight: 500;
+  }
+
+  .items {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+  .item {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+    position: relative;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .item:hover {
+    border-color: var(--ink-mute);
+    box-shadow: var(--shadow-md);
+  }
+  .item-top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .badge {
+    font-size: 10.5px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 4px;
+    letter-spacing: 0.03em;
+  }
+  .badge.b-q1 { background: var(--q1-bg); color: var(--q1); }
+  .badge.b-q2 { background: var(--q2-bg); color: var(--q2); }
+  .badge.b-q3 { background: var(--q3-bg); color: var(--q3); }
+  .badge.b-q4 { background: var(--q4-bg); color: var(--q4); }
+  .badge.b-net {
+    background: #ecfdf5; color: #047857;
+    border: 1px solid #d1fae5;
+  }
+  .badge.b-net.closed {
+    background: #fef2f2; color: #b91c1c;
+    border-color: #fecaca;
+  }
+  .badge.b-net.hybrid {
+    background: #eff6ff; color: #1d4ed8;
+    border-color: #dbeafe;
+  }
+  .item-title {
+    font-size: 14.5px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    line-height: 1.35;
+    color: var(--ink);
+  }
+  .item-desc {
+    font-size: 12.5px;
+    color: var(--ink-soft);
+    line-height: 1.55;
+    margin-bottom: 10px;
+  }
+  .item-meta {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 4px 10px;
+    font-size: 11.5px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--line);
+  }
+  .item-meta dt {
+    color: var(--ink-mute);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .item-meta dd { color: var(--ink-soft); }
+  .item-meta dd strong { color: var(--ink); font-weight: 600; }
+
+  /* === 로드맵 === */
+  .roadmap {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 14px;
+  }
+  .phase {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 20px;
+    position: relative;
+  }
+  .phase::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 3px;
+    background: var(--phase-color);
+    border-radius: var(--radius) var(--radius) 0 0;
+  }
+  .phase.p1 { --phase-color: var(--q1); }
+  .phase.p2 { --phase-color: var(--q2); }
+  .phase.p3 { --phase-color: var(--a-dash); }
+  .phase-tag {
+    font-size: 10.5px;
+    font-weight: 700;
+    color: var(--phase-color);
+    letter-spacing: 0.05em;
+    margin-bottom: 6px;
+  }
+  .phase-title {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 4px;
+    color: var(--ink);
+  }
+  .phase-period {
+    font-size: 11.5px;
+    color: var(--ink-mute);
+    margin-bottom: 14px;
+  }
+  .phase ul {
+    list-style: none;
+    padding: 0;
+  }
+  .phase li {
+    font-size: 12.5px;
+    color: var(--ink-soft);
+    padding: 6px 0 6px 14px;
+    position: relative;
+    border-bottom: 1px dashed var(--line-soft);
+  }
+  .phase li:last-child { border-bottom: none; }
+  .phase li::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 13px;
+    width: 4px; height: 4px;
+    border-radius: 50%;
+    background: var(--phase-color);
+  }
+  .phase li strong {
+    color: var(--ink);
+    font-weight: 600;
+  }
+
+  /* === 다음 단계 === */
+  .nextsteps {
+    background: var(--ink);
+    color: white;
+    border-radius: var(--radius);
+    padding: 28px 32px;
+  }
+  .nextsteps h3 {
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+  .nextsteps p {
+    font-size: 13px;
+    opacity: 0.7;
+    margin-bottom: 18px;
+  }
+  .nextsteps ol {
+    list-style: none;
+    counter-reset: step;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+  .nextsteps li {
+    counter-increment: step;
+    position: relative;
+    padding: 12px 14px 12px 38px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 6px;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .nextsteps li::before {
+    content: counter(step);
+    position: absolute;
+    left: 12px; top: 12px;
+    width: 18px; height: 18px;
+    background: var(--a-doc);
+    color: white;
+    border-radius: 50%;
+    font-size: 10.5px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* === 푸터 === */
+  footer {
+    margin-top: 48px;
+    padding-top: 24px;
+    border-top: 1px solid var(--line);
+    font-size: 11.5px;
+    color: var(--ink-mute);
+    text-align: center;
+  }
+
+  /* === 반응형 (태블릿 이하) === */
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; }
+    .toc { position: static; height: auto; border-right: none; border-bottom: 1px solid var(--line); }
+    .main { padding: 32px 20px 60px; }
+    .summary-grid { grid-template-columns: repeat(2, 1fr); }
+    .principles { grid-template-columns: 1fr; }
+    .items { grid-template-columns: 1fr; }
+    .roadmap { grid-template-columns: 1fr; }
+    .nextsteps ol { grid-template-columns: 1fr; }
+    .matrix { height: auto; grid-template-columns: 1fr; grid-template-rows: auto; }
+    .y-axis, .x-axis { display: none; }
+    .quadrants { grid-column: 1; grid-row: 1; grid-template-columns: 1fr; grid-template-rows: repeat(4, auto); }
+  }
+</style>
+</head>
+<body>
+
+<div class="layout">
+
+  <!-- ===== TOC ===== -->
+  <aside class="toc">
+    <div class="toc-brand">바이브 코딩 자동화 우선순위</div>
+    <div class="toc-meta">2026 NIA AI·데이터기반행정<br>v1.1 · 2026.05.08</div>
+
+    <h4>개요</h4>
+    <ul>
+      <li><a href="#summary">핵심 요약</a></li>
+      <li><a href="#principles">3대 원칙</a></li>
+      <li><a href="#matrix">우선순위 매트릭스</a></li>
+    </ul>
+
+    <h4>영역별 자동화 항목</h4>
+    <ul>
+      <li><a href="#area-doc">1. 행정 서류</a></li>
+      <li><a href="#area-app">2. 교육 신청서</a></li>
+      <li><a href="#area-sel">3. 선발 모집</a></li>
+      <li><a href="#area-ops">4. 운영</a></li>
+      <li><a href="#area-sat">5. 만족도 분석</a></li>
+      <li><a href="#area-diag">6. 사전·사후 진단</a></li>
+      <li><a href="#area-dash">7. 통합 대시보드</a></li>
+    </ul>
+
+    <h4>실행</h4>
+    <ul>
+      <li><a href="#roadmap">실행 로드맵</a></li>
+      <li><a href="#next">다음 단계</a></li>
+    </ul>
+  </aside>
+
+  <!-- ===== MAIN ===== -->
+  <main class="main">
+
+    <!-- 헤더 -->
+    <header class="hero">
+      <div class="hero-tag">VIBE CODING · AUTOMATION ROADMAP</div>
+      <h1>바이브 코딩으로 <span class="accent">오류 Zero</span>와<br>업무 자동화를 동시에 달성합니다</h1>
+      <p class="lede">7개 운영 영역 · 27개 자동화 항목을 시급성×중요도로 분류하고,
+        바이브 코딩으로 가장 빠르게 만들 수 있는 것부터 우선 착수합니다.
+        특히 <strong style="color: var(--ink);">산출물 최종 검수 · 입과안내 · 회차별 누적 대시보드</strong>를 핵심 추가 항목으로 강조합니다.</p>
+      <div class="hero-meta">
+        <span><strong>대상</strong>2026 NIA AI·데이터기반행정 역량강화</span>
+        <span><strong>작성</strong>K-Brain PMO</span>
+        <span><strong>버전</strong>v1.1 (회차별 누적·최종검수·입과안내 추가)</span>
+      </div>
+    </header>
+
+    <!-- ===== 핵심 요약 ===== -->
+    <section id="summary">
+      <div class="sec-head">
+        <span class="sec-num">01</span>
+        <h2>핵심 요약</h2>
+      </div>
+      <div class="summary-grid">
+        <div class="summary-card tot"><div class="num">27</div><div class="lbl">자동화 후보 항목</div></div>
+        <div class="summary-card q1"><div class="num">14</div><div class="lbl">즉시 착수 (Q1)</div></div>
+        <div class="summary-card q2"><div class="num">9</div><div class="lbl">예약 추진 (Q2)</div></div>
+        <div class="summary-card q3"><div class="num">4</div><div class="lbl">경량 처리 (Q3)</div></div>
+      </div>
+    </section>
+
+    <!-- ===== 원칙 ===== -->
+    <section id="principles">
+      <div class="sec-head">
+        <span class="sec-num">02</span>
+        <h2>3대 원칙</h2>
+      </div>
+      <div class="principles">
+        <div class="principle">
+          <div class="pn">PRINCIPLE 01</div>
+          <div class="pt">"손이 가는 곳"부터</div>
+          <div class="pd">차수마다 반복되고, 사람이 손으로 옮겨 적는 작업이 1순위. 한 번 만들면 45회 운영 내내 반복 절감.</div>
+        </div>
+        <div class="principle">
+          <div class="pn">PRINCIPLE 02</div>
+          <div class="pt">"오류 가능"부터</div>
+          <div class="pd">강사료 등급, 출결 판정, 수료 기준처럼 사람이 실수하면 사고가 되는 정형 룰부터 코드로 박는다.</div>
+        </div>
+        <div class="principle">
+          <div class="pn">PRINCIPLE 03</div>
+          <div class="pt">"망분리 친화"부터</div>
+          <div class="pd">교육생 PII가 들어가는 영역은 폐쇄망 호환을 우선 검토. 외부망 가능 영역과 분리해 설계.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 매트릭스 ===== -->
+    <section id="matrix">
+      <div class="sec-head">
+        <span class="sec-num">03</span>
+        <h2>우선순위 매트릭스 — 시급성 × 중요도</h2>
+      </div>
+      <p class="sec-sub">
+        시급성: 5월 본격 운영 일정상 즉시 필요한가 / 중요도: 오류 Zero·자동화 효과 임팩트가 큰가
+      </p>
+
+      <div class="matrix-wrap">
+        <div class="matrix">
+          <div class="y-axis"><div class="y-axis-label">중요도</div></div>
+
+          <div class="quadrants">
+            <!-- Q1: 시급↑·중요↑ -->
+            <div class="quad quad-q1">
+              <div class="quad-tag">Q1 · 즉시 착수</div>
+              <div class="quad-title">시급↑ · 중요↑</div>
+              <div class="quad-desc">5월 운영 시작 직전·직후 가장 먼저 만들어야 하는 핵심 14개</div>
+              <div class="dots">
+                <span class="dot" data-area="doc">강사료 자동 검증</span>
+                <span class="dot" data-area="doc">차수 결과보고서 초안</span>
+                <span class="dot" data-area="doc"><strong>산출물 최종 검수</strong></span>
+                <span class="dot" data-area="app">표준 신청 웹폼</span>
+                <span class="dot" data-area="app">자가진단 자동 채점</span>
+                <span class="dot" data-area="sel">신청자 자동 점수화</span>
+                <span class="dot" data-area="sel">기관 쿼터 검증</span>
+                <span class="dot" data-area="ops"><strong>입과안내 자동 발송</strong></span>
+                <span class="dot" data-area="ops">출결 자동 기록</span>
+                <span class="dot" data-area="ops">수료 판정·증서 발급</span>
+                <span class="dot" data-area="sat">설문 자동 집계</span>
+                <span class="dot" data-area="sat">텍스트 응답 LLM 요약</span>
+                <span class="dot" data-area="diag">사전·사후 자동 비교</span>
+                <span class="dot" data-area="dash"><strong>회차별 누적 대시보드</strong></span>
+              </div>
+            </div>
+
+            <!-- Q3: 시급↑·중요↓ -->
+            <div class="quad quad-q3">
+              <div class="quad-tag">Q3 · 경량 처리</div>
+              <div class="quad-title">시급↑ · 중요↓</div>
+              <div class="quad-desc">노코드·간단 워크플로우로 가볍게 처리 가능한 4개</div>
+              <div class="dots">
+                <span class="dot" data-area="app">신청 상태 알림</span>
+                <span class="dot" data-area="sel">선발 결과 일괄 통보</span>
+                <span class="dot" data-area="doc">주간보고서 자동 합본</span>
+                <span class="dot" data-area="dash">리스크·이슈 보드</span>
+              </div>
+            </div>
+
+            <!-- Q2: 시급↓·중요↑ -->
+            <div class="quad quad-q2">
+              <div class="quad-tag">Q2 · 예약 추진</div>
+              <div class="quad-title">시급↓ · 중요↑</div>
+              <div class="quad-desc">6~7월 운영 안정화 시점에 본격 구축할 9개</div>
+              <div class="dots">
+                <span class="dot" data-area="doc">회의록 자동 정리</span>
+                <span class="dot" data-area="doc">공문·안내문 템플릿</span>
+                <span class="dot" data-area="sel">평가위원 분배·집계</span>
+                <span class="dot" data-area="ops">강사 일정 자동 알림</span>
+                <span class="dot" data-area="ops">실습환경 사전 점검</span>
+                <span class="dot" data-area="sat">부정 피드백 즉시 알림</span>
+                <span class="dot" data-area="diag">트랙·직급별 자동 세분</span>
+                <span class="dot" data-area="diag">미응시자 자동 리마인드</span>
+                <span class="dot" data-area="dash">사업 진척률·KPI 대시보드</span>
+              </div>
+            </div>
+
+            <!-- Q4: 시급↓·중요↓ -->
+            <div class="quad quad-q4">
+              <div class="quad-tag">Q4 · 후순위</div>
+              <div class="quad-title">시급↓ · 중요↓</div>
+              <div class="quad-desc">하반기 검토 항목 (현 단계에서는 비워둠)</div>
+              <div class="dots" style="opacity: 0.5;">
+                <span class="dot">— 현재 식별 항목 없음 —</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="x-axis"><div class="x-axis-label">시급성</div></div>
+        </div>
+
+        <div class="legend">
+          <span><i style="background: var(--a-doc)"></i>행정서류</span>
+          <span><i style="background: var(--a-app)"></i>신청서</span>
+          <span><i style="background: var(--a-sel)"></i>선발모집</span>
+          <span><i style="background: var(--a-ops)"></i>운영</span>
+          <span><i style="background: var(--a-sat)"></i>만족도</span>
+          <span><i style="background: var(--a-diag)"></i>진단</span>
+          <span><i style="background: var(--a-dash)"></i>대시보드</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 영역별 자동화 항목 ===== -->
+    <div class="sec-head">
+      <span class="sec-num">04</span>
+      <h2>영역별 자동화 상세</h2>
+    </div>
+    <p class="sec-sub">7개 영역 · 24개 자동화 항목. 각 항목은 우선순위 / 망분리 호환 / 바이브 코딩 도구 / 예상 효과를 포함합니다.</p>
+
+    <!-- ===== 1. 행정 서류 ===== -->
+    <div class="area" data-area="doc" id="area-doc">
+      <div class="area-head">
+        <span class="area-num">01</span>
+        <span class="area-title">행정 서류</span>
+        <span class="area-count">6개 항목 · Q1 3 / Q2 2 / Q3 1</span>
+      </div>
+      <div class="items">
+
+        <div class="item">
+          <div class="item-top">
+            <span class="badge b-q1">Q1 즉시</span>
+            <span class="badge b-net closed">폐쇄망</span>
+          </div>
+          <div class="item-title">강사료 자동 산정·검증 시스템</div>
+          <div class="item-desc">강사 마스터 + NIA 등급표(특급·1급·2급·3급) 룰 매핑. 시간당 단가·일일 한도 자동 검증, 한도 초과 시 자동 차단.</div>
+          <dl class="item-meta">
+            <dt>구현</dt><dd>Google Sheets + Apps Script · Airtable</dd>
+            <dt>효과</dt><dd><strong>차수당 1h + 정산 오류 0건</strong></dd>
+          </dl>
+        </div>
+
+        <div class="item" style="border-left: 3px solid var(--q1); background: linear-gradient(90deg, #fef2f2 0%, #ffffff 8%);">
+          <div class="item-top">
+            <span class="badge b-q1">Q1 즉시</span>
+            <span class="badge b-net closed">폐쇄망</span>
+            <span class="badge" style="background: #fef2f2; color: var(--q1); border: 1px solid #fecaca;">⭐ NEW · 핵심</span>
+          </div>
+          <div class="item-title">산출물 최종 오류 검수 LLM</div>
+          <div class="item-desc"><strong>"오류 Zero" 의 마지막 방어선.</strong> NIA·발주처 송부 직전, LLM이 다음 6종 오류를 자동 검출:
+            <br>① 표기 통일성(과정명·트랙명·기관명 표준 일치)
+            ② 숫자 일치(목차·표·본문 간 인원·횟수·금액)
+            ③ 날짜 정합성(요일·월말일·기간 모순)
+            ④ 인명·기관명 오타
+            ⑤ 강사료 한도·예산 산식 오류
+            ⑥ 누락 항목·미작성 섹션</div>
+          <dl class="item-meta">
+            <dt>구현</dt><dd>Claude API + python-docx/openpyxl + 룰셋</dd>
+            <dt>효과</dt><dd><strong>송부 후 정정 요청 90%↓ · NIA 신뢰도 직결</strong></dd>
+          </dl>
+        </div>
+
+        <div class="item">
+          <div class="item-top">
+            <span class="badge b-q1">Q1 즉시</span>
+            <span class="badge b-net closed">폐쇄망</span>
+          </div>
+          <div class="item-title">차수별 결과보고서 자동 초안 생성</div>
+          <div class="item-desc">출결·만족도·사진 메타데이터 → 표준 템플릿 자동 채움 → LLM이 요약·총평 작성. 운영자는 검수만.</div>
+          <dl class="item-meta">
+            <dt>구현</dt><dd>Python + python-docx + LLM API</dd>
+            <dt>효과</dt><dd><strong>차수당 4h → 30분</strong> (45회 = 165h 절감)</dd>
+          </dl>
+        </div>
+
+        <div class="item">
+          <div class="item-top">
+            <span class="badge b-q2">Q2 예약</span>
+            <span class="badge b-net hybrid">하이브리드</span>
+          </div>
+          <div class="item-title">회의록 자동 정리</div>
+          <div class="item-desc">Zoom/Teams 녹취 → STT → 요약·액션아이템·결정사항 자동 분류. NIA 협의·내부 회의 모두 적용.</div>
+          <dl class="item-meta">
+            <dt>구현</dt><dd>Whisper API + Claude API + Notion</dd>
+            <dt>효과</dt><dd><strong>회의당 1.5h → 15분</strong></dd>
+          </dl>
+        </div>
+
+        <div class="item">
+          <div class="item-top">
+            <span class="badge b-q2">Q2 예약</span>
+            <span class="badge b-net closed">폐쇄망</span>
+          </div>
+          <div class="item-title">공문·안내문 템플릿 엔진</div>
+          <div class="item-desc">변수 치환 + LLM 톤 보정. 모집공고·입과안내·수료통보·결과보고 등 8종 표준 템플릿 + 자동 검수.</div>
+          <dl class="item-meta">
+            <dt>구현</dt><dd>HWP·Word 템플릿 + Python</dd>
+            <dt>효과</dt><dd><strong>건당 30분 → 5분 + 표기 오류 Zero</strong></dd>
+          </dl>
+        </div>
+
+        <div class="item">
+          <div class="item-top">
+            <span class="badge b-q3">Q3 경량</span>
+            <span class="badge b-net closed">폐쇄망</span>
+          </div>
+          <div class="item-title">주간보고서 자동 합본</div>
+          <div class="item-desc">부문별(교육·챔피언·컨설팅·진단·시스템) 표준 입력폼 → 매주 금요일 자동 합본 → PM 검토용 PDF 생성.</div>
+          <dl class="item-meta">
+            <dt>구현</dt><dd>Google Forms + Apps Script + Slides</dd>
+            <dt>효과</dt><dd><strong>주당 3h → 30분</strong></dd>
+          </dl>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ===== 2. 교육 신청서 ===== -->
+    <div class="area" data-area="app" id="area-app">
+      <div class="area-head">
+        <span class="area-num">02</span>
+        <span class="area-title">교육 신청서</span>
+        <span class="area-count">3개 항목 · Q1 2 / Q3 1</span>
+      </div>
+      <div class="items">
+
+        <div class="item">
+          <div class="item-top">
+            <span class="badge b-q1">Q1 즉시</span>
+            <span class="badge b-net">외부망</span>
+          </div>
+          <div class="item-title">표준 신청 웹폼 + 자동 유효성 검증</div>
+          <div class="item-desc">필수항목·이메일/연락처 형식·기관코드·중복신청 자동 차단. 신청 즉시 데이터베이스 적재 + 신청자에게 접수증 자동 발송.</div>
+          <dl class="item-meta">
+            <dt>구현</dt><dd>Lovable / Bolt + Supabase · Google Forms 확장</dd>
+            <dt>효과</dt><dd><strong>입력 오류 90%↓ · 운영자 검토 공수 70%↓</strong></dd>
+          </dl>
+        </div>
+
+        <div class="item">
+          <div class="item-top">
+            <span class="badge b-q1">Q1 즉시</span>
+            <span class="badge b-net">외부망</span>
+          </div>
+          <div class="item-title">사전 자가진단 자동 채점·트랙 추천</div>
+          <div class="item-desc">신청 시점에 자가진단 동시 진행 → 즉시 점수 계산 → 본인에게 적합한 트랙 1·2·3 자동 추천. 트랙2·3 사전이수 의무 안내까지 자동.</div>
+          <dl class="item-meta">
+            <dt>구현</dt><dd>Typeform / Google Forms + 룰엔진</dd>
+            <dt>효과</dt><dd><strong>오신청·재신청 70%↓ · 사전이수 안내 100% 자동</strong></dd>
+          </dl>
+        </div>
+
+        <div class="item">
+          <div class="item-top">
+            <span class="badge b-q3">Q3 경량</span>
+            <span class="badge b-net">외부망</span>
+          </div>
+          <div class="item-title">신청 상태 자동 알림</div>
+          <div class="item-desc">접수 → 검토 중 → 승인/거절 → 입과 안내 단계별 SMS·이메일 자동 발송. 신청자 문의 인입 차단.</div>
+          <dl class="item-meta">
+            <dt>구현</dt><dd>Make.com + 알리고 / 카카오 알림톡</dd>
+            <dt>효과</dt><dd><strong>헬프데스크 문의 40%↓</strong></dd>
+          </dl>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ===== 3. 선발 모집 ===== -->
+    <div class="area" data-area="sel" id="area-sel">
+      <div class="area-head">
+        <span class="area-num">03</span>
+        <span class="area-title">선발 모집</span>
+        <span class="area-count">4개 항목 · Q1 2 / Q2 1 / Q3 1</span>
+      </div>
+      <div class="items">
+
+        <div class="item">
+          <div class="item-top">
+            <span class="badge b-q1">Q1 즉시</span>
+            <span class="badge b-net closed">폐쇄망</span>
+          </div>
+          <div class="item-title">신청자 자동 점수화 시스템</div>
+          <div class="item-desc">선발 평가표(직급·관련 업무·자가진단·동기) → 룰 기반 자동 정량화. 동점자 처리 룰 명시. 평가위원은 정성 항목만 집중.</div>
+          <dl class="item-meta">
+            <dt>구현</dt><dd>Google Sheets + Apps Script (수식+룰)</dd>
+            <dt>효과</dt><dd><strong>선발 1회당 4h → 1h · 산정 오류 Zero</strong></dd>
+          </dl>
+        </div>
+
+        <div class="item">
+          <div class="item-top">
+            <span class="badge b-q1">Q1 즉시</span>
+            <span class="badge b-net closed">폐쇄망</span>
+          </div>
+          <div class="item-title">기관별·유형별 쿼터 자동 검증</div>
+          <div class="item-desc">중앙·지자체·공공기관 비율, 동일기관 인원 한도, 트랙별 정원 등 형평성 룰 자동 검증. 위배 시 추천 명단 자동 재조정.</div>
+          <dl class="item-meta">
+            <dt>구현</dt><dd>Python 스크립트 + 시각화 대시보드</dd>
+            <dt>효과</dt><dd><strong>선발 분쟁·이의제기 사전 차단</strong></dd>
+          </dl>
+        </div>
+
+        <div class="item">
+          <div class="item-top">
+            <span class="badge b-q2">Q2 예약</span>
+            <span class="badge b-net closed">폐쇄망</span>
+          </div>
+          <div class="item-title">평가위원 분배·집계 자동화</div>
+          <div class="item-desc">전문인재 인터뷰 심사 — 위원별 익명 코드 부여 → 평가지 자동 분배 → 평균·표준편차 자동 집계 → 이상치 위원 자동 표시.</div>
+          <dl class="item-meta">
+            <dt>구현</dt><dd>Streamlit + Supabase</dd>
+            <dt>효과</dt><dd><strong>심사 결과 산출 시간 80%↓</strong></dd>
+          </dl>
+        </div>
+
+        <div class="item">
+          <div class="item-top">
+            <span class="badge b-q3">Q3 경량</span>
+            <span class="badge b-net hybrid">하이브리드</span>
+          </div>
+          <div class="item-title">선발 결과 일괄 통보</div>
+          <div class="item-desc">합격·예비·탈락자별 메일·SMS 템플릿 자동 매칭 + 일괄 발송. 입과 안내·사전이수 링크 자동 첨부.</div>
+          <dl class="item-meta">
+            <dt>구현</dt><dd>Make.com + 메일머지</dd>
+            <dt>효과</dt><dd><strong>발송 누락·오발송 Zero</strong></dd>
+          </dl>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ===== 4. 운영 ===== -->
+    <div class="area" data-area="ops" id="area-ops">
+      <div class="area-head">
+        <span class="area-num">04</span>
+        <span class="area-title">운영</span>
+        <span class="area-count">5개 항목 · Q1 3 / Q2 2</span>
+      </div>
+      <div class="items">
+
+        <div class="item" style="border-left: 3px solid var(--q1); background: linear-gradient(90deg, #fef2f2 0%, #ffffff 8%);">
+          <div class="item-top">
+            <span class="badge b-q1">Q1 즉시</span>
+            <span class="badge b-net">외부망</span>
+            <span class="badge" style="background: #fef2f2; color: var(--q1); border: 1px solid #fecaca;">⭐ NEW</span>
+          </div>
+          <div class="item-title">입과안내 자동 발송 시스템</div>
+          <div class="item-desc">선발 확정 시점부터 D-day까지 단계별 자동 안내:
+            <br>① <strong>D-7 입과 안내</strong> (과정 개요·일정·사전이수 안내·준비물)
+            ② <strong>D-3 사전이수 미완료자 개별 알림</strong> (이러닝 진도율 자동 점검)
+            ③ <strong>D-1 리마인드</strong> (장소·접속링크·주차·연락처)
+            ④ <strong>D-day 접속·도착 안내</strong>
+            <br>모든 단계 메일+SMS·알림톡 동시 발송, 발송 결과 자동 로그.</div>
+          <dl class="item-meta">
+            <dt>구현</dt><dd>Make.com + 알리고/알림톡 + DATABUS 진도율 API</dd>
+            <dt>효과</dt><dd><strong>입과 No-show 30%↓ · 사전이수 완료율 95%+</strong></dd>
+          </dl>
+        </div>
+
+        <div class="item">
+          <div class="item-top">
+            <span class="badge b-q1">Q1 즉시</span>
+            <span class="badge b-net hybrid">하이브리드</span>
+          </div>
+          <div class="item-title">출결 자동 기록 시스템</div>
+          <div class="item-desc">비대면(Zoom 참여 로그) + 대면(QR 체크인/아웃) 통합. 실시간 출석률 모니터링, 이석·중도이탈 자동 감지.</div>
+          <dl class="item-meta">
+            <dt>구현</dt><dd>Zoom API + QR 웹앱 + Supabase</dd>
+            <dt>효과</dt><dd><strong>출결 분쟁 Zero · 차수당 출결정리 1h 절감</strong></dd>
+          </dl>
+        </div>
+
+        <div class="item">
+          <div class="item-top">
+            <span class="badge b-q1">Q1 즉시</span>
+            <span class="badge b-net closed">폐쇄망</span>
+          </div>
+          <div class="item-title">수료 판정·수료증 일괄 발급</div>
+          <div class="item-desc">출석률·평가점수 룰 → 자동 수료 판정 → PDF 수료증 일괄 생성·발송. 챔피언 응시자격 자동 부여.</div>
+          <dl class="item-meta">
+            <dt>구현</dt><dd>Python + ReportLab + 메일 발송</dd>
+            <dt>효과</dt><dd><strong>80~100명/회 → 분 단위 발급 · 판정 오류 Zero</strong></dd>
+          </dl>
+        </div>
+
+        <div class="item">
+          <div class="item-top">
+            <span class="badge b-q2">Q2 예약</span>
+            <span class="badge b-net">외부망</span>
+          </div>
+          <div class="item-title">강사 일정 자동 알림</div>
+          <div class="item-desc">D-7 자료 요청 / D-3 최종 확인 / D-1 리마인드 / D-day 안내 자동 발송. 강사·운영매니저 동시 발송.</div>
+          <dl class="item-meta">
+            <dt>구현</dt><dd>Google Calendar + Make.com</dd>
+            <dt>효과</dt><dd><strong>강사 자료 누락·일정 사고 Zero</strong></dd>
+          </dl>
+        </div>
+
+        <div class="item">
+          <div class="item-top">
+            <span class="badge b-q2">Q2 예약</span>
+            <span class="badge b-net closed">폐쇄망</span>
+          </div>
+          <div class="item-title">실습환경 사전 점검 체크리스트</div>
+          <div class="item-desc">망분리 환경 도구 접속 가능 여부, 계정 발급 상태, 실습 데이터 적재 여부 자동 점검. 차수 전일 자동 리포트.</div>
+          <dl class="item-meta">
+            <dt>구현</dt><dd>Python 스크립트 + Slack/메일 알림</dd>
+            <dt>효과</dt><dd><strong>현장 환경 사고 80%↓</strong></dd>
+          </dl>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ===== 5. 만족도 분석 ===== -->
+    <div class="area" data-area="sat" id="area-sat">
+      <div class="area-head">
+        <span class="area-num">05</span>
+        <span class="area-title">만족도 결과 분석</span>
+        <span class="area-count">3개 항목 · Q1 2 / Q2 1</span>
+      </div>
+      <div class="items">
+
+        <div class="item">
+          <div class="item-top">
+            <span class="badge b-q1">Q1 즉시</span>
+            <span class="badge b-net">외부망</span>
+          </div>
+          <div class="item-title">설문 자동 집계·시각화</div>
+          <div class="item-desc">차수 종료 즉시 응답률·평균·문항별 분포 자동 산출. 표준 보고서 시각화(차트 4종) 자동 생성. <strong>K-Brain의 군위군·김포시 사례 노하우 self-apply.</strong></div>
+          <dl class="item-meta">
+            <dt>구현</dt><dd>Streamlit + Plotly · 또는 Looker Studio</dd>
+            <dt>효과</dt><dd><strong>차수당 1.5일 → 즉시</strong> · 결과보고 동시 생성</dd>
+          </dl>
+        </div>
+
+        <div class="item">
+          <div class="item-top">
+            <span class="badge b-q1">Q1 즉시</span>
+            <span class="badge b-net hybrid">하이브리드</span>
+          </div>
+          <div class="item-title">텍스트 응답 LLM 자동 요약·분류</div>
+          <div class="item-desc">주관식 응답 → 긍정/중립/부정 자동 분류 + 주제별(강사·교재·환경·시간) 군집 + 핵심 문장 추출. 운영자가 핵심만 보면 됨.</div>
+          <dl class="item-meta">
+            <dt>구현</dt><dd>Claude / OpenAI API + LangChain</dd>
+            <dt>효과</dt><dd><strong>주관식 분석 4h → 10분</strong></dd>
+          </dl>
+        </div>
+
+        <div class="item">
+          <div class="item-top">
+            <span class="badge b-q2">Q2 예약</span>
+            <span class="badge b-net hybrid">하이브리드</span>
+          </div>
+          <div class="item-title">부정 피드백 임계값 자동 알림</div>
+          <div class="item-desc">평균 4.0 미만, 부정 응답 30% 이상, 동일 강사 연속 저평가 등 임계값 위배 시 운영 PM에 즉시 Slack 알림. 차수 종료 1시간 내 인지.</div>
+          <dl class="item-meta">
+            <dt>구현</dt><dd>Make.com + Slack Webhook</dd>
+            <dt>효과</dt><dd><strong>품질 이슈 조기 발견 · 차차수 즉시 보정</strong></dd>
+          </dl>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ===== 6. 사전·사후 진단 ===== -->
+    <div class="area" data-area="diag" id="area-diag">
+      <div class="area-head">
+        <span class="area-num">06</span>
+        <span class="area-title">역량 사전·사후 진단</span>
+        <span class="area-count">3개 항목 · Q1 1 / Q2 2</span>
+      </div>
+      <div class="items">
+
+        <div class="item">
+          <div class="item-top">
+            <span class="badge b-q1">Q1 즉시</span>
+            <span class="badge b-net">외부망</span>
+          </div>
+          <div class="item-title">동일 문항 자동 비교·향상도 산출</div>
+          <div class="item-desc">사전·사후 동일 문항 매칭 → 개인별·문항별 향상도 자동 계산. 트랙별·과목별 평균 향상도 즉시 도출. NIA KPI 보고에 직접 활용.</div>
+          <dl class="item-meta">
+            <dt>구현</dt><dd>Google Forms + Apps Script + Sheets</dd>
+            <dt>효과</dt><dd><strong>차수당 2h → 즉시 · 산식 오류 Zero</strong></dd>
+          </dl>
+        </div>
+
+        <div class="item">
+          <div class="item-top">
+            <span class="badge b-q2">Q2 예약</span>
+            <span class="badge b-net closed">폐쇄망</span>
+          </div>
+          <div class="item-title">트랙·직급·기관유형별 자동 세분</div>
+          <div class="item-desc">향상도 결과를 트랙·직급·기관유형(중앙/지자체/공공)별로 자동 피벗. 차수 누적 비교 차트 자동 갱신.</div>
+          <dl class="item-meta">
+            <dt>구현</dt><dd>Streamlit + Pandas · 또는 Looker Studio</dd>
+            <dt>효과</dt><dd><strong>차년도 커리큘럼 개선 근거 데이터 자동 축적</strong></dd>
+          </dl>
+        </div>
+
+        <div class="item">
+          <div class="item-top">
+            <span class="badge b-q2">Q2 예약</span>
+            <span class="badge b-net hybrid">하이브리드</span>
+          </div>
+          <div class="item-title">미응시자 자동 리마인드</div>
+          <div class="item-desc">사전·사후·3개월 후 활용현황조사 미응답자 자동 식별 → 단계별 리마인드 SMS·메일. 응답률 90%+ 확보.</div>
+          <dl class="item-meta">
+            <dt>구현</dt><dd>Make.com + 알림톡</dd>
+            <dt>효과</dt><dd><strong>응답률 60% → 90%+ (KPI 달성률 직결)</strong></dd>
+          </dl>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ===== 7. 통합 대시보드 ===== -->
+    <div class="area" data-area="dash" id="area-dash">
+      <div class="area-head">
+        <span class="area-num">07</span>
+        <span class="area-title">통합 대시보드</span>
+        <span class="area-count">3개 항목 · Q1 1 / Q2 1 / Q3 1</span>
+      </div>
+      <div class="items" style="grid-template-columns: 1fr;">
+
+        <div class="item" style="border-left: 3px solid var(--q1); background: linear-gradient(90deg, #fef2f2 0%, #ffffff 5%); padding: 22px 24px;">
+          <div class="item-top">
+            <span class="badge b-q1">Q1 즉시</span>
+            <span class="badge b-net closed">폐쇄망</span>
+            <span class="badge" style="background: #fef2f2; color: var(--q1); border: 1px solid #fecaca;">⭐ NEW · 사업 핵심 자산</span>
+          </div>
+          <div class="item-title" style="font-size: 16px;">회차별 누적 통계 대시보드 — "1개 화면으로 사업 전체를 본다"</div>
+          <div class="item-desc" style="margin-bottom: 14px;">
+            매 차수 종료 즉시 데이터가 자동 누적되어, NIA 보고와 내부 의사결정을 동시에 지원하는
+            <strong>본 사업의 단일 핵심 분석 화면</strong>. 4개 서브 패널로 구성:
+          </div>
+
+          <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 14px;">
+            <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 12px 14px;">
+              <div style="font-size: 11px; font-weight: 700; color: var(--q1); margin-bottom: 4px; letter-spacing: 0.05em;">PANEL 01 · 만족도</div>
+              <div style="font-size: 13px; color: var(--ink); font-weight: 600; margin-bottom: 4px;">회차별 만족도 트렌드</div>
+              <div style="font-size: 11.5px; color: var(--ink-soft); line-height: 1.5;">
+                과정×트랙×차수별 만족도 누적 / 강사별 평균 / 직급·기관 유형별 / 임계값 미달 경고
+              </div>
+            </div>
+            <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 12px 14px;">
+              <div style="font-size: 11px; font-weight: 700; color: var(--q1); margin-bottom: 4px; letter-spacing: 0.05em;">PANEL 02 · 역량향상도</div>
+              <div style="font-size: 13px; color: var(--ink); font-weight: 600; margin-bottom: 4px;">사전·사후 향상도 트렌드</div>
+              <div style="font-size: 11.5px; color: var(--ink-soft); line-height: 1.5;">
+                트랙별 평균 향상도 / 문항별 강·약점 / 과정별 비교 / KPI 목표 대비 달성률
+              </div>
+            </div>
+            <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 12px 14px;">
+              <div style="font-size: 11px; font-weight: 700; color: var(--q1); margin-bottom: 4px; letter-spacing: 0.05em;">PANEL 03 · 신청·선발</div>
+              <div style="font-size: 13px; color: var(--ink); font-weight: 600; margin-bottom: 4px;">신청·선발 인원·기관 현황</div>
+              <div style="font-size: 11.5px; color: var(--ink-soft); line-height: 1.5;">
+                과정별 경쟁률 / 기관 유형(중앙·지자체·공공) 분포 / 지역 분포 / 누적 참여 기관 수
+              </div>
+            </div>
+            <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 12px 14px;">
+              <div style="font-size: 11px; font-weight: 700; color: var(--q1); margin-bottom: 4px; letter-spacing: 0.05em;">PANEL 04 · 수료·인증</div>
+              <div style="font-size: 13px; color: var(--ink); font-weight: 600; margin-bottom: 4px;">수료자·챔피언 인증 현황</div>
+              <div style="font-size: 11.5px; color: var(--ink-soft); line-height: 1.5;">
+                수료율 / 그린·블루·블랙 인증자 누적 / 전문인재 인증 / 자격연계·자기주도 경로별
+              </div>
+            </div>
+          </div>
+
+          <dl class="item-meta">
+            <dt>구현</dt><dd>Streamlit · Metabase · 또는 Looker Studio (외부 보고용 별도 뷰)</dd>
+            <dt>데이터</dt><dd>위 1~6번 영역 자동화 산출물이 그대로 데이터 소스 — <strong>자동화가 곧 분석 자산이 됨</strong></dd>
+            <dt>효과</dt><dd><strong>NIA 월간보고 즉시 생성 · 차차수 운영 의사결정 5일 → 즉시 · 중간·최종보고 자동화</strong></dd>
+            <dt>v0.1</dt><dd>5월 첫 차수 종료 직후 — 단순 차트 4종으로 시작 → Phase 3에서 고도화</dd>
+          </dl>
+        </div>
+
+        <div class="item">
+          <div class="item-top">
+            <span class="badge b-q2">Q2 예약</span>
+            <span class="badge b-net closed">폐쇄망</span>
+          </div>
+          <div class="item-title">사업 진척률·KPI 대시보드 (PMO 운영용)</div>
+          <div class="item-desc">WBS 기반 사업 진척률 + 산출물 상태(지연/임박/완료) + 부문별 KPI + 리스크 요약. PMO·핵심 PL 운영 회의 기본 화면.</div>
+          <dl class="item-meta">
+            <dt>구현</dt><dd>Streamlit · Notion DB · 또는 Metabase</dd>
+            <dt>효과</dt><dd><strong>주간·월간보고 작성 1일 → 2시간</strong></dd>
+          </dl>
+        </div>
+
+        <div class="item">
+          <div class="item-top">
+            <span class="badge b-q3">Q3 경량</span>
+            <span class="badge b-net closed">폐쇄망</span>
+          </div>
+          <div class="item-title">리스크·이슈 보드</div>
+          <div class="item-desc">7대 리스크 등록부 + 이슈 라이프사이클(발생→조치 중→해결) 시각화. 1주 이상 미해결 이슈 자동 에스컬레이션.</div>
+          <dl class="item-meta">
+            <dt>구현</dt><dd>Notion DB + 자동화 · 또는 Trello + Make</dd>
+            <dt>효과</dt><dd><strong>이슈 평균 해결시간 50%↓</strong></dd>
+          </dl>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ===== 실행 로드맵 ===== -->
+    <section id="roadmap">
+      <div class="sec-head">
+        <span class="sec-num">05</span>
+        <h2>실행 로드맵 — 12주</h2>
+      </div>
+      <p class="sec-sub">운영 일정과 동기화. 4주 단위 마일스톤 기준.</p>
+
+      <div class="roadmap">
+        <div class="phase p1">
+          <div class="phase-tag">PHASE 01 · 5월~5월말</div>
+          <div class="phase-title">Q1 핵심 7개 PoC</div>
+          <div class="phase-period">착수 후 4주 · 운영 시작 직전</div>
+          <ul>
+            <li><strong>표준 신청 웹폼</strong> + 자가진단 채점</li>
+            <li><strong>강사료 자동 검증</strong> 시트</li>
+            <li><strong>입과안내 자동 발송</strong> ⭐</li>
+            <li><strong>출결 자동 기록</strong> 시스템</li>
+            <li><strong>설문 자동 집계</strong> 보고서 v1</li>
+            <li><strong>사전·사후 자동 비교</strong> 시트</li>
+            <li><strong>회차별 누적 대시보드 v0.1</strong> ⭐</li>
+          </ul>
+        </div>
+
+        <div class="phase p2">
+          <div class="phase-tag">PHASE 02 · 6월~7월</div>
+          <div class="phase-title">Q1 잔여 + Q2 본격 구축</div>
+          <div class="phase-period">5~8주차 · 운영 안정화</div>
+          <ul>
+            <li><strong>수료 판정·증서 발급</strong></li>
+            <li><strong>산출물 최종 검수 LLM</strong> ⭐</li>
+            <li><strong>차수 결과보고서 LLM 초안</strong></li>
+            <li><strong>텍스트 응답 LLM 요약</strong></li>
+            <li><strong>신청자 점수화·쿼터 검증</strong></li>
+            <li><strong>회의록·공문 자동화</strong></li>
+            <li><strong>강사 일정·실습환경 점검</strong></li>
+            <li><strong>부정 피드백 임계값 알림</strong></li>
+          </ul>
+        </div>
+
+        <div class="phase p3">
+          <div class="phase-tag">PHASE 03 · 8월~중간보고</div>
+          <div class="phase-title">통합·고도화</div>
+          <div class="phase-period">9~12주차 · 중간보고 직전</div>
+          <ul>
+            <li><strong>회차별 누적 대시보드 v2.0</strong> 고도화</li>
+            <li><strong>사업 진척률·KPI 대시보드</strong></li>
+            <li><strong>트랙·직급별 자동 세분</strong></li>
+            <li><strong>미응시자 자동 리마인드</strong></li>
+            <li><strong>리스크·이슈 보드</strong></li>
+            <li>NIA 중간보고에 자동화 성과·누적 통계 포함</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 다음 단계 ===== -->
+    <section id="next">
+      <div class="sec-head">
+        <span class="sec-num">06</span>
+        <h2>다음 단계 — 이번 주 액션</h2>
+      </div>
+
+      <div class="nextsteps">
+        <h3>Phase 1 PoC 7개 착수를 위한 5월 둘째 주 액션</h3>
+        <p>운영 시작 전 자동화 기반 마련을 위해 다음 6가지를 이번 주 안에 결정·착수합니다. <strong style="color: #fff; opacity: 1;">⭐ 표시는 v1.1 신규 핵심 항목.</strong></p>
+        <ol>
+          <li><strong>자동화 담당 배정</strong> — Phase 1 7개 항목별 1차 책임자 지정 (한승원 PL · 시스템 부문 중심)</li>
+          <li><strong>도구·계정 확보</strong> — Lovable·Make.com·Supabase·Streamlit·Claude API·Google Workspace 사용 승인 + 결제</li>
+          <li><strong>표준 신청 웹폼 + 입과안내 ⭐</strong> — 5/15 일반교육 첫 차수 모집·입과 시점에 맞춰 1주 내 완성</li>
+          <li><strong>강사료 검증 시트</strong> — NIA 등급표 매핑 완료 후 첫 강사료 정산 전 적용</li>
+          <li><strong>설문·진단 표준 양식 + 회차별 누적 대시보드 v0.1 ⭐</strong> — 첫 차수 종료 즉시 데이터 적재가 시작되어야 누적 가치가 생김</li>
+          <li><strong>NIA에 자동화 계획 공유</strong> — "오류 Zero · 효율화 · 회차별 누적 분석" 3대 차별화 포인트로 사전 어필</li>
+        </ol>
+      </div>
+    </section>
+
+    <footer>
+      바이브 코딩 자동화 우선순위 v1.1 · 2026 NIA AI·데이터기반행정 역량강화 사업 · K-Brain PMO
+      <br><span style="opacity: 0.7;">v1.0 → v1.1 변경: 산출물 최종 검수 LLM · 입과안내 자동 발송 · 회차별 누적 통계 대시보드 신규 추가</span>
+    </footer>
+
+  </main>
+</div>
+
+<script>
+  // 매트릭스 dot 클릭 시 해당 항목으로 스크롤
+  document.querySelectorAll('.dot[data-area]').forEach(dot => {
+    dot.addEventListener('click', () => {
+      const area = dot.getAttribute('data-area');
+      const target = document.getElementById('area-' + area);
+      if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+</script>
+
+</body>
+</html>

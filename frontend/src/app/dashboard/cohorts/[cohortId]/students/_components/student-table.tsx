@@ -220,7 +220,7 @@ export function StudentTable({ cohortId, students }: { cohortId: string; student
                   <td className='px-4 py-3 font-medium'>{s.name}</td>
                   <td className='px-4 py-3'>
                     <div className='flex min-w-0 items-center gap-2'>
-                      <Badge variant='outline' className={`min-w-[4.5rem] shrink-0 justify-center text-center ${CATEGORY_CLASS[category]}`}>
+                      <Badge variant='outline' className={`min-w-[6rem] shrink-0 justify-center text-center ${CATEGORY_CLASS[category]}`}>
                         {ORGANIZATION_CATEGORY_LABEL[category]}
                       </Badge>
                       <span className='text-muted-foreground truncate'>{orgName}</span>

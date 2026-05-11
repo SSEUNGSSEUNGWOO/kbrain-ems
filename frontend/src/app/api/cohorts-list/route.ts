@@ -1,13 +1,25 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/db';
-import { cohorts } from '@/lib/db/schema';
-import { desc } from 'drizzle-orm';
+import { createAdminClient } from '@/lib/supabase/server';
+import { computeCohortStage } from '@/lib/cohort-stage';
 
 export async function GET() {
-  const rows = await db
-    .select({ id: cohorts.id, name: cohorts.name })
-    .from(cohorts)
-    .orderBy(desc(cohorts.createdAt));
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from('cohorts')
+    .select(
+      'id, name, started_at, ended_at, application_start_at, application_end_at'
+    )
+    .order('created_at', { ascending: false });
 
-  return NextResponse.json(rows);
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  const enriched = (data ?? []).map((c) => ({
+    id: c.id,
+    name: c.name,
+    stage: computeCohortStage(c)
+  }));
+
+  return NextResponse.json(enriched);
 }

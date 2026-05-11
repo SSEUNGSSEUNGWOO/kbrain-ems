@@ -1,8 +1,6 @@
 import { notFound } from 'next/navigation';
 import PageContainer from '@/components/layout/page-container';
-import { db } from '@/lib/db';
-import { assignments, cohorts, students, organizations, assignmentSubmissions } from '@/lib/db/schema';
-import { eq, asc, and } from 'drizzle-orm';
+import { createAdminClient } from '@/lib/supabase/server';
 import { AssignmentSubmissionTable } from './_components/assignment-submission-table';
 
 type SubmissionRecord = {
@@ -22,54 +20,58 @@ export default async function AssignmentDetailPage({
   params: Promise<{ cohortId: string; assignmentId: string }>;
 }) {
   const { cohortId, assignmentId } = await params;
+  const supabase = createAdminClient();
 
-  const [assignmentRows, studentRows, submissionRows] = await Promise.all([
-    db
-      .select({
-        id: assignments.id,
-        title: assignments.title,
-        description: assignments.description,
-        due_date: assignments.dueDate,
-        cohortName: cohorts.name
-      })
-      .from(assignments)
-      .leftJoin(cohorts, eq(assignments.cohortId, cohorts.id))
-      .where(and(eq(assignments.id, assignmentId), eq(assignments.cohortId, cohortId)))
-      .limit(1),
-    db
-      .select({
-        id: students.id,
-        name: students.name,
-        orgName: organizations.name
-      })
-      .from(students)
-      .leftJoin(organizations, eq(students.organizationId, organizations.id))
-      .where(eq(students.cohortId, cohortId))
-      .orderBy(asc(students.name)),
-    db
-      .select({
-        student_id: assignmentSubmissions.studentId,
-        status: assignmentSubmissions.status,
-        submitted_at: assignmentSubmissions.submittedAt,
-        score: assignmentSubmissions.score,
-        note: assignmentSubmissions.note,
-        file_path: assignmentSubmissions.filePath,
-        file_name: assignmentSubmissions.fileName,
-        file_size: assignmentSubmissions.fileSize,
-        file_type: assignmentSubmissions.fileType
-      })
-      .from(assignmentSubmissions)
-      .where(eq(assignmentSubmissions.assignmentId, assignmentId))
+  type AssignmentRow = {
+    id: string;
+    title: string;
+    description: string | null;
+    due_date: string | null;
+    cohorts: { name: string } | null;
+  };
+  type StudentRow = {
+    id: string;
+    name: string;
+    organizations: { name: string } | null;
+  };
+
+  const [assignmentRes, studentRes, submissionRes] = await Promise.all([
+    supabase
+      .from('assignments')
+      .select('id, title, description, due_date, cohorts(name)')
+      .eq('id', assignmentId)
+      .eq('cohort_id', cohortId)
+      .limit(1)
+      .returns<AssignmentRow[]>(),
+    supabase
+      .from('students')
+      .select('id, name, organizations(name)')
+      .eq('cohort_id', cohortId)
+      .order('name', { ascending: true })
+      .returns<StudentRow[]>(),
+    supabase
+      .from('assignment_submissions')
+      .select(
+        'student_id, status, submitted_at, score, note, file_path, file_name, file_size, file_type'
+      )
+      .eq('assignment_id', assignmentId)
   ]);
 
-  const assignment = assignmentRows[0];
+  if (assignmentRes.error) throw new Error(assignmentRes.error.message);
+  if (studentRes.error) throw new Error(studentRes.error.message);
+  if (submissionRes.error) throw new Error(submissionRes.error.message);
+
+  const assignment = assignmentRes.data?.[0];
   if (!assignment) notFound();
+
+  const studentRows = studentRes.data ?? [];
+  const submissionRows = submissionRes.data ?? [];
 
   // Map students to expected shape
   const mappedStudents = studentRows.map((s) => ({
     id: s.id,
     name: s.name,
-    organizations: s.orgName ? { name: s.orgName } : null
+    organizations: s.organizations ? { name: s.organizations.name } : null
   }));
 
   const recordMap = Object.fromEntries(
@@ -89,7 +91,7 @@ export default async function AssignmentDetailPage({
   );
 
   const description = [
-    assignment.cohortName,
+    assignment.cohorts?.name,
     assignment.due_date ? `제출 기한 ${assignment.due_date}` : null,
     assignment.description
   ].filter(Boolean).join(' · ');
