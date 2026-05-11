@@ -132,13 +132,15 @@ export default async function CohortOverviewPage({
   const nextSession = sessionRows.find((s) => s.session_date >= today);
   const isNextToday = nextSession?.session_date === today;
 
-  const totalRecords = allRecords.length;
-  const presentCount = allRecords.filter((r) => r.status !== 'absent').length;
+  const enteredRecords = allRecords.filter((r) => r.status !== 'none');
+  const totalRecords = enteredRecords.length;
+  const presentCount = enteredRecords.filter((r) => r.status !== 'absent').length;
   const attendanceRate = totalRecords > 0 ? Math.round((presentCount / totalRecords) * 100) : null;
 
-  // Per-session attendance counts
+  // Per-session attendance counts (미입력 'none' 제외)
   const attendanceBySession = new Map<string, { total: number; present: number }>();
   for (const r of allRecords) {
+    if (r.status === 'none') continue;
     const entry = attendanceBySession.get(r.session_id) ?? { total: 0, present: 0 };
     entry.total++;
     if (r.status !== 'absent') entry.present++;

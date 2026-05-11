@@ -120,7 +120,7 @@ export default async function StudentsPage({
       .eq('cohort_id', cohortId);
     if (sessionCountError) throw new Error(sessionCountError.message);
 
-    // Per-student attended session count (status !== 'absent')
+    // Per-student attended session count (출석 인정 status만)
     // Drizzle의 inner join + group by 대체: cohort 세션 id를 먼저 가져와서 in 필터
     const { data: cohortSessions } = await supabase
       .from('sessions')
@@ -134,7 +134,7 @@ export default async function StudentsPage({
         .from('attendance_records')
         .select('student_id, status')
         .in('session_id', cohortSessionIds)
-        .neq('status', 'absent');
+        .not('status', 'in', '(absent,none)');
       if (attError) throw new Error(attError.message);
       attendanceRows = attData ?? [];
     }
