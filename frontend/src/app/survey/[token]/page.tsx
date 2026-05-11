@@ -13,7 +13,7 @@ export default async function SurveyResponsePage({ params }: Props) {
   // 1) 토큰으로 응답 row 조회
   const { data: response } = await supabase
     .from('survey_responses')
-    .select('id, survey_id, student_id, submitted_at')
+    .select('id, survey_id, submitted_at')
     .eq('token', token)
     .maybeSingle();
 
@@ -31,17 +31,14 @@ export default async function SurveyResponsePage({ params }: Props) {
     );
   }
 
-  // 3) survey + questions + student 병렬 조회
-  const [surveyRes, questionsRes, studentRes] = await Promise.all([
+  // 3) survey + questions 병렬 조회 (학생 식별 X — 익명)
+  const [surveyRes, questionsRes] = await Promise.all([
     supabase.from('surveys').select('id, title').eq('id', response.survey_id).single(),
     supabase
       .from('survey_questions')
       .select('id, question_no, type, text, required, section_no, section_title, instructor_id, options')
       .eq('survey_id', response.survey_id)
-      .order('question_no', { ascending: true }),
-    response.student_id
-      ? supabase.from('students').select('name').eq('id', response.student_id).maybeSingle()
-      : Promise.resolve({ data: null as { name: string } | null })
+      .order('question_no', { ascending: true })
   ]);
 
   if (!surveyRes.data || !questionsRes.data) notFound();
@@ -57,7 +54,7 @@ export default async function SurveyResponsePage({ params }: Props) {
         <SurveyForm
           token={token}
           surveyTitle={surveyRes.data.title}
-          studentName={studentRes.data?.name ?? null}
+          studentName={null}
           questions={questions}
         />
       </div>
