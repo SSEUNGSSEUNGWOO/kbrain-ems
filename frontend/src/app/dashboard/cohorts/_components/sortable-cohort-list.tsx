@@ -46,9 +46,10 @@ function SortableCohortItem({ cohort }: { cohort: Cohort }) {
         {...attributes}
         {...listeners}
         aria-label='기수 순서 변경 핸들'
-        className='bg-card hover:bg-accent absolute -top-2 -right-2 z-10 flex h-7 w-7 cursor-grab items-center justify-center rounded-full border shadow-sm transition active:cursor-grabbing'
+        title='드래그해서 순서 변경'
+        className='bg-background/95 hover:bg-accent absolute top-2 right-2 z-10 flex h-8 w-8 cursor-grab items-center justify-center rounded-md border shadow-sm backdrop-blur transition active:cursor-grabbing'
       >
-        <Icons.gripVertical className='text-muted-foreground h-3.5 w-3.5' />
+        <Icons.gripVertical className='text-muted-foreground h-4 w-4' />
       </button>
       <CohortCard cohort={cohort} />
     </li>
