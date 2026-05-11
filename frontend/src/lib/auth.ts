@@ -39,7 +39,11 @@ export async function getOperator(): Promise<Operator | null> {
   };
 }
 
+/**
+ * 권한 게이트. PoC 단계에선 모든 운영자에게 같은 권한을 부여한다.
+ * 미래에 권한 분리가 필요하면 op?.role === 'developer' 로 좁히면 된다.
+ */
 export async function isDeveloper(): Promise<boolean> {
   const op = await getOperator();
-  return op?.role === 'developer';
+  return op !== null;
 }
