@@ -107,6 +107,7 @@ export default async function OverviewPage() {
 
   const attendanceMap = new Map<string, { total: number; present: number }>();
   for (const r of attendanceRows ?? []) {
+    if (r.status === 'none') continue;
     const entry = attendanceMap.get(r.session_id) ?? { total: 0, present: 0 };
     entry.total++;
     if (r.status !== 'absent') entry.present++;

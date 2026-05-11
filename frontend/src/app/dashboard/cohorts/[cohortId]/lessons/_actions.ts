@@ -74,7 +74,7 @@ export async function createLesson(input: CreateLessonInput): Promise<Result> {
     const attRows = students.map((s) => ({
       session_id: session.id,
       student_id: s.id,
-      status: 'absent'
+      status: 'none'
     }));
     const { error: attErr } = await supabase.from('attendance_records').insert(attRows);
     if (attErr) return { error: attErr.message };
