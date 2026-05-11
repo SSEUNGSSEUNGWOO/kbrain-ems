@@ -1,28 +1,32 @@
 'use server';
 
-import { db } from '@/lib/db';
-import { applicants, organizations, students } from '@/lib/db/schema';
-import { eq, inArray } from 'drizzle-orm';
+import { createAdminClient } from '@/lib/supabase/server';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from '@/lib/supabase/types';
 import { revalidatePath } from 'next/cache';
 
 type ActionResult = { error?: string };
 
-async function getOrCreateOrg(orgName: string): Promise<string | null> {
+async function getOrCreateOrg(
+  supabase: SupabaseClient<Database>,
+  orgName: string
+): Promise<string | null> {
   const name = orgName.trim();
   if (!name) return null;
 
-  const rows = await db
-    .select({ id: organizations.id })
-    .from(organizations)
-    .where(eq(organizations.name, name))
+  const { data: existing } = await supabase
+    .from('organizations')
+    .select('id')
+    .eq('name', name)
     .limit(1);
-  if (rows[0]) return rows[0].id;
+  if (existing && existing[0]) return existing[0].id;
 
-  const created = await db
-    .insert(organizations)
-    .values({ name })
-    .returning({ id: organizations.id });
-  return created[0]?.id ?? null;
+  const { data: created } = await supabase
+    .from('organizations')
+    .insert({ name })
+    .select('id')
+    .single();
+  return created?.id ?? null;
 }
 
 function formValue(formData: FormData, key: string): string | null {
@@ -36,25 +40,24 @@ export async function createApplicant(
   const name = String(formData.get('name') ?? '').trim();
   if (!name) return { error: '이름은 필수입니다.' };
 
-  const organizationId = await getOrCreateOrg(
+  const supabase = createAdminClient();
+  const organization_id = await getOrCreateOrg(
+    supabase,
     String(formData.get('organization') ?? '')
   );
 
-  try {
-    await db.insert(applicants).values({
-      name,
-      organizationId,
-      email: formValue(formData, 'email'),
-      phone: formValue(formData, 'phone'),
-      department: formValue(formData, 'department'),
-      jobTitle: formValue(formData, 'job_title'),
-      jobRole: formValue(formData, 'job_role'),
-      birthDate: formValue(formData, 'birth_date'),
-      notes: formValue(formData, 'notes')
-    });
-  } catch (e: unknown) {
-    return { error: e instanceof Error ? e.message : '알 수 없는 오류가 발생했습니다.' };
-  }
+  const { error } = await supabase.from('applicants').insert({
+    name,
+    organization_id,
+    email: formValue(formData, 'email'),
+    phone: formValue(formData, 'phone'),
+    department: formValue(formData, 'department'),
+    job_title: formValue(formData, 'job_title'),
+    job_role: formValue(formData, 'job_role'),
+    birth_date: formValue(formData, 'birth_date'),
+    notes: formValue(formData, 'notes')
+  });
+  if (error) return { error: error.message };
 
   revalidatePath('/dashboard/applicants');
   return {};
@@ -67,29 +70,36 @@ export async function updateApplicant(
   const name = String(formData.get('name') ?? '').trim();
   if (!name) return { error: '이름은 필수입니다.' };
 
-  const organizationId = await getOrCreateOrg(
+  const supabase = createAdminClient();
+  const organization_id = await getOrCreateOrg(
+    supabase,
     String(formData.get('organization') ?? '')
   );
 
   const fields = {
     name,
-    organizationId,
+    organization_id,
     email: formValue(formData, 'email'),
     phone: formValue(formData, 'phone'),
     department: formValue(formData, 'department'),
-    jobTitle: formValue(formData, 'job_title'),
-    jobRole: formValue(formData, 'job_role'),
-    birthDate: formValue(formData, 'birth_date'),
+    job_title: formValue(formData, 'job_title'),
+    job_role: formValue(formData, 'job_role'),
+    birth_date: formValue(formData, 'birth_date'),
     notes: formValue(formData, 'notes')
   };
 
-  try {
-    await db.update(applicants).set(fields).where(eq(applicants.id, id));
-    // 같은 id로 등록된 학생이 있으면 같이 갱신
-    await db.update(students).set(fields).where(eq(students.id, id));
-  } catch (e: unknown) {
-    return { error: e instanceof Error ? e.message : '알 수 없는 오류가 발생했습니다.' };
-  }
+  const { error: applicantError } = await supabase
+    .from('applicants')
+    .update(fields)
+    .eq('id', id);
+  if (applicantError) return { error: applicantError.message };
+
+  // 같은 id로 등록된 학생이 있으면 같이 갱신
+  const { error: studentError } = await supabase
+    .from('students')
+    .update(fields)
+    .eq('id', id);
+  if (studentError) return { error: studentError.message };
 
   revalidatePath('/dashboard/applicants');
   revalidatePath(`/dashboard/applicants/${id}`);
@@ -97,11 +107,9 @@ export async function updateApplicant(
 }
 
 export async function deleteApplicant(id: string): Promise<ActionResult> {
-  try {
-    await db.delete(applicants).where(eq(applicants.id, id));
-  } catch (e: unknown) {
-    return { error: e instanceof Error ? e.message : '알 수 없는 오류가 발생했습니다.' };
-  }
+  const supabase = createAdminClient();
+  const { error } = await supabase.from('applicants').delete().eq('id', id);
+  if (error) return { error: error.message };
 
   revalidatePath('/dashboard/applicants');
   return {};
@@ -110,11 +118,9 @@ export async function deleteApplicant(id: string): Promise<ActionResult> {
 export async function deleteApplicants(ids: string[]): Promise<ActionResult> {
   if (ids.length === 0) return {};
 
-  try {
-    await db.delete(applicants).where(inArray(applicants.id, ids));
-  } catch (e: unknown) {
-    return { error: e instanceof Error ? e.message : '알 수 없는 오류가 발생했습니다.' };
-  }
+  const supabase = createAdminClient();
+  const { error } = await supabase.from('applicants').delete().in('id', ids);
+  if (error) return { error: error.message };
 
   revalidatePath('/dashboard/applicants');
   return {};

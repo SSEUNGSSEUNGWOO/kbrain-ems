@@ -42,6 +42,11 @@ export function UserNav() {
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={() => router.push('/dashboard/account')}>
+          <Icons.settings className='mr-2 h-4 w-4' />
+          개인 설정
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleLogout} className='text-destructive focus:text-destructive'>
           <Icons.logout className='mr-2 h-4 w-4' />
           로그아웃

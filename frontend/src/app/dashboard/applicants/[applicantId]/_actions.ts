@@ -1,88 +1,79 @@
 'use server';
 
-import { db } from '@/lib/db';
-import { applicants, applications, students } from '@/lib/db/schema';
-import { and, eq } from 'drizzle-orm';
+import { createAdminClient } from '@/lib/supabase/server';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from '@/lib/supabase/types';
 import { revalidatePath } from 'next/cache';
 
 async function syncStudentSelected(
+  supabase: SupabaseClient<Database>,
   applicantId: string,
   cohortId: string
 ): Promise<void> {
-  const a = (
-    await db
-      .select({
-        id: applicants.id,
-        name: applicants.name,
-        organizationId: applicants.organizationId,
-        department: applicants.department,
-        jobTitle: applicants.jobTitle,
-        jobRole: applicants.jobRole,
-        birthDate: applicants.birthDate,
-        email: applicants.email,
-        phone: applicants.phone,
-        notes: applicants.notes
-      })
-      .from(applicants)
-      .where(eq(applicants.id, applicantId))
-      .limit(1)
-  )[0];
+  const { data: applicantRows } = await supabase
+    .from('applicants')
+    .select(
+      'id, name, organization_id, department, job_title, job_role, birth_date, email, phone, notes'
+    )
+    .eq('id', applicantId)
+    .limit(1);
+  const a = applicantRows?.[0];
   if (!a) return;
 
-  const existing = await db
-    .select({ id: students.id })
-    .from(students)
-    .where(eq(students.id, applicantId))
+  const { data: existing } = await supabase
+    .from('students')
+    .select('id')
+    .eq('id', applicantId)
     .limit(1);
-  if (existing[0]) {
+
+  if (existing && existing[0]) {
     // 이미 학생이면 cohort만 맞춰주고 정보 갱신
-    await db
-      .update(students)
-      .set({
-        cohortId,
+    await supabase
+      .from('students')
+      .update({
+        cohort_id: cohortId,
         name: a.name,
-        organizationId: a.organizationId,
+        organization_id: a.organization_id,
         department: a.department,
-        jobTitle: a.jobTitle,
-        jobRole: a.jobRole,
-        birthDate: a.birthDate,
+        job_title: a.job_title,
+        job_role: a.job_role,
+        birth_date: a.birth_date,
         email: a.email,
         phone: a.phone,
         notes: a.notes
       })
-      .where(eq(students.id, applicantId));
+      .eq('id', applicantId);
     return;
   }
 
-  await db.insert(students).values({
+  await supabase.from('students').insert({
     id: applicantId,
-    cohortId,
+    cohort_id: cohortId,
     name: a.name,
-    organizationId: a.organizationId,
+    organization_id: a.organization_id,
     department: a.department,
-    jobTitle: a.jobTitle,
-    jobRole: a.jobRole,
-    birthDate: a.birthDate,
+    job_title: a.job_title,
+    job_role: a.job_role,
+    birth_date: a.birth_date,
     email: a.email,
     phone: a.phone,
     notes: a.notes
   });
 }
 
-async function removeStudentIfNoSelected(applicantId: string): Promise<void> {
+async function removeStudentIfNoSelected(
+  supabase: SupabaseClient<Database>,
+  applicantId: string
+): Promise<void> {
   // 이 사람이 더 이상 어떤 기수에도 selected가 아니면 학생 행 제거
-  const stillSelected = await db
-    .select({ id: applications.id })
-    .from(applications)
-    .where(
-      and(
-        eq(applications.applicantId, applicantId),
-        eq(applications.status, 'selected')
-      )
-    )
+  const { data: stillSelected } = await supabase
+    .from('applications')
+    .select('id')
+    .eq('applicant_id', applicantId)
+    .eq('status', 'selected')
     .limit(1);
-  if (stillSelected[0]) return;
-  await db.delete(students).where(eq(students.id, applicantId));
+  if (stillSelected && stillSelected[0]) return;
+  await supabase.from('students').delete().eq('id', applicantId);
 }
 
 type ActionResult = { error?: string };
@@ -124,23 +115,20 @@ export async function createApplication(
       ? rejectedStageRaw
       : null;
 
-  try {
-    await db.insert(applications).values({
-      applicantId,
-      cohortId,
-      status,
-      rejectedStage,
-      appliedAt: formValue(formData, 'applied_at'),
-      decidedAt: formValue(formData, 'decided_at'),
-      note: formValue(formData, 'note')
-    });
-    if (status === 'selected') {
-      await syncStudentSelected(applicantId, cohortId);
-    }
-  } catch (e: unknown) {
-    return {
-      error: e instanceof Error ? e.message : '알 수 없는 오류가 발생했습니다.'
-    };
+  const supabase = createAdminClient();
+  const { error } = await supabase.from('applications').insert({
+    applicant_id: applicantId,
+    cohort_id: cohortId,
+    status,
+    rejected_stage: rejectedStage,
+    applied_at: formValue(formData, 'applied_at'),
+    decided_at: formValue(formData, 'decided_at'),
+    note: formValue(formData, 'note')
+  });
+  if (error) return { error: error.message };
+
+  if (status === 'selected') {
+    await syncStudentSelected(supabase, applicantId, cohortId);
   }
 
   revalidatePath(`/dashboard/applicants/${applicantId}`);
@@ -171,28 +159,24 @@ export async function updateApplication(
       ? rejectedStageRaw
       : null;
 
-  try {
-    await db
-      .update(applications)
-      .set({
-        cohortId,
-        status,
-        rejectedStage,
-        appliedAt: formValue(formData, 'applied_at'),
-        decidedAt: formValue(formData, 'decided_at'),
-        note: formValue(formData, 'note')
-      })
-      .where(eq(applications.id, id));
+  const supabase = createAdminClient();
+  const { error } = await supabase
+    .from('applications')
+    .update({
+      cohort_id: cohortId,
+      status,
+      rejected_stage: rejectedStage,
+      applied_at: formValue(formData, 'applied_at'),
+      decided_at: formValue(formData, 'decided_at'),
+      note: formValue(formData, 'note')
+    })
+    .eq('id', id);
+  if (error) return { error: error.message };
 
-    if (status === 'selected') {
-      await syncStudentSelected(applicantId, cohortId);
-    } else {
-      await removeStudentIfNoSelected(applicantId);
-    }
-  } catch (e: unknown) {
-    return {
-      error: e instanceof Error ? e.message : '알 수 없는 오류가 발생했습니다.'
-    };
+  if (status === 'selected') {
+    await syncStudentSelected(supabase, applicantId, cohortId);
+  } else {
+    await removeStudentIfNoSelected(supabase, applicantId);
   }
 
   revalidatePath(`/dashboard/applicants/${applicantId}`);
@@ -204,14 +188,11 @@ export async function deleteApplication(
   id: string,
   applicantId: string
 ): Promise<ActionResult> {
-  try {
-    await db.delete(applications).where(eq(applications.id, id));
-    await removeStudentIfNoSelected(applicantId);
-  } catch (e: unknown) {
-    return {
-      error: e instanceof Error ? e.message : '알 수 없는 오류가 발생했습니다.'
-    };
-  }
+  const supabase = createAdminClient();
+  const { error } = await supabase.from('applications').delete().eq('id', id);
+  if (error) return { error: error.message };
+
+  await removeStudentIfNoSelected(supabase, applicantId);
 
   revalidatePath(`/dashboard/applicants/${applicantId}`);
   revalidatePath('/dashboard/applicants');

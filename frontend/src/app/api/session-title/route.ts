@@ -1,20 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
-import { sessions } from '@/lib/db/schema';
-import { eq } from 'drizzle-orm';
+import { createAdminClient } from '@/lib/supabase/server';
 
 export async function GET(request: NextRequest) {
   const id = request.nextUrl.searchParams.get('id');
   if (!id) return NextResponse.json({ title: null });
 
-  const rows = await db
-    .select({ sessionDate: sessions.sessionDate, title: sessions.title })
-    .from(sessions)
-    .where(eq(sessions.id, id))
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from('sessions')
+    .select('session_date, title')
+    .eq('id', id)
     .limit(1);
 
-  const row = rows[0];
+  if (error) {
+    return NextResponse.json({ title: null });
+  }
+
+  const row = data?.[0];
   if (!row) return NextResponse.json({ title: null });
 
-  return NextResponse.json({ title: row.title ?? row.sessionDate });
+  return NextResponse.json({ title: row.title ?? row.session_date });
 }

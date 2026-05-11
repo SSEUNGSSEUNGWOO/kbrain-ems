@@ -1,13 +1,5 @@
 import { NextResponse } from 'next/server';
-import { eq, asc, inArray } from 'drizzle-orm';
-import { db } from '@/lib/db';
-import {
-  cohorts,
-  sessions,
-  students,
-  organizations,
-  attendanceRecords
-} from '@/lib/db/schema';
+import { createAdminClient } from '@/lib/supabase/server';
 import { buildAttendanceWorkbook } from '@/lib/excel/attendance-export';
 
 export async function GET(
@@ -15,65 +7,71 @@ export async function GET(
   { params }: { params: Promise<{ cohortId: string }> }
 ) {
   const { cohortId } = await params;
+  const supabase = createAdminClient();
 
-  const cohortRow = (
-    await db
-      .select({ id: cohorts.id, name: cohorts.name })
-      .from(cohorts)
-      .where(eq(cohorts.id, cohortId))
-      .limit(1)
-  )[0];
+  const { data: cohortRows, error: cohortError } = await supabase
+    .from('cohorts')
+    .select('id, name')
+    .eq('id', cohortId)
+    .limit(1);
 
+  if (cohortError) {
+    return new NextResponse(cohortError.message, { status: 500 });
+  }
+
+  const cohortRow = cohortRows?.[0];
   if (!cohortRow) {
     return new NextResponse('Cohort not found', { status: 404 });
   }
 
-  const studentRows = await db
-    .select({
-      id: students.id,
-      name: students.name,
-      department: students.department,
-      jobTitle: students.jobTitle,
-      organizationName: organizations.name
-    })
-    .from(students)
-    .leftJoin(organizations, eq(students.organizationId, organizations.id))
-    .where(eq(students.cohortId, cohortId))
-    .orderBy(asc(students.name));
+  type StudentRow = {
+    id: string;
+    name: string;
+    department: string | null;
+    job_title: string | null;
+    organizations: { name: string } | null;
+  };
 
-  const sessionRows = await db
-    .select({
-      id: sessions.id,
-      sessionDate: sessions.sessionDate,
-      title: sessions.title
-    })
-    .from(sessions)
-    .where(eq(sessions.cohortId, cohortId))
-    .orderBy(asc(sessions.sessionDate));
+  const { data: studentRowsRaw, error: studentError } = await supabase
+    .from('students')
+    .select('id, name, department, job_title, organizations(name)')
+    .eq('cohort_id', cohortId)
+    .order('name', { ascending: true })
+    .returns<StudentRow[]>();
+  if (studentError) {
+    return new NextResponse(studentError.message, { status: 500 });
+  }
+  const studentRows = studentRowsRaw ?? [];
+
+  const { data: sessionRowsRaw, error: sessionError } = await supabase
+    .from('sessions')
+    .select('id, session_date, title')
+    .eq('cohort_id', cohortId)
+    .order('session_date', { ascending: true });
+  if (sessionError) {
+    return new NextResponse(sessionError.message, { status: 500 });
+  }
+  const sessionRows = sessionRowsRaw ?? [];
 
   let recordRows: {
-    sessionId: string;
-    studentId: string;
+    session_id: string;
+    student_id: string;
     status: string;
     note: string | null;
-    creditedHours: string | null;
+    credited_hours: string | null;
   }[] = [];
   if (sessionRows.length > 0) {
-    recordRows = await db
-      .select({
-        sessionId: attendanceRecords.sessionId,
-        studentId: attendanceRecords.studentId,
-        status: attendanceRecords.status,
-        note: attendanceRecords.note,
-        creditedHours: attendanceRecords.creditedHours
-      })
-      .from(attendanceRecords)
-      .where(
-        inArray(
-          attendanceRecords.sessionId,
-          sessionRows.map((s) => s.id)
-        )
+    const { data, error: recordError } = await supabase
+      .from('attendance_records')
+      .select('session_id, student_id, status, note, credited_hours')
+      .in(
+        'session_id',
+        sessionRows.map((s) => s.id)
       );
+    if (recordError) {
+      return new NextResponse(recordError.message, { status: 500 });
+    }
+    recordRows = data ?? [];
   }
 
   const buf = await buildAttendanceWorkbook({
@@ -82,12 +80,22 @@ export async function GET(
       id: s.id,
       name: s.name,
       category: s.department,
-      organizationName: s.organizationName,
+      organizationName: s.organizations?.name ?? null,
       department: null,
-      jobTitle: s.jobTitle
+      jobTitle: s.job_title
     })),
-    sessions: sessionRows,
-    records: recordRows
+    sessions: sessionRows.map((s) => ({
+      id: s.id,
+      sessionDate: s.session_date,
+      title: s.title
+    })),
+    records: recordRows.map((r) => ({
+      sessionId: r.session_id,
+      studentId: r.student_id,
+      status: r.status,
+      note: r.note,
+      creditedHours: r.credited_hours
+    }))
   });
 
   const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');

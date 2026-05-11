@@ -1,12 +1,12 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import PageContainer from '@/components/layout/page-container';
-import { db } from '@/lib/db';
-import { cohorts, students, sessions, attendanceRecords } from '@/lib/db/schema';
-import { eq, count, asc, inArray } from 'drizzle-orm';
+import { createAdminClient } from '@/lib/supabase/server';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Icons } from '@/components/icons';
+import { computeCohortStage, STAGE_DOMAINS } from '@/lib/cohort-stage';
+import { RecruitingCard } from './_components/recruiting-card';
 
 function formatDate(dateStr: string): string {
   const [y, m, d] = dateStr.split('-');
@@ -36,15 +36,28 @@ const PHASES: { key: PhaseKey; label: string; icon: keyof typeof Icons }[] = [
   { key: 'special', label: '특별 세션', icon: 'calendar' },
   { key: 'individual-project', label: '개인프로젝트', icon: 'user' },
   { key: 'team-project', label: '팀프로젝트', icon: 'teams' },
-  { key: 'other', label: '기타', icon: 'calendar' },
+  { key: 'other', label: '기타', icon: 'calendar' }
 ];
 
-const DOMAINS = [
-  { slug: 'students', label: '인원 관리', desc: '교육생 명단 관리', icon: 'teams' as const, iconColor: 'text-blue-600 dark:text-blue-400', iconBg: 'bg-blue-100 dark:bg-blue-900/50' },
-  { slug: 'attendance', label: '출결', desc: '수업 회차별 출결 현황', icon: 'circleCheck' as const, iconColor: 'text-emerald-600 dark:text-emerald-400', iconBg: 'bg-emerald-100 dark:bg-emerald-900/50' },
-  { slug: 'assignments', label: '과제', desc: '과제 출제, 제출, 채점', icon: 'forms' as const, iconColor: 'text-amber-600 dark:text-amber-400', iconBg: 'bg-amber-100 dark:bg-amber-900/50' },
-  { slug: 'completion', label: '수료', desc: '수료 기준 충족 여부', icon: 'badgeCheck' as const, iconColor: 'text-violet-600 dark:text-violet-400', iconBg: 'bg-violet-100 dark:bg-violet-900/50' }
-] as const;
+type DomainInfo = {
+  slug: string;
+  label: string;
+  desc: string;
+  icon: keyof typeof Icons;
+  iconColor: string;
+  iconBg: string;
+};
+
+const DOMAIN_INFO: Record<string, DomainInfo> = {
+  students: { slug: 'students', label: '인원 관리', desc: '교육생 명단 관리', icon: 'teams', iconColor: 'text-blue-600 dark:text-blue-400', iconBg: 'bg-blue-100 dark:bg-blue-900/50' },
+  lessons: { slug: 'lessons', label: '수업 관리', desc: '회차·강사·장소', icon: 'calendar', iconColor: 'text-sky-600 dark:text-sky-400', iconBg: 'bg-sky-100 dark:bg-sky-900/50' },
+  attendance: { slug: 'attendance', label: '출결', desc: '수업 회차별 출결 현황', icon: 'circleCheck', iconColor: 'text-emerald-600 dark:text-emerald-400', iconBg: 'bg-emerald-100 dark:bg-emerald-900/50' },
+  assignments: { slug: 'assignments', label: '과제', desc: '과제 출제, 제출, 채점', icon: 'forms', iconColor: 'text-amber-600 dark:text-amber-400', iconBg: 'bg-amber-100 dark:bg-amber-900/50' },
+  surveys: { slug: 'surveys', label: '만족도', desc: '만족도 설문 발송·결과', icon: 'chat', iconColor: 'text-pink-600 dark:text-pink-400', iconBg: 'bg-pink-100 dark:bg-pink-900/50' },
+  instructors: { slug: 'instructors', label: '강사', desc: '강사·강사료 관리', icon: 'user2', iconColor: 'text-rose-600 dark:text-rose-400', iconBg: 'bg-rose-100 dark:bg-rose-900/50' },
+  completion: { slug: 'completion', label: '수료', desc: '수료 기준 충족 여부', icon: 'badgeCheck', iconColor: 'text-violet-600 dark:text-violet-400', iconBg: 'bg-violet-100 dark:bg-violet-900/50' },
+  reports: { slug: 'reports', label: '결과보고서', desc: '자동 초안 + 검토', icon: 'fileTypeDoc', iconColor: 'text-orange-600 dark:text-orange-400', iconBg: 'bg-orange-100 dark:bg-orange-900/50' }
+};
 
 export default async function CohortOverviewPage({
   params
@@ -52,60 +65,72 @@ export default async function CohortOverviewPage({
   params: Promise<{ cohortId: string }>;
 }) {
   const { cohortId } = await params;
+  const supabase = createAdminClient();
 
-  const [cohortRows, studentCountRows, sessionRows] = await Promise.all([
-    db
-      .select({
-        id: cohorts.id,
-        name: cohorts.name,
-        started_at: cohorts.startedAt,
-        ended_at: cohorts.endedAt
-      })
-      .from(cohorts)
-      .where(eq(cohorts.id, cohortId))
+  const [cohortRes, studentRes, sessionRes] = await Promise.all([
+    supabase
+      .from('cohorts')
+      .select(
+        'id, name, started_at, ended_at, application_start_at, application_end_at, recruiting_slug, max_capacity'
+      )
+      .eq('id', cohortId)
       .limit(1),
-    db
-      .select({ count: count() })
-      .from(students)
-      .where(eq(students.cohortId, cohortId)),
-    db
-      .select({
-        id: sessions.id,
-        session_date: sessions.sessionDate,
-        title: sessions.title,
-        start_time: sessions.startTime,
-        end_time: sessions.endTime
-      })
-      .from(sessions)
-      .where(eq(sessions.cohortId, cohortId))
-      .orderBy(asc(sessions.sessionDate))
+    supabase
+      .from('students')
+      .select('id')
+      .eq('cohort_id', cohortId),
+    supabase
+      .from('sessions')
+      .select('id, session_date, title, start_time, end_time')
+      .eq('cohort_id', cohortId)
+      .order('session_date', { ascending: true })
   ]);
 
-  const cohort = cohortRows[0];
+  if (cohortRes.error) throw new Error(cohortRes.error.message);
+  if (studentRes.error) throw new Error(studentRes.error.message);
+  if (sessionRes.error) throw new Error(sessionRes.error.message);
+
+  const cohort = cohortRes.data?.[0];
   if (!cohort) notFound();
 
-  const studentCount = studentCountRows[0]?.count ?? 0;
+  const stage = computeCohortStage({
+    application_start_at: cohort.application_start_at,
+    application_end_at: cohort.application_end_at,
+    started_at: cohort.started_at,
+    ended_at: cohort.ended_at
+  });
+  const isRecruiting = stage === 'recruiting' && !!cohort.recruiting_slug;
+
+  // 모집중이면 신청자 수도 조회
+  let applicantCount = 0;
+  if (isRecruiting) {
+    const { count } = await supabase
+      .from('applications')
+      .select('id', { count: 'exact', head: true })
+      .eq('cohort_id', cohortId);
+    applicantCount = count ?? 0;
+  }
+
+  const studentCount = studentRes.data?.length ?? 0;
+  const sessionRows = sessionRes.data ?? [];
 
   // Fetch attendance records for all sessions
   const sessionIds = sessionRows.map((s) => s.id);
   let allRecords: { status: string; session_id: string }[] = [];
   if (sessionIds.length > 0) {
-    allRecords = await db
-      .select({
-        status: attendanceRecords.status,
-        session_id: attendanceRecords.sessionId
-      })
-      .from(attendanceRecords)
-      .where(
-        sessionIds.length === 1
-          ? eq(attendanceRecords.sessionId, sessionIds[0])
-          : inArray(attendanceRecords.sessionId, sessionIds)
-      );
+    const { data: records, error: recordError } = await supabase
+      .from('attendance_records')
+      .select('status, session_id')
+      .in('session_id', sessionIds);
+    if (recordError) throw new Error(recordError.message);
+    allRecords = records ?? [];
   }
 
   const today = new Date().toISOString().split('T')[0];
   const totalSessions = sessionRows.length;
   const doneSessions = sessionRows.filter((s) => s.session_date < today).length;
+  const nextSession = sessionRows.find((s) => s.session_date >= today);
+  const isNextToday = nextSession?.session_date === today;
 
   const totalRecords = allRecords.length;
   const presentCount = allRecords.filter((r) => r.status !== 'absent').length;
@@ -135,6 +160,10 @@ export default async function CohortOverviewPage({
     { label: '평균 출석률', value: attendanceRate != null ? `${attendanceRate}%` : '-', sub: totalRecords > 0 ? `${totalRecords}개 기록` : '출결 미입력' }
   ];
 
+  const visibleDomains = STAGE_DOMAINS[stage]
+    .map((slug) => DOMAIN_INFO[slug])
+    .filter((d): d is DomainInfo => !!d);
+
   return (
     <PageContainer
       pageTitle={cohort.name}
@@ -144,36 +173,86 @@ export default async function CohortOverviewPage({
           : '교육 기간 미정'
       }
     >
-      {/* 주요 지표 */}
-      <div className='mb-8 grid gap-4 sm:grid-cols-3'>
-        <div className='rounded-xl border bg-gradient-to-br from-blue-50 to-white px-6 py-5 dark:from-blue-950/30 dark:to-background'>
-          <div className='mb-2 flex h-9 w-9 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/50'>
-            <Icons.teams className='h-4.5 w-4.5 text-blue-600 dark:text-blue-400' />
-          </div>
-          <div className='text-muted-foreground text-xs font-medium'>{stats[0].label}</div>
-          <div className='mt-1 text-3xl font-bold'>{stats[0].value}</div>
-          <div className='text-muted-foreground mt-1 text-xs'>{stats[0].sub}</div>
-        </div>
-        <div className='rounded-xl border bg-gradient-to-br from-violet-50 to-white px-6 py-5 dark:from-violet-950/30 dark:to-background'>
-          <div className='mb-2 flex h-9 w-9 items-center justify-center rounded-lg bg-violet-100 dark:bg-violet-900/50'>
-            <Icons.calendar className='h-4.5 w-4.5 text-violet-600 dark:text-violet-400' />
-          </div>
-          <div className='text-muted-foreground text-xs font-medium'>{stats[1].label}</div>
-          <div className='mt-1 text-3xl font-bold'>{stats[1].value}</div>
-          <div className='text-muted-foreground mt-1 text-xs'>{stats[1].sub}</div>
-        </div>
-        <div className='rounded-xl border bg-gradient-to-br from-emerald-50 to-white px-6 py-5 dark:from-emerald-950/30 dark:to-background'>
-          <div className='mb-2 flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-900/50'>
-            <Icons.circleCheck className='h-4.5 w-4.5 text-emerald-600 dark:text-emerald-400' />
-          </div>
-          <div className='text-muted-foreground text-xs font-medium'>{stats[2].label}</div>
-          <div className='mt-1 text-3xl font-bold'>{stats[2].value}</div>
-          <div className='text-muted-foreground mt-1 text-xs'>{stats[2].sub}</div>
-        </div>
-      </div>
+      {/* 모집 단계 — 신청 링크 카드 */}
+      {isRecruiting && cohort.recruiting_slug && (
+        <RecruitingCard
+          slug={cohort.recruiting_slug}
+          applicationStartAt={cohort.application_start_at}
+          applicationEndAt={cohort.application_end_at}
+          applicantCount={applicantCount}
+          maxCapacity={cohort.max_capacity}
+        />
+      )}
 
-      {/* 교육 일정 */}
-      {totalSessions > 0 && (
+      {/* 다음 수업 — 진행/완료 단계 + 예정 수업 있을 때 */}
+      {!isRecruiting && nextSession && (
+        <Link
+          href={`/dashboard/cohorts/${cohortId}/attendance/${nextSession.id}`}
+          className={`mb-6 flex items-center justify-between gap-3 rounded-xl border px-5 py-4 transition ${
+            isNextToday
+              ? 'border-rose-200 bg-gradient-to-br from-rose-50 to-white hover:border-rose-300 hover:shadow-sm dark:border-rose-900 dark:from-rose-950/30 dark:to-background'
+              : 'bg-card hover:bg-accent'
+          }`}
+        >
+          <div className='flex min-w-0 items-center gap-3'>
+            {isNextToday ? (
+              <span className='h-2.5 w-2.5 shrink-0 animate-pulse rounded-full bg-rose-500' />
+            ) : (
+              <Icons.calendar className='text-muted-foreground h-4 w-4 shrink-0' />
+            )}
+            <div className='min-w-0'>
+              <div className='flex flex-wrap items-baseline gap-x-2 text-sm'>
+                <span className='font-semibold'>{isNextToday ? '오늘 수업' : '다음 수업'}</span>
+                <span className='text-muted-foreground'>{formatShortDate(nextSession.session_date)}</span>
+                {nextSession.start_time && nextSession.end_time && (
+                  <span className='text-muted-foreground text-xs'>
+                    {nextSession.start_time.slice(0, 5)}~{nextSession.end_time.slice(0, 5)}
+                  </span>
+                )}
+              </div>
+              <div className='text-muted-foreground mt-0.5 truncate text-xs'>
+                {nextSession.title ?? '제목 없음'}
+              </div>
+            </div>
+          </div>
+          <div className={`shrink-0 text-xs font-semibold ${isNextToday ? 'text-rose-600 dark:text-rose-400' : 'text-primary'}`}>
+            출결 입력 →
+          </div>
+        </Link>
+      )}
+
+      {/* 주요 지표 — 모집 단계가 아닐 때만 (모집 단계에선 RecruitingCard로 대체) */}
+      {!isRecruiting && (
+        <div className='mb-8 grid gap-4 sm:grid-cols-3'>
+          <div className='rounded-xl border bg-gradient-to-br from-blue-50 to-white px-6 py-5 dark:from-blue-950/30 dark:to-background'>
+            <div className='mb-2 flex h-9 w-9 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/50'>
+              <Icons.teams className='h-4.5 w-4.5 text-blue-600 dark:text-blue-400' />
+            </div>
+            <div className='text-muted-foreground text-xs font-medium'>{stats[0].label}</div>
+            <div className='mt-1 text-3xl font-bold'>{stats[0].value}</div>
+            <div className='text-muted-foreground mt-1 text-xs'>{stats[0].sub}</div>
+          </div>
+          <div className='rounded-xl border bg-gradient-to-br from-violet-50 to-white px-6 py-5 dark:from-violet-950/30 dark:to-background'>
+            <div className='mb-2 flex h-9 w-9 items-center justify-center rounded-lg bg-violet-100 dark:bg-violet-900/50'>
+              <Icons.calendar className='h-4.5 w-4.5 text-violet-600 dark:text-violet-400' />
+            </div>
+            <div className='text-muted-foreground text-xs font-medium'>{stats[1].label}</div>
+            <div className='mt-1 text-3xl font-bold'>{stats[1].value}</div>
+            <div className='text-muted-foreground mt-1 text-xs'>{stats[1].sub}</div>
+          </div>
+          <div className='rounded-xl border bg-gradient-to-br from-emerald-50 to-white px-6 py-5 dark:from-emerald-950/30 dark:to-background'>
+            <div className='mb-2 flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-900/50'>
+              <Icons.circleCheck className='h-4.5 w-4.5 text-emerald-600 dark:text-emerald-400' />
+            </div>
+            <div className='text-muted-foreground text-xs font-medium'>{stats[2].label}</div>
+            <div className='mt-1 text-3xl font-bold'>{stats[2].value}</div>
+            <div className='text-muted-foreground mt-1 text-xs'>{stats[2].sub}</div>
+          </div>
+        </div>
+      )}
+
+      {/* 교육 일정 — 모집 단계가 아니고 세션 있을 때만 */}
+      {!isRecruiting && totalSessions > 0 && (
         <div className='mb-8'>
           <div className='mb-3 flex items-center justify-between'>
             <div className='text-muted-foreground text-sm font-medium'>교육 일정</div>
@@ -255,10 +334,10 @@ export default async function CohortOverviewPage({
         </div>
       )}
 
-      {/* 도메인 바로가기 */}
+      {/* 도메인 바로가기 — stage별 노출 */}
       <div className='text-muted-foreground mb-3 text-sm font-medium'>바로가기</div>
       <div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-4'>
-        {DOMAINS.map((d) => {
+        {visibleDomains.map((d) => {
           const DomainIcon = Icons[d.icon];
           return (
             <Link

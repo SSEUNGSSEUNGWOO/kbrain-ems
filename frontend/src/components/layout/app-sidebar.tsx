@@ -21,14 +21,29 @@ import { usePathname } from 'next/navigation';
 import * as React from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { Icons } from '../icons';
+import { STAGE_DOMAINS, STAGE_LABEL, type CohortStage } from '@/lib/cohort-stage';
 
-type Cohort = { id: string; name: string };
+type Cohort = { id: string; name: string; stage: CohortStage };
+
+const STAGE_BADGE_CLASS: Record<CohortStage, string> = {
+  recruiting: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
+  active: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+  finished: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
+  unset: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
+};
 
 const DOMAINS = [
-  { slug: 'students', label: '인원 관리', icon: 'teams' as const, color: 'text-blue-500' },
+  { slug: 'students', label: '인원관리', icon: 'teams' as const, color: 'text-blue-500' },
+  { slug: 'lessons', label: '수업관리', icon: 'calendar' as const, color: 'text-sky-500' },
   { slug: 'attendance', label: '출결', icon: 'circleCheck' as const, color: 'text-emerald-500' },
   { slug: 'assignments', label: '과제', icon: 'forms' as const, color: 'text-amber-500' },
-  { slug: 'completion', label: '수료', icon: 'badgeCheck' as const, color: 'text-violet-500' }
+  { slug: 'surveys', label: '만족도', icon: 'chat' as const, color: 'text-pink-500' },
+  { slug: 'completion', label: '수료', icon: 'badgeCheck' as const, color: 'text-violet-500' },
+  { slug: 'instructors', label: '강사', icon: 'user2' as const, color: 'text-rose-500' },
+  { slug: 'diagnoses', label: '사전·사후 진단', icon: 'checks' as const, color: 'text-cyan-500' },
+  { slug: 'reports', label: '결과보고서', icon: 'fileTypeDoc' as const, color: 'text-orange-500' },
+  { slug: 'notifications', label: '알림 발송', icon: 'notification' as const, color: 'text-yellow-600' },
+  { slug: 'dashboard', label: '누적 통계', icon: 'trendingUp' as const, color: 'text-indigo-500' }
 ] as const;
 
 export default function AppSidebar() {
@@ -44,7 +59,7 @@ export default function AppSidebar() {
       .then((res) => res.json())
       .then((data) => setCohorts(data ?? []))
       .catch(() => setCohorts([]));
-  }, []);
+  }, [pathname]);
 
   return (
     <Sidebar collapsible='icon'>
@@ -136,8 +151,12 @@ export default function AppSidebar() {
                               className='flex-1'
                               isActive={pathname === `/dashboard/cohorts/${cohort.id}`}
                             >
-                              <Link href={`/dashboard/cohorts/${cohort.id}`}>
-                                <span className={`h-2 w-2 shrink-0 rounded-full ${activeCohortId === cohort.id ? 'bg-emerald-500' : 'bg-muted-foreground/40'}`} />
+                              <Link href={`/dashboard/cohorts/${cohort.id}`} className='flex items-center gap-1.5'>
+                                <span
+                                  className={`shrink-0 rounded-sm px-1.5 py-0.5 text-[10px] font-bold leading-tight ${STAGE_BADGE_CLASS[cohort.stage]}`}
+                                >
+                                  {STAGE_LABEL[cohort.stage]}
+                                </span>
                                 <span className='truncate'>{cohort.name}</span>
                               </Link>
                             </SidebarMenuSubButton>
@@ -148,7 +167,7 @@ export default function AppSidebar() {
 
                           <CollapsibleContent>
                             <SidebarMenuSub>
-                              {DOMAINS.map((d) => {
+                              {DOMAINS.filter((d) => STAGE_DOMAINS[cohort.stage].includes(d.slug)).map((d) => {
                                 const DomainIcon = Icons[d.icon];
                                 return (
                                   <SidebarMenuSubItem key={d.slug}>
@@ -186,6 +205,76 @@ export default function AppSidebar() {
                 <Link href='/dashboard/applicants'>
                   <Icons.teams className='text-amber-600 dark:text-amber-400' />
                   <span>지원자 관리</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+
+            {/* 강사풀 — 글로벌 */}
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                tooltip='강사풀'
+                isActive={pathname === '/dashboard/instructors' || pathname.startsWith('/dashboard/instructors/')}
+              >
+                <Link href='/dashboard/instructors'>
+                  <Icons.user2 className='text-rose-600 dark:text-rose-400' />
+                  <span>강사풀</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+
+            {/* 평가위원 — 글로벌 */}
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                tooltip='평가위원'
+                isActive={pathname.startsWith('/dashboard/evaluators')}
+              >
+                <Link href='/dashboard/evaluators'>
+                  <Icons.userPen className='text-purple-600 dark:text-purple-400' />
+                  <span>평가위원</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+
+            {/* KPI 대시보드 — 글로벌 */}
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                tooltip='사업 진척률·KPI'
+                isActive={pathname.startsWith('/dashboard/kpi-dashboard')}
+              >
+                <Link href='/dashboard/kpi-dashboard'>
+                  <Icons.adjustments className='text-emerald-600 dark:text-emerald-400' />
+                  <span>사업 KPI</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+
+            {/* 리스크 등록부 — 글로벌 */}
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                tooltip='리스크 등록부'
+                isActive={pathname.startsWith('/dashboard/risks')}
+              >
+                <Link href='/dashboard/risks'>
+                  <Icons.warning className='text-red-600 dark:text-red-400' />
+                  <span>리스크</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+
+            {/* 이슈 보드 — 글로벌 */}
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                tooltip='이슈 보드'
+                isActive={pathname.startsWith('/dashboard/issues')}
+              >
+                <Link href='/dashboard/issues'>
+                  <Icons.alertCircle className='text-orange-600 dark:text-orange-400' />
+                  <span>이슈</span>
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>

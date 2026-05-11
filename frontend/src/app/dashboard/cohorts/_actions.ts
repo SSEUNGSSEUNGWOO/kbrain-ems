@@ -1,59 +1,93 @@
 'use server';
 
-import { db } from '@/lib/db';
-import { cohorts } from '@/lib/db/schema';
-import { eq } from 'drizzle-orm';
+import { createAdminClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 
 type ActionResult = { error?: string };
 
-export async function createCohort(formData: FormData): Promise<ActionResult> {
-  const name = String(formData.get('name') ?? '').trim();
-  const startedAt = String(formData.get('started_at') ?? '').trim();
-  const endedAt = String(formData.get('ended_at') ?? '').trim();
+function val(formData: FormData, key: string): string {
+  return String(formData.get(key) ?? '').trim();
+}
 
+function nullableInt(s: string): number | null {
+  if (!s) return null;
+  const n = parseInt(s, 10);
+  return Number.isFinite(n) ? n : null;
+}
+
+export async function createCohort(formData: FormData): Promise<ActionResult> {
+  const name = val(formData, 'name');
   if (!name) return { error: '기수 이름은 필수입니다.' };
 
-  try {
-    await db.insert(cohorts).values({
-      name,
-      startedAt: startedAt || null,
-      endedAt: endedAt || null
-    });
-  } catch (e: unknown) {
-    return { error: e instanceof Error ? e.message : '알 수 없는 오류가 발생했습니다.' };
+  const recruitingSlug = val(formData, 'recruiting_slug');
+
+  const supabase = createAdminClient();
+
+  if (recruitingSlug) {
+    const { data: dup } = await supabase
+      .from('cohorts')
+      .select('id')
+      .eq('recruiting_slug', recruitingSlug)
+      .maybeSingle();
+    if (dup) return { error: '이미 사용 중인 모집 코드(slug)입니다.' };
   }
+
+  const { error } = await supabase.from('cohorts').insert({
+    name,
+    started_at: val(formData, 'started_at') || null,
+    ended_at: val(formData, 'ended_at') || null,
+    recruiting_slug: recruitingSlug || null,
+    application_start_at: val(formData, 'application_start_at') || null,
+    application_end_at: val(formData, 'application_end_at') || null,
+    max_capacity: nullableInt(val(formData, 'max_capacity'))
+  });
+  if (error) return { error: error.message };
 
   revalidatePath('/dashboard/cohorts');
   return {};
 }
 
 export async function updateCohort(id: string, formData: FormData): Promise<ActionResult> {
-  const name = String(formData.get('name') ?? '').trim();
-  const startedAt = String(formData.get('started_at') ?? '').trim();
-  const endedAt = String(formData.get('ended_at') ?? '').trim();
-
+  const name = val(formData, 'name');
   if (!name) return { error: '기수 이름은 필수입니다.' };
 
-  try {
-    await db.update(cohorts).set({
-      name,
-      startedAt: startedAt || null,
-      endedAt: endedAt || null
-    }).where(eq(cohorts.id, id));
-  } catch (e: unknown) {
-    return { error: e instanceof Error ? e.message : '알 수 없는 오류가 발생했습니다.' };
+  const recruitingSlug = val(formData, 'recruiting_slug');
+
+  const supabase = createAdminClient();
+
+  if (recruitingSlug) {
+    const { data: dup } = await supabase
+      .from('cohorts')
+      .select('id')
+      .eq('recruiting_slug', recruitingSlug)
+      .neq('id', id)
+      .maybeSingle();
+    if (dup) return { error: '이미 다른 기수에서 사용 중인 모집 코드(slug)입니다.' };
   }
+
+  const { error } = await supabase
+    .from('cohorts')
+    .update({
+      name,
+      started_at: val(formData, 'started_at') || null,
+      ended_at: val(formData, 'ended_at') || null,
+      recruiting_slug: recruitingSlug || null,
+      application_start_at: val(formData, 'application_start_at') || null,
+      application_end_at: val(formData, 'application_end_at') || null,
+      max_capacity: nullableInt(val(formData, 'max_capacity'))
+    })
+    .eq('id', id);
+  if (error) return { error: error.message };
 
   revalidatePath('/dashboard/cohorts');
   return {};
 }
 
 export async function deleteCohort(id: string): Promise<ActionResult> {
-  try {
-    await db.delete(cohorts).where(eq(cohorts.id, id));
-  } catch (e: unknown) {
-    const message = e instanceof Error ? e.message : '알 수 없는 오류가 발생했습니다.';
+  const supabase = createAdminClient();
+  const { error } = await supabase.from('cohorts').delete().eq('id', id);
+  if (error) {
+    const message = error.message;
     if (message.includes('23503') || message.includes('violates foreign key constraint')) {
       return { error: '교육생이 등록된 기수는 삭제할 수 없습니다.' };
     }

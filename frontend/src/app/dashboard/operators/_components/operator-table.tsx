@@ -34,6 +34,7 @@ import { Icons } from '@/components/icons';
 type Operator = {
   id: string;
   name: string;
+  email: string | null;
   role: string;
   title: string | null;
   createdAt: string;
@@ -73,6 +74,8 @@ export function OperatorTable() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: formData.get('name'),
+          email: formData.get('email'),
+          password: formData.get('password'),
           role: formData.get('role'),
           title: formData.get('title')
         })
@@ -91,12 +94,15 @@ export function OperatorTable() {
     if (!editTarget) return;
     setError(null);
     startTransition(async () => {
+      const password = formData.get('password') as string;
       const res = await fetch('/api/operators', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: editTarget.id,
           name: formData.get('name'),
+          email: formData.get('email'),
+          password: password || undefined,
           role: formData.get('role'),
           title: formData.get('title')
         })
@@ -137,6 +143,7 @@ export function OperatorTable() {
           <thead>
             <tr className='bg-muted/50 border-b'>
               <th className='px-4 py-3 text-left font-medium'>이름</th>
+              <th className='px-4 py-3 text-left font-medium'>이메일</th>
               <th className='px-4 py-3 text-left font-medium'>직급</th>
               <th className='px-4 py-3 text-left font-medium'>권한</th>
               <th className='w-20 px-4 py-3'></th>
@@ -146,6 +153,7 @@ export function OperatorTable() {
             {ops.map((op) => (
               <tr key={op.id} className='group border-b transition-colors last:border-0 hover:bg-muted/30'>
                 <td className='px-4 py-3 font-medium'>{op.name}</td>
+                <td className='text-muted-foreground px-4 py-3 font-mono text-xs'>{op.email ?? '-'}</td>
                 <td className='text-muted-foreground px-4 py-3'>{op.title ?? '-'}</td>
                 <td className='px-4 py-3'>
                   <Badge variant='outline' className={ROLE_CLASS[op.role] ?? ''}>
@@ -176,7 +184,7 @@ export function OperatorTable() {
             ))}
             {ops.length === 0 && (
               <tr>
-                <td colSpan={4} className='px-4 py-8 text-center text-muted-foreground'>
+                <td colSpan={5} className='px-4 py-8 text-center text-muted-foreground'>
                   등록된 운영자가 없습니다.
                 </td>
               </tr>
@@ -197,13 +205,22 @@ export function OperatorTable() {
               <Input id='add-name' name='name' required placeholder='홍길동' />
             </div>
             <div className='grid gap-2'>
+              <Label htmlFor='add-email'>이메일 *</Label>
+              <Input id='add-email' name='email' type='email' required placeholder='user@example.com' autoComplete='off' />
+            </div>
+            <div className='grid gap-2'>
+              <Label htmlFor='add-password'>임시 비밀번호 *</Label>
+              <Input id='add-password' name='password' type='password' required minLength={8} placeholder='8자 이상' autoComplete='new-password' />
+              <p className='text-xs text-muted-foreground'>본인에게 직접 전달하고, 첫 로그인 후 변경하도록 안내해주세요.</p>
+            </div>
+            <div className='grid gap-2'>
               <Label htmlFor='add-title'>직급</Label>
               <Input id='add-title' name='title' placeholder='주임, 팀장 등' />
             </div>
             <div className='grid gap-2'>
-              <Label>권한</Label>
+              <Label htmlFor='add-role'>권한</Label>
               <Select name='role' defaultValue='operator'>
-                <SelectTrigger>
+                <SelectTrigger id='add-role'>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -232,13 +249,21 @@ export function OperatorTable() {
               <Input id='edit-name' name='name' required defaultValue={editTarget?.name ?? ''} key={editTarget?.id + '-name'} />
             </div>
             <div className='grid gap-2'>
+              <Label htmlFor='edit-email'>이메일</Label>
+              <Input id='edit-email' name='email' type='email' defaultValue={editTarget?.email ?? ''} key={editTarget?.id + '-email'} autoComplete='off' />
+            </div>
+            <div className='grid gap-2'>
+              <Label htmlFor='edit-password'>비밀번호 재설정</Label>
+              <Input id='edit-password' name='password' type='password' minLength={8} placeholder='변경하지 않으려면 비워두세요' autoComplete='new-password' />
+            </div>
+            <div className='grid gap-2'>
               <Label htmlFor='edit-title'>직급</Label>
               <Input id='edit-title' name='title' defaultValue={editTarget?.title ?? ''} key={editTarget?.id + '-title'} />
             </div>
             <div className='grid gap-2'>
-              <Label>권한</Label>
+              <Label htmlFor='edit-role'>권한</Label>
               <Select name='role' defaultValue={editTarget?.role ?? 'operator'} key={editTarget?.id + '-role'}>
-                <SelectTrigger>
+                <SelectTrigger id='edit-role'>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -261,7 +286,7 @@ export function OperatorTable() {
           <AlertDialogHeader>
             <AlertDialogTitle>운영자 삭제</AlertDialogTitle>
             <AlertDialogDescription>
-              <strong>{deleteTarget?.name}</strong>을(를) 삭제하시겠습니까?
+              <strong>{deleteTarget?.name}</strong>을(를) 삭제하시겠습니까? 인증 계정도 함께 삭제되어 로그인할 수 없게 됩니다.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

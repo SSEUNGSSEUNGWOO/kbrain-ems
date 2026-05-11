@@ -1,8 +1,6 @@
 import { notFound } from 'next/navigation';
 import PageContainer from '@/components/layout/page-container';
-import { db } from '@/lib/db';
-import { cohorts, sessions, attendanceRecords, students } from '@/lib/db/schema';
-import { eq, inArray } from 'drizzle-orm';
+import { createAdminClient } from '@/lib/supabase/server';
 import { Icons } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import { CreateSessionSheet } from './_components/create-session-sheet';
@@ -15,63 +13,67 @@ export default async function AttendancePage({
   params: Promise<{ cohortId: string }>;
 }) {
   const { cohortId } = await params;
+  const supabase = createAdminClient();
 
-  const cohortRows = await db
-    .select({ id: cohorts.id })
-    .from(cohorts)
-    .where(eq(cohorts.id, cohortId))
+  const { data: cohortRows, error: cohortError } = await supabase
+    .from('cohorts')
+    .select('id')
+    .eq('id', cohortId)
     .limit(1);
-
-  if (!cohortRows[0]) notFound();
+  if (cohortError) {
+    return (
+      <PageContainer pageTitle='출결'>
+        <div className='text-destructive'>
+          출결 목록을 불러오지 못했습니다: {cohortError.message}
+        </div>
+      </PageContainer>
+    );
+  }
+  if (!cohortRows?.[0]) notFound();
 
   try {
     // Fetch sessions
-    const sessionRows = await db
-      .select({
-        id: sessions.id,
-        session_date: sessions.sessionDate,
-        title: sessions.title,
-        start_time: sessions.startTime,
-        end_time: sessions.endTime,
-        break_minutes: sessions.breakMinutes,
-        break_start_time: sessions.breakStartTime,
-        break_end_time: sessions.breakEndTime
-      })
-      .from(sessions)
-      .where(eq(sessions.cohortId, cohortId));
+    const { data: sessionRows, error: sessionError } = await supabase
+      .from('sessions')
+      .select(
+        'id, session_date, title, start_time, end_time, break_minutes, break_start_time, break_end_time'
+      )
+      .eq('cohort_id', cohortId);
+    if (sessionError) throw new Error(sessionError.message);
+
+    const sessions = sessionRows ?? [];
 
     // Fetch attendance records with student names for those sessions
-    const sessionIds = sessionRows.map((s) => s.id);
-    let recordRows: { sessionId: string; status: string; studentName: string | null }[] = [];
+    const sessionIds = sessions.map((s) => s.id);
+    type RecordRow = {
+      session_id: string;
+      status: string;
+      students: { name: string } | null;
+    };
+    let recordRows: RecordRow[] = [];
     if (sessionIds.length > 0) {
-      recordRows = await db
-        .select({
-          sessionId: attendanceRecords.sessionId,
-          status: attendanceRecords.status,
-          studentName: students.name
-        })
-        .from(attendanceRecords)
-        .leftJoin(students, eq(attendanceRecords.studentId, students.id))
-        .where(
-          sessionIds.length === 1
-            ? eq(attendanceRecords.sessionId, sessionIds[0])
-            : inArray(attendanceRecords.sessionId, sessionIds)
-        );
+      const { data, error: recordError } = await supabase
+        .from('attendance_records')
+        .select('session_id, status, students(name)')
+        .in('session_id', sessionIds)
+        .returns<RecordRow[]>();
+      if (recordError) throw new Error(recordError.message);
+      recordRows = data ?? [];
     }
 
     // Group records by session and map to expected shape
     const recordsBySession = new Map<string, { status: string; students: { name: string } | null }[]>();
     for (const r of recordRows) {
-      if (!recordsBySession.has(r.sessionId)) {
-        recordsBySession.set(r.sessionId, []);
+      if (!recordsBySession.has(r.session_id)) {
+        recordsBySession.set(r.session_id, []);
       }
-      recordsBySession.get(r.sessionId)!.push({
+      recordsBySession.get(r.session_id)!.push({
         status: r.status,
-        students: r.studentName ? { name: r.studentName } : null
+        students: r.students ? { name: r.students.name } : null
       });
     }
 
-    const raw = sessionRows.map((s) => ({
+    const raw = sessions.map((s) => ({
       ...s,
       attendance_records: recordsBySession.get(s.id) ?? []
     }));

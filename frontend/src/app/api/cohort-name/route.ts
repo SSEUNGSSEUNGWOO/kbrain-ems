@@ -1,17 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
-import { cohorts } from '@/lib/db/schema';
-import { eq } from 'drizzle-orm';
+import { createAdminClient } from '@/lib/supabase/server';
 
 export async function GET(request: NextRequest) {
   const id = request.nextUrl.searchParams.get('id');
   if (!id) return NextResponse.json({ name: null });
 
-  const rows = await db
-    .select({ name: cohorts.name })
-    .from(cohorts)
-    .where(eq(cohorts.id, id))
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from('cohorts')
+    .select('name')
+    .eq('id', id)
     .limit(1);
 
-  return NextResponse.json({ name: rows[0]?.name ?? null });
+  if (error) {
+    return NextResponse.json({ name: null });
+  }
+
+  return NextResponse.json({ name: data?.[0]?.name ?? null });
 }
