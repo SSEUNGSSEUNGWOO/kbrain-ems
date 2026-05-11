@@ -36,22 +36,25 @@ function SortableCohortItem({ cohort }: { cohort: Cohort }) {
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.5 : 1
+    opacity: isDragging ? 0.4 : 1
   };
 
   return (
-    <li ref={setNodeRef} style={style} className='relative'>
-      <button
-        type='button'
+    <li ref={setNodeRef} style={style}>
+      <div
         {...attributes}
         {...listeners}
+        role='button'
         aria-label='기수 순서 변경 핸들'
-        title='드래그해서 순서 변경'
-        className='bg-background/95 hover:bg-accent absolute top-2 right-2 z-10 flex h-8 w-8 cursor-grab items-center justify-center rounded-md border shadow-sm backdrop-blur transition active:cursor-grabbing'
+        title='끌어서 순서 변경'
+        className='bg-muted/50 hover:bg-muted active:cursor-grabbing flex h-7 cursor-grab items-center justify-center gap-1 rounded-t-xl border border-b-0'
       >
-        <Icons.gripVertical className='text-muted-foreground h-4 w-4' />
-      </button>
-      <CohortCard cohort={cohort} />
+        <Icons.gripVertical className='text-muted-foreground/70 h-3.5 w-3.5' />
+        <span className='text-muted-foreground text-[10px] font-medium'>끌어서 순서 변경</span>
+      </div>
+      <div className='[&>div]:rounded-t-none [&>div]:border-t-0'>
+        <CohortCard cohort={cohort} />
+      </div>
     </li>
   );
 }
