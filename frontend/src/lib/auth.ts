@@ -7,6 +7,7 @@ export type Operator = {
   name: string;
   role: OperatorRole;
   title: string;
+  cohort_order: string[];
 };
 
 /**
@@ -24,7 +25,7 @@ export async function getOperator(): Promise<Operator | null> {
   const admin = createAdminClient();
   const { data } = await admin
     .from('operators')
-    .select('id, name, role, title')
+    .select('id, name, role, title, cohort_order')
     .eq('auth_user_id', user.id)
     .maybeSingle();
 
@@ -33,7 +34,8 @@ export async function getOperator(): Promise<Operator | null> {
     id: data.id,
     name: data.name,
     role: data.role as OperatorRole,
-    title: data.title ?? ''
+    title: data.title ?? '',
+    cohort_order: data.cohort_order ?? []
   };
 }
 
