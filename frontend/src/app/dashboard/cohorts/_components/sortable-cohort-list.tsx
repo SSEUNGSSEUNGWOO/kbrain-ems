@@ -40,19 +40,18 @@ function SortableCohortItem({ cohort }: { cohort: Cohort }) {
   };
 
   return (
-    <li ref={setNodeRef} style={style}>
+    <li ref={setNodeRef} style={style} className='flex'>
       <div
         {...attributes}
         {...listeners}
         role='button'
         aria-label='기수 순서 변경 핸들'
         title='끌어서 순서 변경'
-        className='bg-muted/50 hover:bg-muted active:cursor-grabbing flex h-7 cursor-grab items-center justify-center gap-1 rounded-t-xl border border-b-0'
+        className='bg-muted/50 hover:bg-muted active:cursor-grabbing flex w-6 cursor-grab flex-col items-center justify-center gap-1 rounded-l-xl border border-r-0'
       >
         <Icons.gripVertical className='text-muted-foreground/70 h-3.5 w-3.5' />
-        <span className='text-muted-foreground text-[10px] font-medium'>끌어서 순서 변경</span>
       </div>
-      <div className='[&>div]:rounded-t-none [&>div]:border-t-0'>
+      <div className='flex-1 [&>div]:rounded-l-none [&>div]:border-l-0'>
         <CohortCard cohort={cohort} />
       </div>
     </li>
@@ -87,7 +86,7 @@ export function SortableCohortList({ cohorts }: Props) {
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
       <SortableContext items={items.map((c) => c.id)} strategy={rectSortingStrategy}>
-        <ul className='grid gap-4 sm:grid-cols-2 lg:grid-cols-3'>
+        <ul className='flex flex-col gap-2'>
           {items.map((c) => (
             <SortableCohortItem key={c.id} cohort={c} />
           ))}

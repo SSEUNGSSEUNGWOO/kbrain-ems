@@ -86,16 +86,14 @@ export function CohortCard({ cohort }: { cohort: Cohort }) {
     <>
       <div className='group relative overflow-hidden rounded-xl border transition-all hover:shadow-md'>
         <div className='absolute left-0 top-0 h-full w-1 bg-gradient-to-b from-blue-500 to-violet-500' />
-        <Link href={`/dashboard/cohorts/${cohort.id}`} className='block p-5 pl-5'>
-          <div className='flex items-start justify-between'>
-            <div className='pr-16'>
-              <div className='font-semibold'>{cohort.name}</div>
-              <div className='text-muted-foreground mt-1 text-xs'>
-                {cohort.started_at ?? '시작일 미정'} ~ {cohort.ended_at ?? '종료일 미정'}
-              </div>
+        <Link href={`/dashboard/cohorts/${cohort.id}`} className='flex items-center gap-4 py-3 pl-5 pr-24'>
+          <div className='min-w-[10rem] shrink-0'>
+            <div className='font-semibold'>{cohort.name}</div>
+            <div className='text-muted-foreground mt-0.5 text-xs'>
+              {cohort.started_at ?? '시작일 미정'} ~ {cohort.ended_at ?? '종료일 미정'}
             </div>
           </div>
-          <div className='mt-3 flex flex-wrap items-center gap-2'>
+          <div className='flex flex-1 flex-wrap items-center gap-2'>
             {(() => {
               const stage = computeCohortStage(cohort);
               const suffix =
@@ -122,7 +120,7 @@ export function CohortCard({ cohort }: { cohort: Cohort }) {
           </div>
         </Link>
         {isDeveloper && (
-          <div className='absolute right-2 top-2 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100'>
+          <div className='absolute right-2 top-1/2 flex -translate-y-1/2 gap-1 opacity-0 transition-opacity group-hover:opacity-100'>
             <Button
               variant='ghost'
               size='icon'
