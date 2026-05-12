@@ -13,7 +13,7 @@ export default async function NewLessonPage({ params }: Props) {
 
   const [cohortRes, instructorsRes, locationsRes] = await Promise.all([
     supabase.from('cohorts').select('id, name').eq('id', cohortId).maybeSingle(),
-    supabase.from('instructors').select('id, name, affiliation').order('name'),
+    supabase.from('instructors').select('id, name, affiliation').eq('kind', 'main').order('name'),
     supabase.from('locations').select('id, name').order('name')
   ]);
 

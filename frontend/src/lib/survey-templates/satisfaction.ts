@@ -86,7 +86,7 @@ const FOOTER_SECTION: { section_title: string; questions: StaticQuestion[] } = {
 type InstructorContext = {
   id: string;
   name: string;
-  sessionTitle: string;
+  sessionTitle?: string;
 };
 
 type BuildArgs = {
@@ -120,7 +120,9 @@ export function buildSatisfactionQuestions(args: BuildArgs): TablesInsert<'surve
   // 2) 강사별 섹션 4~(3+N)
   instructors.forEach((inst, idx) => {
     const sectionNo = HEADER_SECTIONS.length + 1 + idx;
-    const sectionTitle = `강사 만족도 (${inst.name}) — ${inst.sessionTitle}`;
+    const sectionTitle = inst.sessionTitle
+      ? `강사 만족도 (${inst.name}) — ${inst.sessionTitle}`
+      : `강사 만족도 (${inst.name})`;
     for (const q of INSTRUCTOR_QUESTIONS) {
       out.push({
         survey_id: surveyId,

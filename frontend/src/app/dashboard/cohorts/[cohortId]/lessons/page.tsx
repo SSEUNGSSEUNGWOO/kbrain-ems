@@ -15,23 +15,28 @@ import { LessonRowActions } from './_components/lesson-row-actions';
 
 type Props = {
   params: Promise<{ cohortId: string }>;
+  searchParams: Promise<{ order?: string }>;
 };
 
-export default async function LessonsPage({ params }: Props) {
+export default async function LessonsPage({ params, searchParams }: Props) {
   const { cohortId } = await params;
+  const { order } = await searchParams;
+  // 기본: 오름차순 (빠른 날짜 → 늦은 날짜). ?order=desc 명시 시 역순.
+  const ascending = order !== 'desc';
   const supabase = createAdminClient();
 
   const { data: sessions } = await supabase
     .from('sessions')
     .select(
-      'id, session_date, title, locations(name), session_instructors(instructor_id, role, instructors(id, name))'
+      'id, session_date, session_end_date, title, locations(name), session_instructors(instructor_id, role, instructors(id, name))'
     )
     .eq('cohort_id', cohortId)
-    .order('session_date', { ascending: false });
+    .order('session_date', { ascending });
 
   type SessionRow = {
     id: string;
     session_date: string;
+    session_end_date: string | null;
     title: string | null;
     locations: { name: string } | null;
     session_instructors: {
@@ -88,7 +93,19 @@ export default async function LessonsPage({ params }: Props) {
               <TableRow>
                 <TableHead className='w-12 text-center'>완료</TableHead>
                 <TableHead className='w-12 text-center'>과제</TableHead>
-                <TableHead className='w-32'>날짜</TableHead>
+                <TableHead className='w-32'>
+                  <Link
+                    href={`?order=${ascending ? 'desc' : 'asc'}`}
+                    scroll={false}
+                    className='inline-flex items-center gap-1 select-none hover:text-foreground'
+                    title='클릭하여 정렬'
+                  >
+                    날짜
+                    <span className='text-[10px] tabular-nums text-muted-foreground'>
+                      {ascending ? '↑' : '↓'}
+                    </span>
+                  </Link>
+                </TableHead>
                 <TableHead>제목</TableHead>
                 <TableHead className='w-40'>장소</TableHead>
                 <TableHead>강사</TableHead>

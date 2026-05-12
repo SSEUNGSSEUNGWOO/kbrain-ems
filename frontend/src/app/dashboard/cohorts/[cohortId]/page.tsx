@@ -71,7 +71,7 @@ export default async function CohortOverviewPage({
     supabase
       .from('cohorts')
       .select(
-        'id, name, started_at, ended_at, application_start_at, application_end_at, recruiting_slug, max_capacity'
+        'id, name, started_at, ended_at, application_start_at, application_end_at, decided_at, notified_at, delivery_method, recruiting_slug, max_capacity'
       )
       .eq('id', cohortId)
       .limit(1),
@@ -175,6 +175,18 @@ export default async function CohortOverviewPage({
           : '교육 기간 미정'
       }
     >
+      {/* 일정 정보 — 모집·교육 핵심 일자 한눈에 */}
+      <ScheduleInfoCard
+        applicationStartAt={cohort.application_start_at}
+        applicationEndAt={cohort.application_end_at}
+        decidedAt={cohort.decided_at}
+        notifiedAt={cohort.notified_at}
+        startedAt={cohort.started_at}
+        endedAt={cohort.ended_at}
+        deliveryMethod={cohort.delivery_method}
+        maxCapacity={cohort.max_capacity}
+      />
+
       {/* 모집 단계 — 신청 링크 카드 */}
       {isRecruiting && cohort.recruiting_slug && (
         <RecruitingCard
@@ -357,5 +369,56 @@ export default async function CohortOverviewPage({
         })}
       </div>
     </PageContainer>
+  );
+}
+
+function ScheduleInfoCard({
+  applicationStartAt,
+  applicationEndAt,
+  decidedAt,
+  notifiedAt,
+  startedAt,
+  endedAt,
+  deliveryMethod,
+  maxCapacity
+}: {
+  applicationStartAt: string | null;
+  applicationEndAt: string | null;
+  decidedAt: string | null;
+  notifiedAt: string | null;
+  startedAt: string | null;
+  endedAt: string | null;
+  deliveryMethod: string | null;
+  maxCapacity: number | null;
+}) {
+  const fmt = (d: string | null) => (d ? formatShortDate(d) : '—');
+  const fmtRange = (a: string | null, b: string | null) => {
+    if (!a && !b) return '—';
+    if (a && b) return `${formatShortDate(a)} ~ ${formatShortDate(b)}`;
+    return formatShortDate(a ?? b!);
+  };
+  const items: { label: string; value: string; accent?: string }[] = [
+    { label: '신청기간', value: fmtRange(applicationStartAt, applicationEndAt), accent: 'orange' },
+    { label: '선발일', value: fmt(decidedAt), accent: 'amber' },
+    { label: '선발통보', value: fmt(notifiedAt), accent: 'amber' },
+    { label: '교육기간', value: fmtRange(startedAt, endedAt), accent: 'blue' },
+    { label: '방법', value: deliveryMethod ?? '—', accent: 'violet' },
+    { label: '인원', value: maxCapacity ? `${maxCapacity}명` : '—', accent: 'slate' }
+  ];
+  return (
+    <div className='mb-6 rounded-xl border bg-card px-5 py-4 shadow-sm'>
+      <div className='mb-3 flex items-center gap-2'>
+        <Icons.calendar className='text-muted-foreground h-4 w-4' />
+        <span className='text-sm font-semibold'>일정 정보</span>
+      </div>
+      <dl className='grid gap-x-6 gap-y-3 sm:grid-cols-3'>
+        {items.map((it) => (
+          <div key={it.label} className='flex items-baseline gap-2'>
+            <dt className='text-muted-foreground w-16 shrink-0 text-xs font-medium'>{it.label}</dt>
+            <dd className='font-mono text-sm tabular-nums'>{it.value}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
   );
 }

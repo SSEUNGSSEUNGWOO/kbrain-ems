@@ -14,9 +14,13 @@ export async function createInstructor(formData: FormData): Promise<ActionResult
   const name = String(formData.get('name') ?? '').trim();
   if (!name) return { error: '이름은 필수입니다.' };
 
+  const kindRaw = String(formData.get('kind') ?? 'main');
+  const kind = kindRaw === 'sub' ? 'sub' : 'main';
+
   const supabase = createAdminClient();
   const { error } = await supabase.from('instructors').insert({
     name,
+    kind,
     affiliation: formValue(formData, 'affiliation'),
     specialty: formValue(formData, 'specialty'),
     email: formValue(formData, 'email'),
