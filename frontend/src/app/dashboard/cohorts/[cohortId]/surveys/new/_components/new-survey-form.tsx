@@ -18,6 +18,11 @@ type CloneSource = {
   share_code: string | null;
 };
 
+type InstructorRow = {
+  instructorId: string;
+  sessionTitle: string;
+};
+
 type Props = {
   cohortId: string;
   cohortName: string;
@@ -26,6 +31,7 @@ type Props = {
 };
 
 const DEFAULT_TITLE = '2026 AI 챔피언 고급 과정 만족도 조사';
+const EMPTY_ROW: InstructorRow = { instructorId: '', sessionTitle: '' };
 
 function todayPlusDays(days: number): string {
   const d = new Date();
@@ -48,10 +54,8 @@ export function NewSurveyForm({ cohortId, cohortName, instructors, cloneSources 
   const [shareCode, setShareCode] = useState(autoShareCode(todayPlusDays(7), cohortName));
   const [shareCodeEdited, setShareCodeEdited] = useState(false);
 
-  const [specialInstructorId, setSpecialInstructorId] = useState('');
-  const [specialSessionTitle, setSpecialSessionTitle] = useState('');
-  const [techInstructorId, setTechInstructorId] = useState('');
-  const [techSessionTitle, setTechSessionTitle] = useState('');
+  // 강사·세션 — 동적 N명, 기본 1행
+  const [instructorRows, setInstructorRows] = useState<InstructorRow[]>([{ ...EMPTY_ROW }]);
 
   // 차수일 변경 시 share_code 자동 갱신 (사용자가 수정 안 했을 때만)
   useEffect(() => {
@@ -60,21 +64,23 @@ export function NewSurveyForm({ cohortId, cohortName, instructors, cloneSources 
     }
   }, [sessionDate, shareCodeEdited, cohortName]);
 
+  const addRow = () => setInstructorRows((rows) => [...rows, { ...EMPTY_ROW }]);
+  const removeRow = (i: number) =>
+    setInstructorRows((rows) => rows.filter((_, idx) => idx !== i));
+  const updateRow = (i: number, patch: Partial<InstructorRow>) =>
+    setInstructorRows((rows) => rows.map((row, idx) => (idx === i ? { ...row, ...patch } : row)));
+
   // 복제 토글
   const handleCloneToggle = (checked: boolean) => {
     setUseClone(checked);
     if (!checked) {
-      // 복제 끄면 기본값으로
       setTitle(DEFAULT_TITLE);
-      setSpecialInstructorId('');
-      setSpecialSessionTitle('');
-      setTechInstructorId('');
-      setTechSessionTitle('');
+      setInstructorRows([{ ...EMPTY_ROW }]);
       setCloneFromId('');
     }
   };
 
-  // 원본 설문 변경 시 prefill (제목만 — 강사·세션 정보는 별도 fetch 필요하지만 단순화)
+  // 원본 설문 변경 시 prefill (제목만 — 강사·세션은 별도 입력)
   const handleCloneSourceChange = (id: string) => {
     setCloneFromId(id);
     const src = cloneSources.find((s) => s.id === id);
@@ -102,12 +108,9 @@ export function NewSurveyForm({ cohortId, cohortName, instructors, cloneSources 
         title,
         shareCode,
         sessionDate,
-        specialInstructorId,
-        specialSessionTitle,
-        techInstructorId,
-        techSessionTitle
+        instructors: instructorRows
       });
-      // createSatisfactionSurvey가 성공 시 redirect, 실패 시 { error } 반환
+      // 성공 시 redirect, 실패 시 { error } 반환
       if (result && 'error' in result) {
         setError(result.error);
       }
@@ -189,71 +192,66 @@ export function NewSurveyForm({ cohortId, cohortName, instructors, cloneSources 
         </div>
       </div>
 
-      {/* 강사 + 세션 */}
+      {/* 강사 + 세션 — 동적 N명 */}
       <div className='rounded-xl border bg-card px-6 py-5'>
-        <h3 className='mb-4 text-sm font-bold'>강의 구성</h3>
-        <div className='space-y-5'>
-          <div>
-            <div className='mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground'>
-              섹션 4 — 특강 강사
-            </div>
-            <div className='grid grid-cols-2 gap-3'>
-              <Field label='강사' required>
-                <select
-                  value={specialInstructorId}
-                  onChange={(e) => setSpecialInstructorId(e.target.value)}
-                  className='w-full rounded-md border bg-background px-3 py-2 text-sm'
-                >
-                  <option value=''>강사 선택…</option>
-                  {instructorOptions.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              <Field label='세션 제목' required>
-                <input
-                  type='text'
-                  value={specialSessionTitle}
-                  onChange={(e) => setSpecialSessionTitle(e.target.value)}
-                  placeholder='특강: AI는 도구, 핵심은 사람'
-                  className='w-full rounded-md border bg-background px-3 py-2 text-sm'
-                />
-              </Field>
-            </div>
-          </div>
+        <div className='mb-4 flex items-center justify-between'>
+          <h3 className='text-sm font-bold'>강의 구성</h3>
+          <button
+            type='button'
+            onClick={addRow}
+            className='rounded-md border bg-background px-3 py-1 text-xs font-semibold hover:bg-muted'
+          >
+            + 강사 추가
+          </button>
+        </div>
+        <p className='mb-4 text-xs text-muted-foreground'>
+          강사 1명당 만족도 6문항이 자동 생성됩니다. 최소 1명.
+        </p>
 
-          <div>
-            <div className='mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground'>
-              섹션 5 — 기술교육 강사
+        <div className='space-y-3'>
+          {instructorRows.map((row, idx) => (
+            <div key={idx} className='rounded-lg border bg-background/50 px-4 py-3'>
+              <div className='mb-2 flex items-center justify-between'>
+                <div className='text-xs font-semibold uppercase tracking-wider text-muted-foreground'>
+                  섹션 {idx + 4} — 강사 {idx + 1}
+                </div>
+                {instructorRows.length > 1 && (
+                  <button
+                    type='button'
+                    onClick={() => removeRow(idx)}
+                    className='text-xs font-semibold text-red-600 hover:underline'
+                  >
+                    삭제
+                  </button>
+                )}
+              </div>
+              <div className='grid grid-cols-2 gap-3'>
+                <Field label='강사' required>
+                  <select
+                    value={row.instructorId}
+                    onChange={(e) => updateRow(idx, { instructorId: e.target.value })}
+                    className='w-full rounded-md border bg-background px-3 py-2 text-sm'
+                  >
+                    <option value=''>강사 선택…</option>
+                    {instructorOptions.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label='세션 제목' required>
+                  <input
+                    type='text'
+                    value={row.sessionTitle}
+                    onChange={(e) => updateRow(idx, { sessionTitle: e.target.value })}
+                    placeholder='예: 특강 — AI는 도구, 핵심은 사람'
+                    className='w-full rounded-md border bg-background px-3 py-2 text-sm'
+                  />
+                </Field>
+              </div>
             </div>
-            <div className='grid grid-cols-2 gap-3'>
-              <Field label='강사' required>
-                <select
-                  value={techInstructorId}
-                  onChange={(e) => setTechInstructorId(e.target.value)}
-                  className='w-full rounded-md border bg-background px-3 py-2 text-sm'
-                >
-                  <option value=''>강사 선택…</option>
-                  {instructorOptions.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              <Field label='세션 제목' required>
-                <input
-                  type='text'
-                  value={techSessionTitle}
-                  onChange={(e) => setTechSessionTitle(e.target.value)}
-                  placeholder='기술교육 N회차: ...'
-                  className='w-full rounded-md border bg-background px-3 py-2 text-sm'
-                />
-              </Field>
-            </div>
-          </div>
+          ))}
         </div>
       </div>
 

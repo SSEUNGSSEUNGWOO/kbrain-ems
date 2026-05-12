@@ -35,7 +35,7 @@ export default async function NewSurveyPage({ params }: Props) {
   return (
     <PageContainer
       pageTitle='새 만족도 설문'
-      pageDescription={`${cohortRes.data.name} — 표준 27문항 자동 생성`}
+      pageDescription={`${cohortRes.data.name} — 공통 12문항 + 강사별 6문항 + 서술형 3문항 자동 생성`}
     >
       <NewSurveyForm
         cohortId={cohortId}
