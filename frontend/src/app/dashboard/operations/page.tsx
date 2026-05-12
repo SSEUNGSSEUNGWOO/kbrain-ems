@@ -13,7 +13,7 @@ import Link from 'next/link';
 import { EditAuxSheet } from './_components/edit-aux-sheet';
 
 type Props = {
-  searchParams: Promise<{ month?: string; past?: string }>;
+  searchParams: Promise<{ month?: string; past?: string; cat?: string }>;
 };
 
 const DOW = ['일', '월', '화', '수', '목', '금', '토'] as const;
@@ -23,10 +23,29 @@ function formatDate(ymd: string): string {
   return `${String(date.getMonth() + 1).padStart(2, '0')}.${String(date.getDate()).padStart(2, '0')}.(${DOW[date.getDay()]})`;
 }
 
+type Category = 'champion' | 'general' | 'special' | 'experts' | 'other';
+
+const CATEGORIES: { key: Category; label: string }[] = [
+  { key: 'champion', label: 'AI 챔피언' },
+  { key: 'general', label: '일반교육' },
+  { key: 'special', label: '특화교육' },
+  { key: 'experts', label: '전문인재' }
+];
+
+function categorize(cohortName: string | undefined | null): Category {
+  if (!cohortName) return 'other';
+  if (cohortName.startsWith('AI 챔피언')) return 'champion';
+  if (cohortName.startsWith('전문인재')) return 'experts';
+  if (cohortName.startsWith('일반')) return 'general';
+  if (cohortName.startsWith('특화')) return 'special';
+  return 'other';
+}
+
 export default async function OperationsPage({ searchParams }: Props) {
-  const { month: monthRaw, past } = await searchParams;
+  const { month: monthRaw, past, cat: catRaw } = await searchParams;
   const monthFilter = monthRaw && /^\d{1,2}$/.test(monthRaw) ? Number(monthRaw) : null;
   const hidePast = past === 'hide';
+  const catFilter = CATEGORIES.find((c) => c.key === catRaw)?.key ?? null;
 
   const supabase = createAdminClient();
 
@@ -41,7 +60,7 @@ export default async function OperationsPage({ searchParams }: Props) {
       .select('id, name, affiliation')
       .eq('kind', 'sub')
       .order('name'),
-    supabase.from('operators').select('id, name, title')
+    supabase.from('operators').select('id, name, title').neq('role', 'head')
   ]);
   const mainInstructorsList = mainInsRes.data ?? [];
   const subInstructorsList = subInsRes.data ?? [];
@@ -77,6 +96,7 @@ export default async function OperationsPage({ searchParams }: Props) {
   const today = new Date().toISOString().slice(0, 10);
 
   const data = allData.filter((s) => {
+    if (catFilter !== null && categorize(s.cohorts?.name) !== catFilter) return false;
     const startMonth = Number(s.session_date.split('-')[1]);
     if (monthFilter !== null && startMonth !== monthFilter) return false;
     if (hidePast) {
@@ -90,10 +110,18 @@ export default async function OperationsPage({ searchParams }: Props) {
     ...new Set(allData.map((s) => Number(s.session_date.split('-')[1])))
   ].toSorted((a, b) => a - b);
 
-  const buildHref = (m: number | 'all', p?: 'hide' | 'show') => {
+  const buildHref = (overrides: {
+    month?: number | 'all';
+    past?: 'hide' | 'show';
+    cat?: Category | 'all';
+  }) => {
     const params = new URLSearchParams();
+    const m = overrides.month ?? (monthFilter ?? 'all');
+    const p = overrides.past ?? (hidePast ? 'hide' : 'show');
+    const c = overrides.cat ?? (catFilter ?? 'all');
     if (m !== 'all') params.set('month', String(m));
-    if ((p ?? (hidePast ? 'hide' : 'show')) === 'hide') params.set('past', 'hide');
+    if (p === 'hide') params.set('past', 'hide');
+    if (c !== 'all') params.set('cat', c);
     const qs = params.toString();
     return `/dashboard/operations${qs ? `?${qs}` : ''}`;
   };
@@ -103,61 +131,90 @@ export default async function OperationsPage({ searchParams }: Props) {
       pageTitle='운영관리'
       pageDescription={`표시 ${data.length}개 / 전체 ${allData.length}개 회차`}
     >
-      <div className='mb-4 flex flex-wrap items-center gap-3'>
-        <div className='inline-flex rounded-lg border bg-card p-1'>
+      <div className='mb-4 flex flex-col gap-3'>
+        {/* 구분 (PDF 카테고리) */}
+        <div className='inline-flex w-fit rounded-lg border bg-card p-1'>
           <Link
-            href={buildHref('all')}
+            href={buildHref({ cat: 'all' })}
             className={`rounded-md px-3 py-1 text-xs font-semibold transition ${
-              monthFilter === null
-                ? 'bg-blue-600 text-white'
+              catFilter === null
+                ? 'bg-slate-700 text-white'
                 : 'text-muted-foreground hover:bg-muted'
             }`}
           >
-            전체보기
+            전체 구분
           </Link>
-          {monthsInData.map((m) => (
+          {CATEGORIES.map((c) => (
             <Link
-              key={m}
-              href={buildHref(m)}
+              key={c.key}
+              href={buildHref({ cat: c.key })}
               className={`rounded-md px-3 py-1 text-xs font-semibold transition ${
-                monthFilter === m
-                  ? 'bg-blue-600 text-white'
+                catFilter === c.key
+                  ? 'bg-slate-700 text-white'
                   : 'text-muted-foreground hover:bg-muted'
               }`}
             >
-              {m}월
+              {c.label}
             </Link>
           ))}
         </div>
 
-        <Link
-          href={buildHref(monthFilter ?? 'all', hidePast ? 'show' : 'hide')}
-          className='inline-flex items-center gap-2 rounded-md border bg-card px-3 py-1.5 text-xs font-semibold hover:bg-muted'
-        >
-          <span
-            className={`inline-flex h-4 w-4 items-center justify-center rounded border ${
-              hidePast
-                ? 'border-muted-foreground'
-                : 'border-blue-600 bg-blue-600 text-white'
-            }`}
+        <div className='flex flex-wrap items-center gap-3'>
+          <div className='inline-flex rounded-lg border bg-card p-1'>
+            <Link
+              href={buildHref({ month: 'all' })}
+              className={`rounded-md px-3 py-1 text-xs font-semibold transition ${
+                monthFilter === null
+                  ? 'bg-blue-600 text-white'
+                  : 'text-muted-foreground hover:bg-muted'
+              }`}
+            >
+              전체보기
+            </Link>
+            {monthsInData.map((m) => (
+              <Link
+                key={m}
+                href={buildHref({ month: m })}
+                className={`rounded-md px-3 py-1 text-xs font-semibold transition ${
+                  monthFilter === m
+                    ? 'bg-blue-600 text-white'
+                    : 'text-muted-foreground hover:bg-muted'
+                }`}
+              >
+                {m}월
+              </Link>
+            ))}
+          </div>
+
+          <Link
+            href={buildHref({ past: hidePast ? 'show' : 'hide' })}
+            className='inline-flex items-center gap-2 rounded-md border bg-card px-3 py-1.5 text-xs font-semibold hover:bg-muted'
           >
-            {!hidePast && '✓'}
-          </span>
-          지난 회차 표시
-        </Link>
+            <span
+              className={`inline-flex h-4 w-4 items-center justify-center rounded border ${
+                hidePast
+                  ? 'border-muted-foreground'
+                  : 'border-blue-600 bg-blue-600 text-white'
+              }`}
+            >
+              {!hidePast && '✓'}
+            </span>
+            지난 회차 표시
+          </Link>
+        </div>
       </div>
 
       <div className='rounded-xl border bg-card'>
         <Table className='table-fixed'>
           <TableHeader>
             <TableRow>
-              <TableHead className='w-[12%]'>과정명</TableHead>
-              <TableHead className='w-[18%]'>회차</TableHead>
-              <TableHead className='w-[6%] text-center'>방법</TableHead>
-              <TableHead className='w-[18%]'>교육기간</TableHead>
-              <TableHead className='w-[14%]'>강사</TableHead>
-              <TableHead className='w-[12%]'>보조강사</TableHead>
-              <TableHead className='w-[14%]'>운영자</TableHead>
+              <TableHead className='w-[17%]'>과정명</TableHead>
+              <TableHead className='w-[17%] pl-6'>회차</TableHead>
+              <TableHead className='w-[5%] text-center'>방법</TableHead>
+              <TableHead className='w-[17%] pl-6'>교육기간</TableHead>
+              <TableHead className='w-[12%]'>강사</TableHead>
+              <TableHead className='w-[11%]'>보조강사</TableHead>
+              <TableHead className='w-[15%]'>운영자</TableHead>
               <TableHead className='w-[6%] text-center'>편집</TableHead>
             </TableRow>
           </TableHeader>
@@ -189,6 +246,25 @@ export default async function OperationsPage({ searchParams }: Props) {
               const subInstructors = subList.map((i) => i.name).join(', ');
               const operators = opList.map((o) => o.name).join(', ');
 
+              const status: 'green' | 'yellow' | 'red' =
+                mainList.length === 0 || opList.length === 0
+                  ? 'red'
+                  : subList.length === 0
+                    ? 'yellow'
+                    : 'green';
+              const statusDot =
+                status === 'green'
+                  ? 'bg-emerald-500'
+                  : status === 'yellow'
+                    ? 'bg-amber-400'
+                    : 'bg-red-500';
+              const statusTitle =
+                status === 'green'
+                  ? '배정 완료'
+                  : status === 'yellow'
+                    ? '보조강사 미배정'
+                    : '강사 또는 운영자 미배정';
+
               const dateLabel =
                 s.session_end_date && s.session_end_date !== s.session_date
                   ? `${formatDate(s.session_date)} ~ ${formatDate(s.session_end_date)}`
@@ -203,6 +279,10 @@ export default async function OperationsPage({ searchParams }: Props) {
                 >
                   <TableCell className='align-middle text-sm font-medium'>
                     <div className='flex flex-wrap items-center gap-1.5'>
+                      <span
+                        className={`inline-block h-2.5 w-2.5 shrink-0 rounded-full ${statusDot}`}
+                        title={statusTitle}
+                      />
                       {s.cohorts && (
                         <Link
                           href={`/dashboard/cohorts/${s.cohort_id}`}
@@ -223,7 +303,7 @@ export default async function OperationsPage({ searchParams }: Props) {
                       )}
                     </div>
                   </TableCell>
-                  <TableCell className='align-middle text-sm'>
+                  <TableCell className='align-middle pl-6 text-sm'>
                     <Link
                       href={`/dashboard/cohorts/${s.cohort_id}/lessons/${s.id}`}
                       className='hover:underline'
@@ -234,7 +314,7 @@ export default async function OperationsPage({ searchParams }: Props) {
                   <TableCell className='align-middle text-center text-sm'>
                     {s.cohorts?.delivery_method ?? '—'}
                   </TableCell>
-                  <TableCell className='align-middle font-mono text-xs tabular-nums whitespace-nowrap'>
+                  <TableCell className='align-middle pl-6 font-mono text-xs tabular-nums whitespace-nowrap'>
                     {dateLabel}
                   </TableCell>
                   <TableCell className='align-middle text-sm'>{mainInstructors || '—'}</TableCell>

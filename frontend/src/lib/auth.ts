@@ -1,6 +1,6 @@
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 
-export type OperatorRole = 'developer' | 'operator';
+export type OperatorRole = 'developer' | 'operator' | 'head';
 
 export type Operator = {
   id: string;
