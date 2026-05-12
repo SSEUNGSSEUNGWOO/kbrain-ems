@@ -16,7 +16,7 @@ type Question = {
 };
 
 type Props = {
-  token: string;
+  responseId: string;
   surveyTitle: string;
   studentName: string | null;
   questions: Question[];
@@ -26,7 +26,7 @@ type Props = {
 const FOLLOW_UP_THRESHOLD = 2;
 const LIKERT5_LABELS = ['매우 불만족', '불만족', '보통', '만족', '매우 만족'] as const;
 
-export function SurveyForm({ token, surveyTitle, studentName, questions }: Props) {
+export function SurveyForm({ responseId, surveyTitle, studentName, questions }: Props) {
   const [responses, setResponses] = useState<Record<string, string | number>>({});
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -98,7 +98,7 @@ export function SurveyForm({ token, surveyTitle, studentName, questions }: Props
     }
 
     startTransition(async () => {
-      const result = await submitSurvey({ token, responses });
+      const result = await submitSurvey({ responseId, responses });
       if ('error' in result) {
         setError(result.error ?? '제출에 실패했습니다.');
       } else {

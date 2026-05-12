@@ -1,16 +1,15 @@
 'use server';
 
 import { createAdminClient } from '@/lib/supabase/server';
-import { randomUUID } from 'crypto';
 
 export type StartResult =
-  | { ok: true; token: string }
+  | { ok: true; responseId: string }
   | { error: string };
 
 /**
  * 익명 응답 시작.
- * share_code로 설문을 찾고, 응답 row(student_id NULL)를 만들어 token을 발급한다.
- * 학생 식별 X — 완전 익명.
+ * share_code로 설문을 찾고, 응답 row(student_id NULL)를 만들어 id를 반환한다.
+ * 학생 식별 X — 완전 익명. row.id 자체가 응답 URL slug 역할.
  */
 export async function startSurvey(code: string): Promise<StartResult> {
   const supabase = createAdminClient();
@@ -26,12 +25,12 @@ export async function startSurvey(code: string): Promise<StartResult> {
     return { error: '마감된 설문입니다.' };
   }
 
-  const token = randomUUID();
-  const { error: insertErr } = await supabase.from('survey_responses').insert({
-    survey_id: survey.id,
-    token
-  });
-  if (insertErr) return { error: insertErr.message };
+  const { data, error: insertErr } = await supabase
+    .from('survey_responses')
+    .insert({ survey_id: survey.id })
+    .select('id')
+    .single();
+  if (insertErr || !data) return { error: insertErr?.message ?? '응답 시작에 실패했습니다.' };
 
-  return { ok: true, token };
+  return { ok: true, responseId: data.id };
 }
