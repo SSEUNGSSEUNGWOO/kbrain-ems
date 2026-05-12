@@ -21,7 +21,7 @@ export default async function SurveysPage({ params }: Props) {
   // 설문 목록
   const { data: surveys } = await supabase
     .from('surveys')
-    .select('id, title, share_code, created_at')
+    .select('id, title, share_code, opens_at, created_at')
     .eq('cohort_id', cohortId)
     .order('created_at', { ascending: false });
 
@@ -67,6 +67,8 @@ export default async function SurveysPage({ params }: Props) {
         id: s.id,
         title: s.title,
         shareCode: s.share_code,
+        published: s.opens_at !== null,
+        publishedAt: s.opens_at,
         issuedCount: responses.length,
         submittedCount: submitted.length,
         totalStudents,
