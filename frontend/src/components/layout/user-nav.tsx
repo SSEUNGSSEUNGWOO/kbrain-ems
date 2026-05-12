@@ -23,7 +23,8 @@ export function UserNav() {
 
   if (!name) return null;
 
-  const displayTitle = authTitle || (role === 'developer' ? '개발자' : '운영자');
+  const roleLabel = role === 'developer' ? '개발자' : role === 'head' ? '총괄' : '운영자';
+  const displayTitle = authTitle || roleLabel;
 
   return (
     <DropdownMenu>
@@ -38,7 +39,7 @@ export function UserNav() {
         <DropdownMenuLabel className='font-normal'>
           <div className='text-sm font-medium'>{name}</div>
           <div className='text-xs text-muted-foreground'>
-            {role === 'developer' ? '개발자' : '운영자'} · {displayTitle}
+            {roleLabel} · {displayTitle}
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
