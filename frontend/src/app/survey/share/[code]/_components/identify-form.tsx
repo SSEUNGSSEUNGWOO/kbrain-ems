@@ -23,7 +23,7 @@ export function IdentifyForm({ code, surveyTitle, cohortName }: Props) {
         setError(result.error);
         return;
       }
-      router.push(`/survey/${result.token}`);
+      router.push(`/survey/${result.responseId}`);
     });
   };
 

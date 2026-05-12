@@ -3,18 +3,18 @@ import { notFound } from 'next/navigation';
 import { SurveyForm } from './_components/survey-form';
 
 type Props = {
-  params: Promise<{ token: string }>;
+  params: Promise<{ responseId: string }>;
 };
 
 export default async function SurveyResponsePage({ params }: Props) {
-  const { token } = await params;
+  const { responseId } = await params;
   const supabase = createAdminClient();
 
-  // 1) 토큰으로 응답 row 조회
+  // 1) row 조회 (response id 자체가 URL slug 역할)
   const { data: response } = await supabase
     .from('survey_responses')
     .select('id, survey_id, submitted_at')
-    .eq('token', token)
+    .eq('id', responseId)
     .maybeSingle();
 
   if (!response) notFound();
@@ -52,7 +52,7 @@ export default async function SurveyResponsePage({ params }: Props) {
     <main className='min-h-screen bg-slate-50 px-4 py-8 sm:py-12'>
       <div className='mx-auto max-w-2xl'>
         <SurveyForm
-          token={token}
+          responseId={response.id}
           surveyTitle={surveyRes.data.title}
           studentName={null}
           questions={questions}

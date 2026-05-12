@@ -1,6 +1,7 @@
 import PageContainer from '@/components/layout/page-container';
 import { Button } from '@/components/ui/button';
 import { createAdminClient } from '@/lib/supabase/server';
+import { buildDisplayNoMap, computeFollowUpMap } from '@/lib/survey-display';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
@@ -41,21 +42,9 @@ export default async function SurveyPreviewPage({ params }: Props) {
     .sort((a, b) => a[0] - b[0])
     .map(([no, v]) => ({ no, ...v }));
 
-  // follow-up 매핑 (text 문항이 직전 likert 문항에 묶이는지)
-  const followUpMap = new Map<string, string>();
-  let prevScale: Q | null = null;
-  for (const q of questions) {
-    if (q.type === 'likert5') {
-      prevScale = q;
-    } else if (q.type === 'text' && prevScale) {
-      if (prevScale.section_no === q.section_no && prevScale.instructor_id === q.instructor_id) {
-        followUpMap.set(q.id, prevScale.id);
-      }
-      prevScale = null;
-    } else {
-      prevScale = null;
-    }
-  }
+  const followUpMap = computeFollowUpMap(questions);
+  const displayNo = buildDisplayNoMap(questions, followUpMap);
+  const getDisplayNo = (id: string) => displayNo.get(id) ?? '?';
 
   return (
     <PageContainer
@@ -89,7 +78,7 @@ export default async function SurveyPreviewPage({ params }: Props) {
                   return (
                     <div key={q.id}>
                       <div className='flex items-baseline gap-2'>
-                        <span className='text-xs font-semibold text-muted-foreground'>Q{q.question_no}</span>
+                        <span className='text-xs font-semibold text-muted-foreground'>Q{getDisplayNo(q.id)}</span>
                         <label className='flex-1 text-sm font-medium'>
                           {q.text}
                           {q.required && <span className='ml-1 text-red-500'>*</span>}
@@ -122,7 +111,7 @@ export default async function SurveyPreviewPage({ params }: Props) {
                       }
                     >
                       <div className='flex items-baseline gap-2'>
-                        <span className='text-xs font-semibold text-muted-foreground'>Q{q.question_no}</span>
+                        <span className='text-xs font-semibold text-muted-foreground'>Q{getDisplayNo(q.id)}</span>
                         <label className='flex-1 text-sm font-medium'>
                           {isFollowUp && <span className='mr-1 text-amber-600'>↳</span>}
                           {q.text}

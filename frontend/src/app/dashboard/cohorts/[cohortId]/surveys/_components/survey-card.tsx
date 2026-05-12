@@ -91,6 +91,14 @@ export function SurveyCard({
           <h3 className='truncate text-base font-bold'>{title}</h3>
         </div>
         <div className='flex shrink-0 items-center gap-1'>
+          {published && submittedCount > 0 && (
+            <Link
+              href={`/dashboard/cohorts/${cohortId}/surveys/${id}/results`}
+              className='rounded-md bg-gradient-to-r from-emerald-600 to-emerald-700 px-3 py-1.5 text-xs font-semibold text-white transition hover:from-emerald-700 hover:to-emerald-800'
+            >
+              결과
+            </Link>
+          )}
           <Link
             href={`/dashboard/cohorts/${cohortId}/surveys/${id}/edit`}
             className={

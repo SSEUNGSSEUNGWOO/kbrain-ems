@@ -90,23 +90,61 @@ export default async function AssignmentDetailPage({
     ])
   );
 
-  const description = [
+  const headerDescription = [
     assignment.cohorts?.name,
-    assignment.due_date ? `제출 기한 ${assignment.due_date}` : null,
-    assignment.description
-  ].filter(Boolean).join(' · ');
+    assignment.due_date ? `제출 기한 ${assignment.due_date}` : null
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
   return (
     <PageContainer
       pageTitle={assignment.title}
-      pageDescription={description || '과제 제출 현황'}
+      pageDescription={headerDescription || '과제 제출 현황'}
     >
-      <AssignmentSubmissionTable
-        assignmentId={assignmentId}
-        cohortId={cohortId}
-        students={mappedStudents}
-        recordMap={recordMap}
-      />
+      <div className='space-y-6'>
+        {assignment.description && (
+          <section className='rounded-xl border bg-card px-6 py-5 shadow-sm'>
+            <div className='mb-3 flex items-baseline justify-between gap-3'>
+              <h2 className='text-sm font-bold'>과제 안내</h2>
+              {assignment.due_date && (
+                <span className='text-xs font-semibold text-rose-600 dark:text-rose-400'>
+                  마감 {assignment.due_date}
+                </span>
+              )}
+            </div>
+            <div className='whitespace-pre-wrap break-words font-sans text-sm leading-relaxed text-foreground/90'>
+              {renderWithLinks(assignment.description)}
+            </div>
+          </section>
+        )}
+        <AssignmentSubmissionTable
+          assignmentId={assignmentId}
+          cohortId={cohortId}
+          students={mappedStudents}
+          recordMap={recordMap}
+        />
+      </div>
     </PageContainer>
   );
+}
+
+function renderWithLinks(text: string): React.ReactNode[] {
+  const parts = text.split(/(https?:\/\/\S+)/g);
+  return parts.map((part, i) => {
+    if (/^https?:\/\//.test(part)) {
+      return (
+        <a
+          key={i}
+          href={part}
+          target='_blank'
+          rel='noopener noreferrer'
+          className='break-all text-blue-600 underline decoration-blue-300 underline-offset-2 hover:text-blue-700 hover:decoration-blue-500 dark:text-blue-400'
+        >
+          {part}
+        </a>
+      );
+    }
+    return <span key={i}>{part}</span>;
+  });
 }

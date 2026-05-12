@@ -20,6 +20,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Icons } from '@/components/icons';
+import { buildDisplayNoMap, computeFollowUpMap } from '@/lib/survey-display';
 import type { Json } from '@/lib/supabase/types';
 import {
   publishSurvey,
@@ -102,23 +103,22 @@ const EMPTY_SECTION = (idx: number): LocalSection => ({
   ]
 });
 
-// likert5 바로 뒤의 text 문항을 follow-up으로 자동 인식. preview 페이지와 동일 규칙.
-function computeFollowUpKeys(sections: LocalSection[]): Set<string> {
-  const set = new Set<string>();
-  for (const section of sections) {
-    let prevScale: LocalQuestion | null = null;
-    for (const q of section.questions) {
-      if (q.type === 'likert5') {
-        prevScale = q;
-      } else if (q.type === 'text' && prevScale) {
-        set.add(q.key);
-        prevScale = null;
-      } else {
-        prevScale = null;
-      }
-    }
-  }
-  return set;
+type FlatQuestion = {
+  id: string;
+  type: string;
+  section_no: number;
+  instructor_id: string | null;
+};
+
+function flattenForDisplay(sections: LocalSection[]): FlatQuestion[] {
+  return sections.flatMap((s, sIdx) =>
+    s.questions.map((q) => ({
+      id: q.key,
+      type: q.type,
+      section_no: sIdx + 1,
+      instructor_id: s.instructor_id
+    }))
+  );
 }
 
 export function SurveyBuilder({
@@ -137,7 +137,13 @@ export function SurveyBuilder({
     initialSections.length === 0 ? [EMPTY_SECTION(1)] : toLocal(initialSections)
   );
 
-  const followUpKeys = useMemo(() => computeFollowUpKeys(sections), [sections]);
+  const flatQuestions = useMemo(() => flattenForDisplay(sections), [sections]);
+  const followUpMap = useMemo(() => computeFollowUpMap(flatQuestions), [flatQuestions]);
+  const followUpKeys = useMemo(() => new Set(followUpMap.keys()), [followUpMap]);
+  const displayNoMap = useMemo(
+    () => buildDisplayNoMap(flatQuestions, followUpMap),
+    [flatQuestions, followUpMap]
+  );
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -302,6 +308,7 @@ export function SurveyBuilder({
                 readOnly={readOnly}
                 canRemove={sections.length > 1}
                 followUpKeys={followUpKeys}
+                displayNoMap={displayNoMap}
                 onUpdate={(patch) => updateSection(section.key, patch)}
                 onRemove={() => removeSection(section.key)}
                 onAddQuestion={() => addQuestion(section.key)}
@@ -375,6 +382,7 @@ type SectionProps = {
   readOnly: boolean;
   canRemove: boolean;
   followUpKeys: Set<string>;
+  displayNoMap: Map<string, string>;
   onUpdate: (patch: Partial<LocalSection>) => void;
   onRemove: () => void;
   onAddQuestion: () => void;
@@ -391,6 +399,7 @@ function SortableSection({
   readOnly,
   canRemove,
   followUpKeys,
+  displayNoMap,
   onUpdate,
   onRemove,
   onAddQuestion,
@@ -483,6 +492,7 @@ function SortableSection({
                 key={q.key}
                 question={q}
                 index={qIdx}
+                displayNo={displayNoMap.get(q.key) ?? '?'}
                 readOnly={readOnly}
                 canRemove={section.questions.length > 1}
                 isFollowUp={followUpKeys.has(q.key)}
@@ -514,6 +524,7 @@ function SortableSection({
 type QuestionProps = {
   question: LocalQuestion;
   index: number;
+  displayNo: string;
   readOnly: boolean;
   canRemove: boolean;
   isFollowUp: boolean;
@@ -523,7 +534,8 @@ type QuestionProps = {
 
 function SortableQuestion({
   question,
-  index,
+  index: _index,
+  displayNo,
   readOnly,
   canRemove,
   isFollowUp,
@@ -561,7 +573,7 @@ function SortableQuestion({
         )}
         <span className='mt-2 inline-flex shrink-0 items-center gap-0.5 text-[11px] font-semibold text-muted-foreground'>
           {isFollowUp && <span className='text-amber-600'>↳</span>}
-          Q{index + 1}
+          Q{displayNo}
         </span>
         <div className='flex-1 space-y-2'>
           <textarea

@@ -4,7 +4,6 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { buildSatisfactionQuestions } from '@/lib/survey-templates/satisfaction';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { randomUUID } from 'crypto';
 
 type CreateLessonInput = {
   cohortId: string;
@@ -80,11 +79,12 @@ export async function createLesson(input: CreateLessonInput): Promise<Result> {
     if (attErr) return { error: attErr.message };
   }
 
-  // 4) (옵션) 과제 자동
+  // 4) (옵션) 과제 자동 — 이 수업(세션)에 묶음
   if (withAssignment) {
     const at = (assignmentTitle && assignmentTitle.trim()) || `${title.trim()} 과제`;
     const { error: aErr } = await supabase.from('assignments').insert({
       cohort_id: cohortId,
+      session_id: session.id,
       title: at
     });
     if (aErr) return { error: aErr.message };
@@ -141,15 +141,7 @@ export async function createLesson(input: CreateLessonInput): Promise<Result> {
     const { error: qErr } = await supabase.from('survey_questions').insert(questions);
     if (qErr) return { error: qErr.message };
 
-    if (students && students.length > 0) {
-      const tokens = students.map((s) => ({
-        survey_id: survey.id,
-        student_id: s.id,
-        token: randomUUID()
-      }));
-      const { error: tErr } = await supabase.from('survey_responses').insert(tokens);
-      if (tErr) return { error: tErr.message };
-    }
+    // 응답 토큰은 share_code 링크 진입 시 startSurvey()가 그 자리에서 발급.
   }
 
   revalidatePath(`/dashboard/cohorts/${cohortId}/lessons`);

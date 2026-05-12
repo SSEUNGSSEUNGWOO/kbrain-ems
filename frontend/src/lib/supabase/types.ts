@@ -531,6 +531,7 @@ export type Database = {
         Row: {
           id: string;
           cohort_id: string;
+          session_id: string | null;
           title: string;
           description: string | null;
           due_date: string | null;
@@ -540,6 +541,7 @@ export type Database = {
         Insert: {
           id?: string;
           cohort_id: string;
+          session_id?: string | null;
           title: string;
           description?: string | null;
           due_date?: string | null;
@@ -549,6 +551,7 @@ export type Database = {
         Update: {
           id?: string;
           cohort_id?: string;
+          session_id?: string | null;
           title?: string;
           description?: string | null;
           due_date?: string | null;
@@ -560,6 +563,12 @@ export type Database = {
             foreignKeyName: 'assignments_cohort_id_fkey';
             columns: ['cohort_id'];
             referencedRelation: 'cohorts';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'assignments_session_id_fkey';
+            columns: ['session_id'];
+            referencedRelation: 'sessions';
             referencedColumns: ['id'];
           }
         ];
@@ -837,6 +846,7 @@ export type Database = {
           share_code: string | null;
           opens_at: string | null;
           closes_at: string | null;
+          respondent_total: number | null;
           created_at: string;
           updated_at: string;
         };
@@ -850,6 +860,7 @@ export type Database = {
           share_code?: string | null;
           opens_at?: string | null;
           closes_at?: string | null;
+          respondent_total?: number | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -863,6 +874,7 @@ export type Database = {
           share_code?: string | null;
           opens_at?: string | null;
           closes_at?: string | null;
+          respondent_total?: number | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -946,7 +958,6 @@ export type Database = {
           id: string;
           survey_id: string;
           student_id: string | null;
-          token: string;
           responses: Json | null;
           submitted_at: string | null;
           created_at: string;
@@ -956,7 +967,6 @@ export type Database = {
           id?: string;
           survey_id: string;
           student_id?: string | null;
-          token: string;
           responses?: Json | null;
           submitted_at?: string | null;
           created_at?: string;
@@ -966,7 +976,6 @@ export type Database = {
           id?: string;
           survey_id?: string;
           student_id?: string | null;
-          token?: string;
           responses?: Json | null;
           submitted_at?: string | null;
           created_at?: string;
