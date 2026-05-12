@@ -17,7 +17,7 @@ export default async function EditLessonPage({ params }: Props) {
       .select('id, session_date, title, location_id, session_instructors(instructor_id)')
       .eq('id', sessionId)
       .maybeSingle(),
-    supabase.from('instructors').select('id, name, affiliation').order('name'),
+    supabase.from('instructors').select('id, name, affiliation').eq('kind', 'main').order('name'),
     supabase.from('locations').select('id, name').order('name'),
     supabase
       .from('surveys')

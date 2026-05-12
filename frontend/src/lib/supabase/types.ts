@@ -95,6 +95,10 @@ export type Database = {
           ended_at: string | null;
           application_start_at: string | null;
           application_end_at: string | null;
+          decided_at: string | null;
+          notified_at: string | null;
+          delivery_method: string | null;
+          orientation_date: string | null;
           recruiting_slug: string | null;
           max_capacity: number | null;
           created_at: string;
@@ -107,6 +111,10 @@ export type Database = {
           ended_at?: string | null;
           application_start_at?: string | null;
           application_end_at?: string | null;
+          decided_at?: string | null;
+          notified_at?: string | null;
+          delivery_method?: string | null;
+          orientation_date?: string | null;
           recruiting_slug?: string | null;
           max_capacity?: number | null;
           created_at?: string;
@@ -119,6 +127,10 @@ export type Database = {
           ended_at?: string | null;
           application_start_at?: string | null;
           application_end_at?: string | null;
+          decided_at?: string | null;
+          notified_at?: string | null;
+          delivery_method?: string | null;
+          orientation_date?: string | null;
           recruiting_slug?: string | null;
           max_capacity?: number | null;
           created_at?: string;
@@ -392,6 +404,7 @@ export type Database = {
           id: string;
           cohort_id: string;
           session_date: string;
+          session_end_date: string | null;
           title: string | null;
           start_time: string | null;
           end_time: string | null;
@@ -406,6 +419,7 @@ export type Database = {
           id?: string;
           cohort_id: string;
           session_date: string;
+          session_end_date?: string | null;
           title?: string | null;
           start_time?: string | null;
           end_time?: string | null;
@@ -420,6 +434,7 @@ export type Database = {
           id?: string;
           cohort_id?: string;
           session_date?: string;
+          session_end_date?: string | null;
           title?: string | null;
           start_time?: string | null;
           end_time?: string | null;
@@ -688,6 +703,7 @@ export type Database = {
           affiliation: string | null;
           specialty: string | null;
           grade_id: string | null;
+          kind: string;
           notes: string | null;
           created_at: string;
           updated_at: string;
@@ -700,6 +716,7 @@ export type Database = {
           affiliation?: string | null;
           specialty?: string | null;
           grade_id?: string | null;
+          kind?: string;
           notes?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -712,6 +729,7 @@ export type Database = {
           affiliation?: string | null;
           specialty?: string | null;
           grade_id?: string | null;
+          kind?: string;
           notes?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -768,6 +786,41 @@ export type Database = {
             foreignKeyName: 'session_instructors_instructor_id_fkey';
             columns: ['instructor_id'];
             referencedRelation: 'instructors';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+
+      session_operators: {
+        Row: {
+          id: string;
+          session_id: string;
+          operator_id: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          session_id: string;
+          operator_id: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          session_id?: string;
+          operator_id?: string;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'session_operators_session_id_fkey';
+            columns: ['session_id'];
+            referencedRelation: 'sessions';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'session_operators_operator_id_fkey';
+            columns: ['operator_id'];
+            referencedRelation: 'operators';
             referencedColumns: ['id'];
           }
         ];

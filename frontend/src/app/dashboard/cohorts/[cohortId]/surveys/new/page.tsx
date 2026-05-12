@@ -11,15 +11,20 @@ export default async function NewSurveyPage({ params }: Props) {
   const { cohortId } = await params;
   const supabase = createAdminClient();
 
-  const [cohortRes, instructorsRes, surveysRes] = await Promise.all([
+  const [cohortRes, instructorsRes, surveysRes, sessionListRes] = await Promise.all([
     supabase.from('cohorts').select('id, name').eq('id', cohortId).maybeSingle(),
-    supabase.from('instructors').select('id, name, affiliation, specialty').order('name'),
+    supabase.from('instructors').select('id, name, affiliation, specialty').eq('kind', 'main').order('name'),
     supabase
       .from('surveys')
       .select('id, title, share_code, created_at')
       .eq('cohort_id', cohortId)
       .eq('type', 'satisfaction')
-      .order('created_at', { ascending: false })
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('sessions')
+      .select('id, title, session_date, session_instructors(instructors(id, name))')
+      .eq('cohort_id', cohortId)
+      .order('session_date', { ascending: true })
   ]);
 
   if (!cohortRes.data) notFound();
@@ -42,6 +47,14 @@ export default async function NewSurveyPage({ params }: Props) {
         cohortName={cohortRes.data.name}
         instructors={instructorsRes.data ?? []}
         cloneSources={cloneSources}
+        sessions={(sessionListRes.data ?? []).map((s) => ({
+          id: s.id,
+          title: s.title,
+          session_date: s.session_date,
+          instructors: (s.session_instructors ?? [])
+            .map((si) => si.instructors)
+            .filter((i): i is { id: string; name: string } => !!i)
+        }))}
       />
     </PageContainer>
   );

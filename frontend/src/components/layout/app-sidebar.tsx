@@ -29,6 +29,7 @@ const STAGE_BADGE_CLASS: Record<CohortStage, string> = {
   recruiting: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
   active: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
   finished: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
+  preparing: 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300',
   unset: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
 };
 
@@ -53,6 +54,12 @@ export default function AppSidebar() {
 
   const activeCohortId = pathname.match(/^\/dashboard\/cohorts\/([^/]+)/)?.[1] ?? null;
   const isInsideCohorts = pathname.startsWith('/dashboard/cohorts');
+
+  // 한 번에 하나의 cohort만 펼침 (accordion). 현재 active cohort 자동 펼침.
+  const [openCohortId, setOpenCohortId] = React.useState<string | null>(activeCohortId);
+  React.useEffect(() => {
+    if (activeCohortId) setOpenCohortId(activeCohortId);
+  }, [activeCohortId]);
 
   React.useEffect(() => {
     fetch('/api/cohorts-list')
@@ -108,6 +115,34 @@ export default function AppSidebar() {
               </SidebarMenuButton>
             </SidebarMenuItem>
 
+            {/* 캘린더 — 모든 cohort 일정 통합 */}
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                tooltip='캘린더'
+                isActive={pathname.startsWith('/dashboard/calendar')}
+              >
+                <Link href='/dashboard/calendar'>
+                  <Icons.calendar className='text-pink-600 dark:text-pink-400' />
+                  <span>캘린더</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+
+            {/* 운영관리 — 전체 회차 한눈에 */}
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                tooltip='운영관리'
+                isActive={pathname.startsWith('/dashboard/operations')}
+              >
+                <Link href='/dashboard/operations'>
+                  <Icons.adjustments className='text-emerald-600 dark:text-emerald-400' />
+                  <span>운영관리</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+
             {/* 기수 목록 — 펼치면 기수 트리 표시 */}
             <Collapsible
               asChild
@@ -132,7 +167,7 @@ export default function AppSidebar() {
                   </CollapsibleTrigger>
                 </div>
 
-                <CollapsibleContent>
+                <CollapsibleContent className='overflow-hidden collapsible-anim'>
                   <SidebarMenuSub>
                     {cohorts.length === 0 && (
                       <SidebarMenuSubItem>
@@ -142,7 +177,8 @@ export default function AppSidebar() {
                     {cohorts.map((cohort) => (
                       <SidebarMenuSubItem key={cohort.id}>
                         <Collapsible
-                          defaultOpen={activeCohortId === cohort.id}
+                          open={openCohortId === cohort.id}
+                          onOpenChange={(o) => setOpenCohortId(o ? cohort.id : null)}
                           className='group/cohort w-full'
                         >
                           <div className='flex w-full items-center'>
@@ -165,7 +201,8 @@ export default function AppSidebar() {
                             </CollapsibleTrigger>
                           </div>
 
-                          <CollapsibleContent>
+                          <CollapsibleContent className='overflow-hidden collapsible-anim'>
+                            {/* inner */}
                             <SidebarMenuSub>
                               {DOMAINS.filter((d) => STAGE_DOMAINS[cohort.stage].includes(d.slug)).map((d) => {
                                 const DomainIcon = Icons[d.icon];

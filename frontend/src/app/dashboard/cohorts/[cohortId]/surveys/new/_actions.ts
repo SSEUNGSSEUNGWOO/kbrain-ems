@@ -7,19 +7,19 @@ import { redirect } from 'next/navigation';
 
 type InstructorInput = {
   instructorId: string;
-  sessionTitle: string;
 };
 
 type CreateInput = {
   cohortId: string;
   title: string;
   shareCode: string;
-  sessionDate: string; // YYYY-MM-DD
+  sessionDate: string; // share_code 자동 생성용
+  linkedSessionId: string | null;
   instructors: InstructorInput[];
 };
 
 export async function createSatisfactionSurvey(input: CreateInput) {
-  const { cohortId, title, shareCode, sessionDate, instructors } = input;
+  const { cohortId, title, shareCode, sessionDate, linkedSessionId, instructors } = input;
 
   // 검증
   if (!title.trim()) return { error: '제목을 입력해주세요.' };
@@ -28,7 +28,6 @@ export async function createSatisfactionSurvey(input: CreateInput) {
   if (instructors.length === 0) return { error: '강사를 최소 1명 추가해주세요.' };
   for (const [i, row] of instructors.entries()) {
     if (!row.instructorId) return { error: `${i + 1}번째 강사를 선택해주세요.` };
-    if (!row.sessionTitle.trim()) return { error: `${i + 1}번째 세션 제목을 입력해주세요.` };
   }
 
   const supabase = createAdminClient();
@@ -52,39 +51,23 @@ export async function createSatisfactionSurvey(input: CreateInput) {
   }
   const nameById = new Map(instructorRecords.map((r) => [r.id, r.name]));
 
-  // 1) sessions — 입력 순서대로 1개씩 생성해 id를 정확히 매핑
-  const sessionIds: string[] = [];
-  for (const row of instructors) {
-    const { data: s, error: sErr } = await supabase
+  // 연결 회차 선택 시 그 session 제목을 강사 섹션 제목에 표시 (선택)
+  let linkedSessionTitle: string | undefined;
+  if (linkedSessionId) {
+    const { data: sess } = await supabase
       .from('sessions')
-      .insert({
-        cohort_id: cohortId,
-        session_date: sessionDate,
-        title: row.sessionTitle.trim()
-      })
-      .select('id')
-      .single();
-    if (sErr || !s) {
-      return { error: sErr?.message ?? '세션 생성에 실패했습니다.' };
-    }
-    sessionIds.push(s.id);
+      .select('title')
+      .eq('id', linkedSessionId)
+      .maybeSingle();
+    linkedSessionTitle = sess?.title ?? undefined;
   }
 
-  // 2) session_instructors
-  const { error: siErr } = await supabase.from('session_instructors').insert(
-    instructors.map((row, i) => ({
-      session_id: sessionIds[i],
-      instructor_id: row.instructorId,
-      role: 'main'
-    }))
-  );
-  if (siErr) return { error: siErr.message };
-
-  // 3) survey
+  // survey
   const { data: survey, error: surveyErr } = await supabase
     .from('surveys')
     .insert({
       cohort_id: cohortId,
+      session_id: linkedSessionId,
       title: title.trim(),
       type: 'satisfaction',
       scope: 'session',
@@ -96,20 +79,19 @@ export async function createSatisfactionSurvey(input: CreateInput) {
     return { error: surveyErr?.message ?? '설문 생성에 실패했습니다.' };
   }
 
-  // 4) survey_questions — 강사 N명 = 헤더 12 + 6N + 푸터 3
+  // survey_questions — 강사 N명 = 헤더 12 + 6N + 푸터 3
   const questions = buildSatisfactionQuestions({
     surveyId: survey.id,
     instructors: instructors.map((row) => ({
       id: row.instructorId,
       name: nameById.get(row.instructorId) ?? '',
-      sessionTitle: row.sessionTitle.trim()
+      sessionTitle: linkedSessionTitle
     }))
   });
   const { error: qErr } = await supabase.from('survey_questions').insert(questions);
   if (qErr) return { error: qErr.message };
 
-  // 학생 토큰 발급은 발행(publish) 시점에 수행. 여기서는 초안만 만든다.
-
+  // 응답 토큰은 발행(publish) 시점에 발급. 여기서는 초안만.
   revalidatePath(`/dashboard/cohorts/${cohortId}/surveys`);
   redirect(`/dashboard/cohorts/${cohortId}/surveys/${survey.id}/edit`);
 }

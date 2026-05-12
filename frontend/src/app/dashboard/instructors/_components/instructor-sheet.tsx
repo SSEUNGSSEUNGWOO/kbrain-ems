@@ -28,13 +28,15 @@ export type Instructor = {
 type Props = {
   instructor?: Instructor;
   trigger: React.ReactNode;
+  kind?: 'main' | 'sub'; // 새 추가 시 어느 풀에 들어갈지 (수정엔 무시)
 };
 
-export function InstructorSheet({ instructor, trigger }: Props) {
+export function InstructorSheet({ instructor, trigger, kind = 'main' }: Props) {
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+  const label = kind === 'sub' ? '보조강사' : '강사';
   const isEdit = !!instructor;
 
   const onSubmit = (formData: FormData) => {
@@ -57,12 +59,13 @@ export function InstructorSheet({ instructor, trigger }: Props) {
       <SheetTrigger asChild>{trigger}</SheetTrigger>
       <SheetContent className='overflow-y-auto'>
         <SheetHeader>
-          <SheetTitle>{isEdit ? '강사 수정' : '강사 추가'}</SheetTitle>
+          <SheetTitle>{isEdit ? `${label} 수정` : `${label} 추가`}</SheetTitle>
           <SheetDescription>
-            {isEdit ? '강사 정보를 수정합니다.' : '새 강사를 등록합니다. 모든 기수에서 공통으로 사용됩니다.'}
+            {isEdit ? `${label} 정보를 수정합니다.` : `새 ${label}를 등록합니다. 모든 기수에서 공통으로 사용됩니다.`}
           </SheetDescription>
         </SheetHeader>
         <form action={onSubmit} className='grid gap-4 px-4 py-4'>
+          {!isEdit && <input type='hidden' name='kind' value={kind} />}
           <div className='grid gap-2'>
             <Label htmlFor='name'>이름 *</Label>
             <Input id='name' name='name' required defaultValue={instructor?.name ?? ''} />

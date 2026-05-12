@@ -18,9 +18,15 @@ type CloneSource = {
   share_code: string | null;
 };
 
+type SessionOpt = {
+  id: string;
+  title: string | null;
+  session_date: string;
+  instructors: { id: string; name: string }[];
+};
+
 type InstructorRow = {
   instructorId: string;
-  sessionTitle: string;
 };
 
 type Props = {
@@ -28,10 +34,11 @@ type Props = {
   cohortName: string;
   instructors: Instructor[];
   cloneSources: CloneSource[];
+  sessions: SessionOpt[];
 };
 
 const DEFAULT_TITLE = '2026 AI 챔피언 고급 과정 만족도 조사';
-const EMPTY_ROW: InstructorRow = { instructorId: '', sessionTitle: '' };
+const EMPTY_ROW: InstructorRow = { instructorId: '' };
 
 function todayPlusDays(days: number): string {
   const d = new Date();
@@ -39,7 +46,7 @@ function todayPlusDays(days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-export function NewSurveyForm({ cohortId, cohortName, instructors, cloneSources }: Props) {
+export function NewSurveyForm({ cohortId, cohortName, instructors, cloneSources, sessions }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -53,6 +60,9 @@ export function NewSurveyForm({ cohortId, cohortName, instructors, cloneSources 
   const [sessionDate, setSessionDate] = useState(todayPlusDays(7));
   const [shareCode, setShareCode] = useState(autoShareCode(todayPlusDays(7), cohortName));
   const [shareCodeEdited, setShareCodeEdited] = useState(false);
+
+  // 연결 회차 (선택)
+  const [linkedSessionId, setLinkedSessionId] = useState('');
 
   // 강사·세션 — 동적 N명, 기본 1행
   const [instructorRows, setInstructorRows] = useState<InstructorRow[]>([{ ...EMPTY_ROW }]);
@@ -108,6 +118,7 @@ export function NewSurveyForm({ cohortId, cohortName, instructors, cloneSources 
         title,
         shareCode,
         sessionDate,
+        linkedSessionId: linkedSessionId || null,
         instructors: instructorRows
       });
       // 성공 시 redirect, 실패 시 { error } 반환
@@ -162,6 +173,38 @@ export function NewSurveyForm({ cohortId, cohortName, instructors, cloneSources 
               onChange={(e) => setTitle(e.target.value)}
               className='w-full rounded-md border bg-background px-3 py-2 text-sm'
             />
+          </Field>
+
+          <Field
+            label='연결 회차'
+            hint='선택 시 차수일·강사가 자동으로 채워집니다 (이후 직접 수정 가능)'
+          >
+            <select
+              value={linkedSessionId}
+              onChange={(e) => {
+                const id = e.target.value;
+                setLinkedSessionId(id);
+                if (!id) return;
+                const sess = sessions.find((s) => s.id === id);
+                if (!sess) return;
+                setSessionDate(sess.session_date);
+                setShareCodeEdited(false); // share_code 자동 재계산
+                if (sess.instructors.length > 0) {
+                  setInstructorRows(sess.instructors.map((i) => ({ instructorId: i.id })));
+                }
+              }}
+              className='w-full rounded-md border bg-background px-3 py-2 text-sm'
+            >
+              <option value=''>연결 없음 (코호트 공통)</option>
+              {sessions.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.session_date} · {s.title ?? '제목 없음'}
+                  {s.instructors.length > 0
+                    ? ` · ${s.instructors.map((i) => i.name).join('·')}`
+                    : ''}
+                </option>
+              ))}
+            </select>
           </Field>
 
           <div className='grid grid-cols-2 gap-4'>
@@ -225,31 +268,20 @@ export function NewSurveyForm({ cohortId, cohortName, instructors, cloneSources 
                   </button>
                 )}
               </div>
-              <div className='grid grid-cols-2 gap-3'>
-                <Field label='강사' required>
-                  <select
-                    value={row.instructorId}
-                    onChange={(e) => updateRow(idx, { instructorId: e.target.value })}
-                    className='w-full rounded-md border bg-background px-3 py-2 text-sm'
-                  >
-                    <option value=''>강사 선택…</option>
-                    {instructorOptions.map((o) => (
-                      <option key={o.value} value={o.value}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-                <Field label='세션 제목' required>
-                  <input
-                    type='text'
-                    value={row.sessionTitle}
-                    onChange={(e) => updateRow(idx, { sessionTitle: e.target.value })}
-                    placeholder='예: 특강 — AI는 도구, 핵심은 사람'
-                    className='w-full rounded-md border bg-background px-3 py-2 text-sm'
-                  />
-                </Field>
-              </div>
+              <Field label='강사' required>
+                <select
+                  value={row.instructorId}
+                  onChange={(e) => updateRow(idx, { instructorId: e.target.value })}
+                  className='w-full rounded-md border bg-background px-3 py-2 text-sm'
+                >
+                  <option value=''>강사 선택…</option>
+                  {instructorOptions.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </Field>
             </div>
           ))}
         </div>

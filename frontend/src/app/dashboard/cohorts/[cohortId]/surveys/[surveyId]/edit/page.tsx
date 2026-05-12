@@ -27,7 +27,7 @@ export default async function SurveyEditPage({ params }: Props) {
       )
       .eq('survey_id', surveyId)
       .order('question_no', { ascending: true }),
-    supabase.from('instructors').select('id, name, affiliation').order('name')
+    supabase.from('instructors').select('id, name, affiliation').eq('kind', 'main').order('name')
   ]);
 
   if (!surveyRes.data) notFound();

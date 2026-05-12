@@ -12,7 +12,7 @@ export default async function AssignmentsPage({
   const { cohortId } = await params;
   const supabase = createAdminClient();
 
-  const [cohortRes, assignmentRes, studentCountRes] = await Promise.all([
+  const [cohortRes, assignmentRes, studentCountRes, sessionListRes] = await Promise.all([
     supabase
       .from('cohorts')
       .select('id, name')
@@ -20,13 +20,17 @@ export default async function AssignmentsPage({
       .limit(1),
     supabase
       .from('assignments')
-      .select('id, title, description, due_date, created_at')
-      .eq('cohort_id', cohortId)
-      .order('created_at', { ascending: false }),
+      .select('id, title, description, due_date, created_at, sessions(session_date)')
+      .eq('cohort_id', cohortId),
     supabase
       .from('students')
       .select('id', { count: 'exact', head: true })
+      .eq('cohort_id', cohortId),
+    supabase
+      .from('sessions')
+      .select('id, title, session_date')
       .eq('cohort_id', cohortId)
+      .order('session_date', { ascending: true })
   ]);
 
   if (cohortRes.error) throw new Error(cohortRes.error.message);
@@ -36,7 +40,28 @@ export default async function AssignmentsPage({
   const cohort = cohortRes.data?.[0];
   if (!cohort) notFound();
 
-  const assignmentRows = assignmentRes.data ?? [];
+  // 회차 순서(session_date asc, null 마지막)로 정렬
+  type RawRow = {
+    id: string;
+    title: string;
+    description: string | null;
+    due_date: string | null;
+    created_at: string;
+    sessions: { session_date: string } | { session_date: string }[] | null;
+  };
+  const getSessionDate = (a: RawRow): string | null => {
+    if (!a.sessions) return null;
+    if (Array.isArray(a.sessions)) return a.sessions[0]?.session_date ?? null;
+    return a.sessions.session_date ?? null;
+  };
+  const assignmentRows = ((assignmentRes.data ?? []) as RawRow[]).slice().toSorted((a, b) => {
+    const aDate = getSessionDate(a);
+    const bDate = getSessionDate(b);
+    if (!aDate && !bDate) return a.created_at.localeCompare(b.created_at);
+    if (!aDate) return 1;
+    if (!bDate) return -1;
+    return aDate.localeCompare(bDate);
+  });
   const studentCount = studentCountRes.count ?? 0;
 
   // Fetch submissions for all assignments
@@ -72,7 +97,7 @@ export default async function AssignmentsPage({
     <PageContainer
       pageTitle='과제'
       pageDescription={`${cohort.name} 과제 출제, 제출 관리 및 채점`}
-      pageHeaderAction={<CreateAssignmentSheet cohortId={cohortId} />}
+      pageHeaderAction={<CreateAssignmentSheet cohortId={cohortId} sessions={sessionListRes.data ?? []} />}
     >
       <AssignmentList
         cohortId={cohortId}

@@ -14,6 +14,7 @@ export async function createAssignment(cohortId: string, formData: FormData): Pr
   const supabase = createAdminClient();
   const { error } = await supabase.from('assignments').insert({
     cohort_id: cohortId,
+    session_id: String(formData.get('session_id') ?? '').trim() || null,
     title,
     description: String(formData.get('description') ?? '').trim() || null,
     due_date: String(formData.get('due_date') ?? '').trim() || null
