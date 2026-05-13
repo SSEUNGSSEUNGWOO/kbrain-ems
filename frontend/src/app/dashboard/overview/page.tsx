@@ -4,10 +4,40 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Icons } from '@/components/icons';
-import { classifyOrganization, ORGANIZATION_CATEGORY_LABEL, type OrganizationCategory } from '@/lib/organization-category';
+import {
+  classifyOrganization,
+  ORGANIZATION_CATEGORY_LABEL,
+  type OrganizationCategory
+} from '@/lib/organization-category';
 import { computeCohortStage } from '@/lib/cohort-stage';
 import { CategoryPieChart } from './_components/category-pie-chart';
 import { RecruitingCohortsCard } from './_components/recruiting-cohorts-card';
+import {
+  CohortLineChart,
+  type Point as ChartPoint,
+  type Series as ChartSeries
+} from './_components/cohort-line-chart';
+import { ActivityFeed, type Activity } from './_components/activity-feed';
+
+const COHORT_COLORS = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ec4899', '#06b6d4'];
+
+function timeAgo(iso: string): string {
+  const then = new Date(iso).getTime();
+  const diff = Math.max(0, Date.now() - then);
+  const sec = Math.floor(diff / 1000);
+  if (sec < 60) return '방금 전';
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}분 전`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}시간 전`;
+  const day = Math.floor(hr / 24);
+  if (day < 7) return `${day}일 전`;
+  const wk = Math.floor(day / 7);
+  if (wk < 5) return `${wk}주 전`;
+  const mo = Math.floor(day / 30);
+  if (mo < 12) return `${mo}달 전`;
+  return `${Math.floor(day / 365)}년 전`;
+}
 
 const DOW = ['일', '월', '화', '수', '목', '금', '토'] as const;
 
@@ -113,9 +143,11 @@ export default async function OverviewPage() {
     if (r.status !== 'absent') entry.present++;
     attendanceMap.set(r.session_id, entry);
   }
-  const attendanceCounts = Array.from(attendanceMap.entries()).map(
-    ([sessionId, v]) => ({ sessionId, total: v.total, present: v.present })
-  );
+  const attendanceCounts = Array.from(attendanceMap.entries()).map(([sessionId, v]) => ({
+    sessionId,
+    total: v.total,
+    present: v.present
+  }));
 
   // Build per-cohort data
   const cohortData = allCohorts.map((c) => {
@@ -135,7 +167,8 @@ export default async function OverviewPage() {
         presentRecords += att.present;
       }
     }
-    const attendanceRate = totalRecords > 0 ? Math.round((presentRecords / totalRecords) * 100) : null;
+    const attendanceRate =
+      totalRecords > 0 ? Math.round((presentRecords / totalRecords) * 100) : null;
 
     // Past sessions without attendance records
     const missingAttendance = cohortSessions.filter(
@@ -162,9 +195,7 @@ export default async function OverviewPage() {
 
   // Global next session
   const globalNext = allSessions.find((s) => s.sessionDate >= today);
-  const globalNextCohort = globalNext
-    ? allCohorts.find((c) => c.id === globalNext.cohortId)
-    : null;
+  const globalNextCohort = globalNext ? allCohorts.find((c) => c.id === globalNext.cohortId) : null;
 
   // All missing attendance across cohorts
   const allMissing = cohortData.flatMap((c) =>
@@ -208,23 +239,209 @@ export default async function OverviewPage() {
     unknown: '#94a3b8'
   };
 
-  const categoryCounts = allStudentOrgs.reduce((acc, r) => {
-    const cat = classifyOrganization(r.orgName);
-    acc[cat] = (acc[cat] ?? 0) + 1;
-    return acc;
-  }, {} as Record<OrganizationCategory, number>);
+  const categoryCounts = allStudentOrgs.reduce(
+    (acc, r) => {
+      const cat = classifyOrganization(r.orgName);
+      acc[cat] = (acc[cat] ?? 0) + 1;
+      return acc;
+    },
+    {} as Record<OrganizationCategory, number>
+  );
 
-  const categoryChartData = (Object.keys(ORGANIZATION_CATEGORY_LABEL) as OrganizationCategory[]).map((key) => ({
+  const categoryChartData = (
+    Object.keys(ORGANIZATION_CATEGORY_LABEL) as OrganizationCategory[]
+  ).map((key) => ({
     name: ORGANIZATION_CATEGORY_LABEL[key],
     value: categoryCounts[key] ?? 0,
     color: CATEGORY_COLORS[key]
   }));
 
+  // 출석률 추세 시계열 빌드
+  const cohortSeries: ChartSeries[] = allCohorts.map((c, i) => ({
+    id: c.id,
+    name: c.name.replace('전문인재 ', ''),
+    color: COHORT_COLORS[i % COHORT_COLORS.length]
+  }));
+
+  const attendanceDateSet = new Set<string>();
+  for (const s of allSessions) {
+    if (attendanceMap.has(s.id)) attendanceDateSet.add(s.sessionDate);
+  }
+  const attendanceDates = [...attendanceDateSet].toSorted();
+  const attendanceTrendData: ChartPoint[] = attendanceDates.map((date) => {
+    const row: ChartPoint = { date };
+    for (const c of allCohorts) {
+      let total = 0;
+      let present = 0;
+      for (const s of allSessions) {
+        if (s.cohortId !== c.id || s.sessionDate !== date) continue;
+        const att = attendanceMap.get(s.id);
+        if (att) {
+          total += att.total;
+          present += att.present;
+        }
+      }
+      row[c.id] = total > 0 ? Math.round((present / total) * 100) : null;
+    }
+    return row;
+  });
+  const activeAttendanceSeries = cohortSeries.filter((s) =>
+    attendanceTrendData.some((row) => typeof row[s.id] === 'number')
+  );
+
+  // 신청자 누적 곡선 (모집중 cohort 있을 때만)
+  let applicationsTrendData: ChartPoint[] = [];
+  let applicationsTrendSeries: ChartSeries[] = [];
+  if (recruitingCohorts.length > 0) {
+    const ids = recruitingCohorts.map((c) => c.id);
+    const { data: appliedRows } = await supabase
+      .from('applications')
+      .select('cohort_id, applied_at')
+      .in('cohort_id', ids)
+      .not('applied_at', 'is', null);
+
+    const byCohort = new Map<string, string[]>();
+    for (const r of appliedRows ?? []) {
+      if (!r.applied_at) continue;
+      const ymd = r.applied_at.slice(0, 10);
+      const arr = byCohort.get(r.cohort_id) ?? [];
+      arr.push(ymd);
+      byCohort.set(r.cohort_id, arr);
+    }
+
+    applicationsTrendSeries = recruitingCohorts.map((c, i) => ({
+      id: c.id,
+      name: c.maxCapacity
+        ? `${c.name.replace('전문인재 ', '')} (목표 ${c.maxCapacity}명)`
+        : c.name.replace('전문인재 ', ''),
+      color: COHORT_COLORS[i % COHORT_COLORS.length]
+    }));
+
+    const dateSet = new Set<string>();
+    for (const c of recruitingCohorts) {
+      if (c.applicationStartAt) dateSet.add(c.applicationStartAt.slice(0, 10));
+    }
+    dateSet.add(today);
+    for (const dates of byCohort.values()) {
+      for (const d of dates) dateSet.add(d);
+    }
+    const sortedDates = [...dateSet].toSorted();
+
+    applicationsTrendData = sortedDates.map((date) => {
+      const row: ChartPoint = { date };
+      for (const c of recruitingCohorts) {
+        const dates = byCohort.get(c.id) ?? [];
+        const startDate = c.applicationStartAt?.slice(0, 10) ?? null;
+        const endDate = c.applicationEndAt?.slice(0, 10) ?? null;
+        if (startDate && date < startDate) {
+          row[c.id] = null;
+        } else if (endDate && date > endDate) {
+          row[c.id] = null;
+        } else {
+          row[c.id] = dates.filter((d) => d <= date).length;
+        }
+      }
+      return row;
+    });
+  }
+
+  // 활동 피드
+  type AppliedFeedRow = {
+    id: string;
+    applied_at: string | null;
+    applicant_id: string;
+    cohort_id: string;
+    applicants: { name: string } | null;
+    cohorts: { name: string } | null;
+  };
+  type SurveyFeedRow = {
+    id: string;
+    completed_at: string;
+    student_id: string;
+    survey_id: string;
+    students: { name: string } | null;
+    surveys: { title: string; cohort_id: string } | null;
+  };
+  type AssignmentFeedRow = {
+    id: string;
+    submitted_at: string | null;
+    student_id: string;
+    assignment_id: string;
+    students: { name: string } | null;
+    assignments: { title: string; cohort_id: string } | null;
+  };
+
+  const FEED_LIMIT_PER_TYPE = 8;
+  const FEED_LIMIT_TOTAL = 15;
+
+  const [appliedFeedRes, surveyFeedRes, assignmentFeedRes] = await Promise.all([
+    supabase
+      .from('applications')
+      .select('id, applied_at, applicant_id, cohort_id, applicants(name), cohorts(name)')
+      .not('applied_at', 'is', null)
+      .order('applied_at', { ascending: false })
+      .limit(FEED_LIMIT_PER_TYPE)
+      .returns<AppliedFeedRow[]>(),
+    supabase
+      .from('survey_completions')
+      .select('id, completed_at, student_id, survey_id, students(name), surveys(title, cohort_id)')
+      .order('completed_at', { ascending: false })
+      .limit(FEED_LIMIT_PER_TYPE)
+      .returns<SurveyFeedRow[]>(),
+    supabase
+      .from('assignment_submissions')
+      .select(
+        'id, submitted_at, student_id, assignment_id, students(name), assignments(title, cohort_id)'
+      )
+      .not('submitted_at', 'is', null)
+      .order('submitted_at', { ascending: false })
+      .limit(FEED_LIMIT_PER_TYPE)
+      .returns<AssignmentFeedRow[]>()
+  ]);
+
+  const rawActivities: Activity[] = [];
+  for (const r of appliedFeedRes.data ?? []) {
+    if (!r.applied_at) continue;
+    rawActivities.push({
+      id: `app-${r.id}`,
+      type: 'application',
+      time: r.applied_at,
+      primary: r.applicants?.name ?? '익명',
+      secondary: r.cohorts?.name ?? '',
+      href: `/dashboard/applicants/${r.applicant_id}`
+    });
+  }
+  for (const r of surveyFeedRes.data ?? []) {
+    rawActivities.push({
+      id: `srv-${r.id}`,
+      type: 'survey',
+      time: r.completed_at,
+      primary: r.students?.name ?? '익명',
+      secondary: r.surveys?.title ?? '',
+      href: r.surveys?.cohort_id ? `/dashboard/cohorts/${r.surveys.cohort_id}/surveys` : undefined
+    });
+  }
+  for (const r of assignmentFeedRes.data ?? []) {
+    if (!r.submitted_at) continue;
+    rawActivities.push({
+      id: `asn-${r.id}`,
+      type: 'assignment',
+      time: r.submitted_at,
+      primary: r.students?.name ?? '익명',
+      secondary: r.assignments?.title ?? '',
+      href: r.assignments?.cohort_id
+        ? `/dashboard/cohorts/${r.assignments.cohort_id}/assignments/${r.assignment_id}`
+        : undefined
+    });
+  }
+  rawActivities.sort((a, b) => b.time.localeCompare(a.time));
+  const feedItems: Activity[] = rawActivities.slice(0, FEED_LIMIT_TOTAL).map((a) => ({
+    ...a,
+    time: timeAgo(a.time)
+  }));
+
   return (
-    <PageContainer
-      pageTitle='대시보드'
-      pageDescription='교육과정 운영 현황'
-    >
+    <PageContainer pageTitle='대시보드' pageDescription='교육과정 운영 현황'>
       {/* 현재 모집중 (있을 때만) */}
       <RecruitingCohortsCard cohorts={recruitingForCard} />
 
@@ -237,7 +454,10 @@ export default async function OverviewPage() {
           <div className='text-muted-foreground text-xs font-medium'>전체 교육생</div>
           <div className='mt-1 text-3xl font-bold'>{totalStudents}명</div>
           <div className='text-muted-foreground mt-1 text-xs'>
-            {allCohorts.map((c) => `${c.name.replace('전문인재 ', '')} ${studentCountMap.get(c.id) ?? 0}명`).join(' · ')}
+            {allCohorts
+              .filter((c) => (studentCountMap.get(c.id) ?? 0) > 0)
+              .map((c) => `${c.name.replace('전문인재 ', '')} ${studentCountMap.get(c.id)}명`)
+              .join(' · ')}
           </div>
         </div>
         <div className='rounded-xl border bg-gradient-to-br from-violet-50 to-white px-6 py-5 dark:from-violet-950/30 dark:to-background'>
@@ -253,7 +473,9 @@ export default async function OverviewPage() {
             <Icons.circleCheck className='h-4.5 w-4.5 text-emerald-600 dark:text-emerald-400' />
           </div>
           <div className='text-muted-foreground text-xs font-medium'>전체 출석률</div>
-          <div className='mt-1 text-3xl font-bold'>{globalRate != null ? `${globalRate}%` : '-'}</div>
+          <div className='mt-1 text-3xl font-bold'>
+            {globalRate != null ? `${globalRate}%` : '-'}
+          </div>
           <div className='text-muted-foreground mt-1 text-xs'>
             {globalTotal > 0 ? `${globalPresent}/${globalTotal}건 출석` : '출결 미입력'}
           </div>
@@ -262,7 +484,9 @@ export default async function OverviewPage() {
           const isToday = globalNext?.sessionDate === today;
           const card = (
             <>
-              <div className={`mb-2 flex h-9 w-9 items-center justify-center rounded-lg ${isToday ? 'bg-rose-100 dark:bg-rose-900/50' : 'bg-amber-100 dark:bg-amber-900/50'}`}>
+              <div
+                className={`mb-2 flex h-9 w-9 items-center justify-center rounded-lg ${isToday ? 'bg-rose-100 dark:bg-rose-900/50' : 'bg-amber-100 dark:bg-amber-900/50'}`}
+              >
                 {isToday ? (
                   <span className='h-2.5 w-2.5 animate-pulse rounded-full bg-rose-500' />
                 ) : (
@@ -289,13 +513,71 @@ export default async function OverviewPage() {
           );
           const cls = `rounded-xl border px-6 py-5 ${isToday ? 'border-rose-200 bg-gradient-to-br from-rose-50 to-white transition hover:border-rose-300 hover:shadow-sm dark:border-rose-900 dark:from-rose-950/30 dark:to-background' : 'bg-gradient-to-br from-amber-50 to-white dark:from-amber-950/30 dark:to-background'}`;
           return isToday && globalNext && globalNextCohort ? (
-            <Link href={`/dashboard/cohorts/${globalNextCohort.id}/attendance/${globalNext.id}`} className={cls}>
+            <Link
+              href={`/dashboard/cohorts/${globalNextCohort.id}/attendance/${globalNext.id}`}
+              className={cls}
+            >
               {card}
             </Link>
           ) : (
             <div className={cls}>{card}</div>
           );
         })()}
+      </div>
+
+      {/* 신청자 누적 곡선 (모집중일 때만) */}
+      {recruitingCohorts.length > 0 && (
+        <div className='mb-8'>
+          <Card>
+            <CardHeader className='pb-3'>
+              <CardTitle className='flex items-center gap-2 text-base'>
+                <Icons.trendingUp className='h-4 w-4 text-emerald-600' />
+                모집 추이
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <CohortLineChart
+                data={applicationsTrendData}
+                series={applicationsTrendSeries}
+                yUnit='명'
+                yDomain={[0, 'auto']}
+                emptyText='신청 데이터 없음'
+              />
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* 출석률 추세 + 최근 활동 */}
+      <div className='mb-8 grid gap-4 lg:grid-cols-3'>
+        <Card className='lg:col-span-2'>
+          <CardHeader className='pb-3'>
+            <CardTitle className='flex items-center gap-2 text-base'>
+              <Icons.trendingUp className='h-4 w-4 text-blue-600' />
+              출석률 추세
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <CohortLineChart
+              data={attendanceTrendData}
+              series={activeAttendanceSeries}
+              yUnit='%'
+              yDomain={[0, 100]}
+              emptyText='출석 데이터 없음'
+            />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className='pb-3'>
+            <CardTitle className='flex items-center gap-2 text-base'>
+              <Icons.clock className='h-4 w-4 text-violet-600' />
+              최근 활동
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ActivityFeed items={feedItems} />
+          </CardContent>
+        </Card>
       </div>
 
       {/* 출결 미입력 알림 */}
@@ -369,7 +651,9 @@ export default async function OverviewPage() {
               <div className='text-muted-foreground mb-4 flex flex-wrap gap-x-4 gap-y-1 text-sm'>
                 <span>{c.studentCount}명</span>
                 {c.startedAt && <span>시작일 {formatShortDate(c.startedAt)}</span>}
-                <span>수업 {c.doneSessions}/{c.totalSessions}회 완료</span>
+                <span>
+                  수업 {c.doneSessions}/{c.totalSessions}회 완료
+                </span>
                 {c.attendanceRate != null && <span>출석률 {c.attendanceRate}%</span>}
               </div>
 

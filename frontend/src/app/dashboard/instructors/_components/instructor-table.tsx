@@ -2,6 +2,7 @@
 
 import { useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import {
   Table,
@@ -14,8 +15,13 @@ import {
 import { deleteInstructor } from '../_actions';
 import { InstructorSheet, type Instructor } from './instructor-sheet';
 
+type InstructorWithScore = Instructor & {
+  avgScore: number | null;
+  responseCount: number;
+};
+
 type Props = {
-  instructors: Instructor[];
+  instructors: InstructorWithScore[];
 };
 
 export function InstructorTable({ instructors }: Props) {
@@ -51,14 +57,21 @@ export function InstructorTable({ instructors }: Props) {
             <TableHead>소속</TableHead>
             <TableHead>전공·전문분야</TableHead>
             <TableHead>연락처</TableHead>
-            <TableHead>메모</TableHead>
+            <TableHead className='text-right'>만족도</TableHead>
             <TableHead className='w-32 text-right'>관리</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {instructors.map((i) => (
             <TableRow key={i.id}>
-              <TableCell className='font-medium'>{i.name}</TableCell>
+              <TableCell className='font-medium'>
+                <Link
+                  href={`/dashboard/instructors/${i.id}`}
+                  className='hover:underline'
+                >
+                  {i.name}
+                </Link>
+              </TableCell>
               <TableCell>{i.affiliation ?? '—'}</TableCell>
               <TableCell>{i.specialty ?? '—'}</TableCell>
               <TableCell className='text-sm text-muted-foreground'>
@@ -66,7 +79,9 @@ export function InstructorTable({ instructors }: Props) {
                 {i.phone && <div>{i.phone}</div>}
                 {!i.email && !i.phone && '—'}
               </TableCell>
-              <TableCell className='text-sm text-muted-foreground'>{i.notes ?? '—'}</TableCell>
+              <TableCell className='text-right tabular-nums'>
+                <SatisfactionCell avg={i.avgScore} count={i.responseCount} />
+              </TableCell>
               <TableCell className='text-right'>
                 <div className='flex justify-end gap-1'>
                   <InstructorSheet
@@ -93,5 +108,27 @@ export function InstructorTable({ instructors }: Props) {
         </TableBody>
       </Table>
     </div>
+  );
+}
+
+function SatisfactionCell({ avg, count }: { avg: number | null; count: number }) {
+  if (avg === null) {
+    return <span className='text-muted-foreground text-xs'>—</span>;
+  }
+  // 색조: 4.5+ emerald / 4.0+ blue / 3.5+ amber / 그 외 rose
+  const tone =
+    avg >= 4.5
+      ? 'text-emerald-700 dark:text-emerald-300'
+      : avg >= 4.0
+        ? 'text-blue-700 dark:text-blue-300'
+        : avg >= 3.5
+          ? 'text-amber-700 dark:text-amber-300'
+          : 'text-rose-700 dark:text-rose-300';
+  return (
+    <span className='inline-flex items-baseline gap-1.5'>
+      <span className={`font-semibold ${tone}`}>{avg.toFixed(2)}</span>
+      <span className='text-muted-foreground text-xs'>/ 5</span>
+      <span className='text-muted-foreground text-xs'>({count})</span>
+    </span>
   );
 }

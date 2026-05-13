@@ -5,12 +5,21 @@ import { Icons } from '@/components/icons';
 import { createAdminClient } from '@/lib/supabase/server';
 import Link from 'next/link';
 import { ApplicantsTable, type ApplicationRow } from './_components/applicants-table';
+import { APPLICATIONS_PAGE_SIZE, applicationsSearchParamsCache } from './_search-params';
 
-type Props = { params: Promise<{ cohortId: string }> };
+type Props = {
+  params: Promise<{ cohortId: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
 
-export default async function CohortApplicationsPage({ params }: Props) {
+export default async function CohortApplicationsPage({ params, searchParams }: Props) {
   const { cohortId } = await params;
+  const { page, q } = applicationsSearchParamsCache.parse(await searchParams);
   const supabase = createAdminClient();
+  const pageSize = APPLICATIONS_PAGE_SIZE;
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+  const search = q.trim();
 
   type ApplicationQuery = {
     id: string;
@@ -31,20 +40,56 @@ export default async function CohortApplicationsPage({ params }: Props) {
     } | null;
   };
 
-  const [{ data: cohort }, { data: applications }, { count: questionCount }] = await Promise.all([
+  type StatsRowQ = {
+    status: string;
+    knowledge_score: number | null;
+    self_diagnosis_avg: number | null;
+  };
+
+  // 검색어가 있으면 applicants id list 먼저 뽑아 in()으로 좁힘
+  let applicantIdFilter: string[] | null = null;
+  if (search) {
+    const { data: matchedApplicants } = await supabase
+      .from('applicants')
+      .select('id')
+      .or(`name.ilike.%${search}%,phone.ilike.%${search}%`);
+    applicantIdFilter = (matchedApplicants ?? []).map((a) => a.id);
+  }
+
+  let rowsQuery = supabase
+    .from('applications')
+    .select(
+      'id, status, rejected_stage, applied_at, decided_at, knowledge_score, knowledge_correct_count, knowledge_total_count, self_diagnosis_avg, applicants(id, name, department, job_role, organizations(name))',
+      { count: 'exact' }
+    )
+    .eq('cohort_id', cohortId)
+    .order('applied_at', { ascending: false, nullsFirst: false })
+    .range(from, to);
+
+  if (applicantIdFilter !== null) {
+    rowsQuery =
+      applicantIdFilter.length > 0
+        ? rowsQuery.in('applicant_id', applicantIdFilter)
+        : rowsQuery.in('applicant_id', ['__none__']);
+  }
+
+  const [
+    { data: cohort },
+    { data: applications, count: totalCount },
+    { count: questionCount },
+    { data: statsRows }
+  ] = await Promise.all([
     supabase.from('cohorts').select('id, name').eq('id', cohortId).maybeSingle(),
-    supabase
-      .from('applications')
-      .select(
-        'id, status, rejected_stage, applied_at, decided_at, knowledge_score, knowledge_correct_count, knowledge_total_count, self_diagnosis_avg, applicants(id, name, department, job_role, organizations(name))'
-      )
-      .eq('cohort_id', cohortId)
-      .order('applied_at', { ascending: false, nullsFirst: false })
-      .returns<ApplicationQuery[]>(),
+    rowsQuery.returns<ApplicationQuery[]>(),
     supabase
       .from('application_questions')
       .select('id', { count: 'exact', head: true })
+      .eq('cohort_id', cohortId),
+    supabase
+      .from('applications')
+      .select('status, knowledge_score, self_diagnosis_avg')
       .eq('cohort_id', cohortId)
+      .returns<StatsRowQ[]>()
   ]);
 
   const rows: ApplicationRow[] = (applications ?? []).map((a) => ({
@@ -66,24 +111,35 @@ export default async function CohortApplicationsPage({ params }: Props) {
 
   const hasQuestions = (questionCount ?? 0) > 0;
 
+  // 통계는 cohort 전체 기준 (검색·페이지 무관)
+  const allRows = statsRows ?? [];
+  const knowledgeRows = allRows.filter((r) => r.knowledge_score !== null);
+  const selfDiagRows = allRows.filter((r) => r.self_diagnosis_avg !== null);
   const stats = {
-    total: rows.length,
-    selected: rows.filter((r) => r.status === 'selected').length,
-    rejected: rows.filter((r) => r.status === 'rejected').length,
-    pending: rows.filter((r) => r.status === 'applied' || r.status === 'pending').length,
+    total: allRows.length,
+    selected: allRows.filter((r) => r.status === 'selected').length,
+    rejected: allRows.filter((r) => r.status === 'rejected').length,
+    pending: allRows.filter((r) => r.status === 'applied' || r.status === 'pending').length,
     avgKnowledge:
-      rows.length > 0
+      knowledgeRows.length > 0
         ? Math.round(
-            (rows.reduce((s, r) => s + (r.knowledge_score ?? 0), 0) / rows.length) * 10
+            (knowledgeRows.reduce((s, r) => s + (r.knowledge_score ?? 0), 0) /
+              knowledgeRows.length) *
+              10
           ) / 10
         : null,
     avgSelfDiag:
-      rows.length > 0
+      selfDiagRows.length > 0
         ? Math.round(
-            (rows.reduce((s, r) => s + (r.self_diagnosis_avg ?? 0), 0) / rows.length) * 10
+            (selfDiagRows.reduce((s, r) => s + (r.self_diagnosis_avg ?? 0), 0) /
+              selfDiagRows.length) *
+              10
           ) / 10
         : null
   };
+
+  const filteredTotal = totalCount ?? 0;
+  const pageCount = Math.max(1, Math.ceil(filteredTotal / pageSize));
 
   const headerAction = (
     <div className='flex items-center gap-2'>
@@ -108,10 +164,17 @@ export default async function CohortApplicationsPage({ params }: Props) {
     >
       <div className='flex flex-col gap-6'>
         <StatsRow stats={stats} questionCount={questionCount ?? 0} />
-        {rows.length === 0 ? (
+        {stats.total === 0 ? (
           <EmptyState hasQuestions={hasQuestions} />
         ) : (
-          <ApplicantsTable rows={rows} cohortId={cohortId} />
+          <ApplicantsTable
+            rows={rows}
+            cohortId={cohortId}
+            page={page}
+            pageSize={pageSize}
+            pageCount={pageCount}
+            totalCount={filteredTotal}
+          />
         )}
       </div>
     </PageContainer>
@@ -147,11 +210,7 @@ function StatsRow({
           label='평균 자가진단'
           value={stats.avgSelfDiag !== null ? `${stats.avgSelfDiag} / 5` : '—'}
         />
-        <Stat
-          label='등록된 문항'
-          value={`${questionCount}개`}
-          tone='text-muted-foreground'
-        />
+        <Stat label='등록된 문항' value={`${questionCount}개`} tone='text-muted-foreground' />
       </CardContent>
     </Card>
   );
@@ -168,9 +227,7 @@ function Stat({
   accent?: boolean;
   tone?: string;
 }) {
-  const valueClass = accent
-    ? 'text-primary'
-    : tone ?? 'text-foreground';
+  const valueClass = accent ? 'text-primary' : (tone ?? 'text-foreground');
   return (
     <div className='flex flex-col'>
       <span className='text-muted-foreground text-xs'>{label}</span>
