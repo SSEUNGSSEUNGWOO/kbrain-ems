@@ -40,9 +40,9 @@ export function IdentifyForm({ code, surveyTitle, cohortName }: Props) {
         </div>
 
         <div className='mb-6 rounded-xl border border-blue-100 bg-blue-50/60 px-5 py-4 text-sm text-blue-900'>
-          <div className='mb-1 font-semibold'>익명 응답입니다</div>
+          <div className='mb-1 font-semibold'>익명 응답</div>
           <p className='text-xs leading-relaxed text-blue-800/80'>
-            응답 내용은 누가 작성했는지 식별되지 않도록 익명으로 처리됩니다. 솔직한 의견 부탁드립니다.
+            이름·계정 정보는 저장되지 않으며, 응답은 개별 식별 없이 통계로만 활용됩니다.
           </p>
         </div>
 

@@ -109,16 +109,23 @@ export function SurveyForm({ responseId, surveyTitle, studentName, questions }: 
 
   if (done) {
     return (
-      <div className='rounded-2xl border bg-white px-8 py-12 text-center shadow-sm'>
-        <div className='mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-600'>
-          <svg className='h-6 w-6' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
-            <path strokeLinecap='round' strokeLinejoin='round' strokeWidth='2' d='M5 13l4 4L19 7' />
-          </svg>
+      <div className='fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-slate-50 to-blue-50 px-4'>
+        <div className='w-full max-w-sm'>
+          <div className='mx-auto mb-6 h-1 w-16 rounded-full bg-gradient-to-r from-blue-500 to-violet-500' />
+          <div className='rounded-2xl border bg-white px-8 py-10 text-center shadow-lg'>
+            <div className='mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-600'>
+              <svg className='h-7 w-7' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+                <path strokeLinecap='round' strokeLinejoin='round' strokeWidth='2.5' d='M5 13l4 4L19 7' />
+              </svg>
+            </div>
+            <h2 className='text-lg font-bold text-slate-900'>제출 완료</h2>
+            <p className='mt-2 text-sm leading-relaxed text-slate-500'>
+              소중한 의견 감사합니다.
+              <br />
+              더 나은 교육을 위해 활용하겠습니다.
+            </p>
+          </div>
         </div>
-        <h2 className='text-xl font-bold text-slate-900'>제출 완료</h2>
-        <p className='mt-2 text-sm text-slate-500'>
-          소중한 의견 감사합니다. 더 나은 교육을 위해 활용하겠습니다.
-        </p>
       </div>
     );
   }
