@@ -14,9 +14,9 @@ export default async function CohortsPage() {
     const { data: cohortRows, error: cohortError } = await supabase
       .from('cohorts')
       .select(
-        'id, name, started_at, ended_at, recruiting_slug, application_start_at, application_end_at, max_capacity, created_at'
+        'id, name, category, started_at, ended_at, recruiting_slug, application_start_at, application_end_at, max_capacity, created_at'
       )
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: true });
     if (cohortError) throw new Error(cohortError.message);
 
     const cohorts = sortCohortsByPreference(cohortRows ?? [], operator?.cohort_order ?? []);
@@ -41,6 +41,7 @@ export default async function CohortsPage() {
     const data = cohorts.map((c) => ({
       id: c.id,
       name: c.name,
+      category: c.category,
       started_at: c.started_at,
       ended_at: c.ended_at,
       recruiting_slug: c.recruiting_slug,
@@ -53,6 +54,24 @@ export default async function CohortsPage() {
     }));
 
     const dev = await isDeveloper();
+
+    type Item = (typeof data)[number];
+    const CATEGORIES: { key: string; label: string; tone: string }[] = [
+      { key: 'champion', label: '1. AI 챔피언', tone: 'border-blue-300 text-blue-700' },
+      { key: 'general', label: '2. 일반교육', tone: 'border-emerald-300 text-emerald-700' },
+      { key: 'special', label: '3. 특화교육', tone: 'border-amber-300 text-amber-700' },
+      { key: 'experts', label: '4. 전문인재', tone: 'border-violet-300 text-violet-700' }
+    ];
+    const byCategory = new Map<string, Item[]>();
+    for (const c of CATEGORIES) byCategory.set(c.key, []);
+    const uncategorized: Item[] = [];
+    for (const item of data) {
+      if (item.category && byCategory.has(item.category)) {
+        byCategory.get(item.category)!.push(item);
+      } else {
+        uncategorized.push(item);
+      }
+    }
 
     return (
       <PageContainer
@@ -69,7 +88,34 @@ export default async function CohortsPage() {
             <p className='text-muted-foreground mb-4 text-sm'>우측 상단 [+ 기수 추가]로 첫 교육과정을 등록해주세요.</p>
           </div>
         ) : (
-          <SortableCohortList cohorts={data} />
+          <div className='space-y-6'>
+            {CATEGORIES.map((cat) => {
+              const items = byCategory.get(cat.key) ?? [];
+              if (items.length === 0) return null;
+              return (
+                <section key={cat.key}>
+                  <div className='mb-2 flex items-center gap-2'>
+                    <span className={`inline-flex items-center rounded-md border bg-card px-2.5 py-1 text-xs font-bold ${cat.tone}`}>
+                      {cat.label}
+                    </span>
+                    <span className='text-muted-foreground text-xs'>{items.length}개 기수</span>
+                  </div>
+                  <SortableCohortList cohorts={items} />
+                </section>
+              );
+            })}
+            {uncategorized.length > 0 && (
+              <section>
+                <div className='mb-2 flex items-center gap-2'>
+                  <span className='inline-flex items-center rounded-md border bg-card px-2.5 py-1 text-xs font-bold text-muted-foreground'>
+                    미분류
+                  </span>
+                  <span className='text-muted-foreground text-xs'>{uncategorized.length}개 기수</span>
+                </div>
+                <SortableCohortList cohorts={uncategorized} />
+              </section>
+            )}
+          </div>
         )}
       </PageContainer>
     );

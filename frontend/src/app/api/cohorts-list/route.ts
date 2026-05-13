@@ -9,9 +9,9 @@ export async function GET() {
   const { data, error } = await supabase
     .from('cohorts')
     .select(
-      'id, name, started_at, ended_at, application_start_at, application_end_at, created_at'
+      'id, name, category, started_at, ended_at, application_start_at, application_end_at, created_at'
     )
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: true });
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -23,6 +23,7 @@ export async function GET() {
   const enriched = sorted.map((c) => ({
     id: c.id,
     name: c.name,
+    category: c.category,
     stage: computeCohortStage(c)
   }));
 

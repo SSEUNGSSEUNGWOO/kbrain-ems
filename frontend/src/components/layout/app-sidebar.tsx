@@ -23,7 +23,14 @@ import { useAuth } from '@/lib/auth-context';
 import { Icons } from '../icons';
 import { STAGE_DOMAINS, STAGE_LABEL, type CohortStage } from '@/lib/cohort-stage';
 
-type Cohort = { id: string; name: string; stage: CohortStage };
+type Cohort = { id: string; name: string; category: string | null; stage: CohortStage };
+
+const CATEGORIES: { key: string; label: string }[] = [
+  { key: 'champion', label: '1. AI 챔피언' },
+  { key: 'general', label: '2. 일반교육' },
+  { key: 'special', label: '3. 특화교육' },
+  { key: 'experts', label: '4. 전문인재' }
+];
 
 const STAGE_BADGE_CLASS: Record<CohortStage, string> = {
   recruiting: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
@@ -34,6 +41,7 @@ const STAGE_BADGE_CLASS: Record<CohortStage, string> = {
 };
 
 const DOMAINS = [
+  { slug: 'applications', label: '신청·응답', icon: 'forms' as const, color: 'text-teal-500' },
   { slug: 'students', label: '인원관리', icon: 'teams' as const, color: 'text-blue-500' },
   { slug: 'lessons', label: '수업관리', icon: 'calendar' as const, color: 'text-sky-500' },
   { slug: 'attendance', label: '출결', icon: 'circleCheck' as const, color: 'text-emerald-500' },
@@ -67,6 +75,24 @@ export default function AppSidebar() {
       .then((data) => setCohorts(data ?? []))
       .catch(() => setCohorts([]));
   }, [pathname]);
+
+  // 카테고리별로 그룹화
+  const cohortsByCategory = React.useMemo(() => {
+    const map = new Map<string, Cohort[]>();
+    for (const cat of CATEGORIES) map.set(cat.key, []);
+    const uncategorized: Cohort[] = [];
+    for (const c of cohorts) {
+      if (c.category && map.has(c.category)) map.get(c.category)!.push(c);
+      else uncategorized.push(c);
+    }
+    return { map, uncategorized };
+  }, [cohorts]);
+
+  // 활성 cohort가 속한 카테고리 자동 펼침
+  const activeCohortCategory = React.useMemo(() => {
+    if (!activeCohortId) return null;
+    return cohorts.find((c) => c.id === activeCohortId)?.category ?? null;
+  }, [activeCohortId, cohorts]);
 
   return (
     <Sidebar collapsible='icon'>
@@ -168,65 +194,112 @@ export default function AppSidebar() {
                 </div>
 
                 <CollapsibleContent className='overflow-hidden collapsible-anim'>
-                  <SidebarMenuSub>
+                  <SidebarMenuSub className='mr-0 pr-0'>
                     {cohorts.length === 0 && (
                       <SidebarMenuSubItem>
                         <span className='text-muted-foreground px-2 py-1 text-xs'>등록된 기수 없음</span>
                       </SidebarMenuSubItem>
                     )}
-                    {cohorts.map((cohort) => (
-                      <SidebarMenuSubItem key={cohort.id}>
-                        <Collapsible
-                          open={openCohortId === cohort.id}
-                          onOpenChange={(o) => setOpenCohortId(o ? cohort.id : null)}
-                          className='group/cohort w-full'
-                        >
-                          <div className='flex w-full items-center'>
-                            <SidebarMenuSubButton
-                              asChild
-                              className='flex-1'
-                              isActive={pathname === `/dashboard/cohorts/${cohort.id}`}
-                            >
-                              <Link href={`/dashboard/cohorts/${cohort.id}`} className='flex items-center gap-1.5'>
-                                <span
-                                  className={`shrink-0 rounded-sm px-1.5 py-0.5 text-[10px] font-bold leading-tight ${STAGE_BADGE_CLASS[cohort.stage]}`}
-                                >
-                                  {STAGE_LABEL[cohort.stage]}
-                                </span>
-                                <span className='truncate'>{cohort.name}</span>
-                              </Link>
-                            </SidebarMenuSubButton>
-                            <CollapsibleTrigger className='hover:bg-accent shrink-0 rounded p-1'>
-                              <Icons.chevronRight className='h-3 w-3 transition-transform duration-200 group-data-[state=open]/cohort:rotate-90' />
+                    {CATEGORIES.map((cat) => {
+                      const items = cohortsByCategory.map.get(cat.key) ?? [];
+                      if (items.length === 0) return null;
+                      const isActiveCat = activeCohortCategory === cat.key;
+                      return (
+                        <SidebarMenuSubItem key={cat.key}>
+                          <Collapsible
+                            defaultOpen={isActiveCat}
+                            className='group/cat w-full'
+                          >
+                            <CollapsibleTrigger className='hover:bg-accent flex w-full items-center justify-between rounded px-2 py-1.5 text-sm font-semibold text-foreground'>
+                              <span>{cat.label}</span>
+                              <Icons.chevronRight className='h-3 w-3 transition-transform duration-200 group-data-[state=open]/cat:rotate-90' />
                             </CollapsibleTrigger>
-                          </div>
-
-                          <CollapsibleContent className='overflow-hidden collapsible-anim'>
-                            {/* inner */}
-                            <SidebarMenuSub>
-                              {DOMAINS.filter((d) => STAGE_DOMAINS[cohort.stage].includes(d.slug)).map((d) => {
-                                const DomainIcon = Icons[d.icon];
-                                return (
-                                  <SidebarMenuSubItem key={d.slug}>
-                                    <SidebarMenuSubButton
-                                      asChild
-                                      isActive={pathname.startsWith(
-                                        `/dashboard/cohorts/${cohort.id}/${d.slug}`
-                                      )}
+                            <CollapsibleContent className='overflow-hidden collapsible-anim'>
+                              <SidebarMenuSub className='mr-0 pr-0'>
+                                {items.map((cohort) => (
+                                  <SidebarMenuSubItem key={cohort.id}>
+                                    <Collapsible
+                                      open={openCohortId === cohort.id}
+                                      onOpenChange={(o) => setOpenCohortId(o ? cohort.id : null)}
+                                      className='group/cohort w-full'
                                     >
-                                      <Link href={`/dashboard/cohorts/${cohort.id}/${d.slug}`}>
-                                        <DomainIcon className={`h-3.5 w-3.5 shrink-0 ${d.color}`} />
-                                        <span>{d.label}</span>
-                                      </Link>
-                                    </SidebarMenuSubButton>
+                                      <div className='flex w-full items-center'>
+                                        <SidebarMenuSubButton
+                                          asChild
+                                          className='flex-1 min-w-0'
+                                          isActive={pathname === `/dashboard/cohorts/${cohort.id}`}
+                                        >
+                                          <Link href={`/dashboard/cohorts/${cohort.id}`} className='flex min-w-0 items-center gap-1.5'>
+                                            <span
+                                              className={`shrink-0 rounded-sm px-1.5 py-0.5 text-[10px] font-bold leading-tight ${STAGE_BADGE_CLASS[cohort.stage]}`}
+                                            >
+                                              {STAGE_LABEL[cohort.stage]}
+                                            </span>
+                                            <span className='truncate'>{cohort.name}</span>
+                                          </Link>
+                                        </SidebarMenuSubButton>
+                                        <CollapsibleTrigger className='hover:bg-accent shrink-0 rounded p-1'>
+                                          <Icons.chevronRight className='h-3 w-3 transition-transform duration-200 group-data-[state=open]/cohort:rotate-90' />
+                                        </CollapsibleTrigger>
+                                      </div>
+
+                                      <CollapsibleContent className='overflow-hidden collapsible-anim'>
+                                        <SidebarMenuSub className='mr-0 pr-0'>
+                                          {DOMAINS.filter((d) => STAGE_DOMAINS[cohort.stage].includes(d.slug)).map((d) => {
+                                            const DomainIcon = Icons[d.icon];
+                                            return (
+                                              <SidebarMenuSubItem key={d.slug}>
+                                                <SidebarMenuSubButton
+                                                  asChild
+                                                  isActive={pathname.startsWith(
+                                                    `/dashboard/cohorts/${cohort.id}/${d.slug}`
+                                                  )}
+                                                >
+                                                  <Link href={`/dashboard/cohorts/${cohort.id}/${d.slug}`}>
+                                                    <DomainIcon className={`h-3.5 w-3.5 shrink-0 ${d.color}`} />
+                                                    <span>{d.label}</span>
+                                                  </Link>
+                                                </SidebarMenuSubButton>
+                                              </SidebarMenuSubItem>
+                                            );
+                                          })}
+                                        </SidebarMenuSub>
+                                      </CollapsibleContent>
+                                    </Collapsible>
                                   </SidebarMenuSubItem>
-                                );
-                              })}
+                                ))}
+                              </SidebarMenuSub>
+                            </CollapsibleContent>
+                          </Collapsible>
+                        </SidebarMenuSubItem>
+                      );
+                    })}
+                    {cohortsByCategory.uncategorized.length > 0 && (
+                      <SidebarMenuSubItem>
+                        <Collapsible className='group/cat w-full'>
+                          <CollapsibleTrigger className='hover:bg-accent flex w-full items-center justify-between rounded px-2 py-1.5 text-sm font-semibold text-foreground'>
+                            <span>미분류</span>
+                            <Icons.chevronRight className='h-3 w-3 transition-transform duration-200 group-data-[state=open]/cat:rotate-90' />
+                          </CollapsibleTrigger>
+                          <CollapsibleContent className='overflow-hidden collapsible-anim'>
+                            <SidebarMenuSub className='mr-0 pr-0'>
+                              {cohortsByCategory.uncategorized.map((cohort) => (
+                                <SidebarMenuSubItem key={cohort.id}>
+                                  <SidebarMenuSubButton asChild className='min-w-0' isActive={pathname === `/dashboard/cohorts/${cohort.id}`}>
+                                    <Link href={`/dashboard/cohorts/${cohort.id}`} className='flex min-w-0 items-center gap-1.5'>
+                                      <span className={`shrink-0 rounded-sm px-1.5 py-0.5 text-[10px] font-bold leading-tight ${STAGE_BADGE_CLASS[cohort.stage]}`}>
+                                        {STAGE_LABEL[cohort.stage]}
+                                      </span>
+                                      <span className='truncate'>{cohort.name}</span>
+                                    </Link>
+                                  </SidebarMenuSubButton>
+                                </SidebarMenuSubItem>
+                              ))}
                             </SidebarMenuSub>
                           </CollapsibleContent>
                         </Collapsible>
                       </SidebarMenuSubItem>
-                    ))}
+                    )}
                   </SidebarMenuSub>
                 </CollapsibleContent>
               </SidebarMenuItem>

@@ -19,7 +19,7 @@ export function sortCohortsByPreference<T extends { id: string; created_at: stri
 
   const rest = cohorts
     .filter((c) => !orderSet.has(c.id))
-    .toSorted((a, b) => b.created_at.localeCompare(a.created_at));
+    .toSorted((a, b) => a.created_at.localeCompare(b.created_at));
 
   return [...ordered, ...rest];
 }

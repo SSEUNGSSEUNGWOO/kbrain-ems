@@ -46,6 +46,7 @@ const STAGE_BADGE_CLASS: Record<CohortStage, string> = {
 type Cohort = {
   id: string;
   name: string;
+  category: string | null;
   started_at: string | null;
   ended_at: string | null;
   recruiting_slug: string | null;
@@ -55,6 +56,14 @@ type Cohort = {
   student_count: number;
   session_count: number;
 };
+
+const CATEGORY_OPTIONS: { value: string; label: string }[] = [
+  { value: '', label: '— 미분류' },
+  { value: 'champion', label: 'AI 챔피언' },
+  { value: 'general', label: '일반교육' },
+  { value: 'special', label: '특화교육' },
+  { value: 'experts', label: '전문인재' }
+];
 
 export function CohortCard({ cohort }: { cohort: Cohort }) {
   const [editOpen, setEditOpen] = useState(false);
@@ -152,6 +161,19 @@ export function CohortCard({ cohort }: { cohort: Cohort }) {
             <div className='grid gap-2'>
               <Label htmlFor='edit-name'>기수 이름</Label>
               <Input id='edit-name' name='name' required defaultValue={cohort.name} />
+            </div>
+            <div className='grid gap-2'>
+              <Label htmlFor='edit-category'>구분</Label>
+              <select
+                id='edit-category'
+                name='category'
+                defaultValue={cohort.category ?? ''}
+                className='flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring'
+              >
+                {CATEGORY_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
             </div>
             <div className='grid grid-cols-2 gap-2'>
               <div className='grid gap-2'>

@@ -1,0 +1,1012 @@
+{
+  "_meta": {
+    "source": "20260508_2026년 교육과정 신청 사전문항.hwp",
+    "note": "공통문항은 모든 매핑 cohort에 동일 복제. G·B 시리즈는 매핑 미확정으로 보류.",
+    "section_values": ["common", "pre_learning", "self_diagnosis", "knowledge", "usability", "plan"],
+    "question_type_values": ["single", "multi", "likert5", "text"],
+    "difficulty_values": ["beginner", "intermediate", "advanced"],
+    "weights_by_difficulty": { "beginner": 1, "intermediate": 2, "advanced": 3 }
+  },
+
+  "common": [
+    {
+      "question_no": "C1",
+      "section": "common",
+      "question_type": "single",
+      "question_text": "본 설문은 교육 선발의 기초자료 및 맞춤형 교육 제공을 목적으로 진행됩니다. 안내사항에 동의하십니까?",
+      "choices": [
+        { "key": "①", "text": "위 안내사항에 동의합니다." }
+      ]
+    },
+    {
+      "question_no": "C2",
+      "section": "common",
+      "question_type": "text",
+      "question_text": "귀하의 【 소속기관 / 실·국명 / 부서·과명 】을 온-나라 수신처 기준으로 정확하게 입력해 주세요."
+    },
+    {
+      "question_no": "C3",
+      "section": "common",
+      "question_type": "text",
+      "question_text": "선발 안내를 위해 귀하의 【 사무실 번호 】를 정확하게 입력해주세요."
+    },
+    {
+      "question_no": "C4",
+      "section": "common",
+      "question_type": "single",
+      "question_text": "귀하의 【직렬】은 무엇입니까?",
+      "choices": [
+        { "key": "①", "text": "행정직렬" },
+        { "key": "②", "text": "전산직렬" },
+        { "key": "③", "text": "전산직 제외 기술직렬 등" },
+        { "key": "④", "text": "특수직렬(외무·경찰·소방·교육), 연구 직렬 등" }
+      ]
+    },
+    {
+      "question_no": "C5",
+      "section": "common",
+      "question_type": "single",
+      "question_text": "본 교육과정에서 학습한 내용을 귀하의 실제 담당 업무에 즉시 적용하여 활용할 수 있습니까?",
+      "choices": [
+        { "key": "①", "text": "전혀 적용할 수 없다 (매우 낮음)" },
+        { "key": "②", "text": "당장 실무에 적용하기는 어렵다 (낮음)" },
+        { "key": "③", "text": "일부 업무 상황에 맞춰 적용해 볼 수 있다 (보통)" },
+        { "key": "④", "text": "배운 내용을 실무에 바로 적용하여 효율을 높일 수 있다 (높음)" },
+        { "key": "⑤", "text": "당면한 업무의 문제(비효율)를 즉시 해결할 수 있을 만큼 적합하다 (매우 높음)" }
+      ]
+    },
+    {
+      "question_no": "C6",
+      "section": "common",
+      "question_type": "text",
+      "question_text": "기타 교육과정 운영 및 참여 관련 의견이 있으면 자유롭게 작성해 주십시오."
+    }
+  ],
+
+  "courses": [
+    {
+      "code": "1",
+      "cohort_name": "AI 리터러시와 업무활용",
+      "pre_learning_label": "AI 리터러시",
+      "questions": [
+        {
+          "question_no": "P1",
+          "section": "pre_learning",
+          "question_type": "single",
+          "question_text": "귀하는 본 과정의 권장 사전학습(이러닝) 「AI 리터러시」 과정을 이수하셨습니까?",
+          "choices": [
+            { "key": "①", "text": "이수 완료" },
+            { "key": "②", "text": "일부 수강 (전체 분량의 50% 이상)" },
+            { "key": "③", "text": "일부 수강 (전체 분량의 50% 미만)" },
+            { "key": "④", "text": "미수강 / 미이수" }
+          ]
+        },
+        {
+          "question_no": "S1",
+          "section": "self_diagnosis",
+          "question_type": "likert5",
+          "question_text": "나는 ChatGPT·Claude·Gemini 등 주요 생성형 AI 도구를 업무 목적에 따라 구분하여 활용할 수 있다."
+        },
+        {
+          "question_no": "S2",
+          "section": "self_diagnosis",
+          "question_type": "likert5",
+          "question_text": "나는 행정문서(보고서·보도자료) 작성 시 좋은 프롬프트의 5요소(역할·맥락·작업·형식·제약)를 적용해 본 경험이 있다."
+        },
+        {
+          "question_no": "S3",
+          "section": "self_diagnosis",
+          "question_type": "likert5",
+          "question_text": "나는 생성형 AI 활용 시 개인정보·보안 관련 유의사항을 인지하고 실무에서 적용하고 있다."
+        },
+        {
+          "question_no": "1-1",
+          "section": "knowledge",
+          "difficulty": "beginner",
+          "question_type": "single",
+          "question_text": "텍스트뿐만 아니라 이미지·음성·영상 등 다양한 형태의 데이터를 동시에 이해하고 처리할 수 있는 AI 모델을 무엇이라고 합니까?",
+          "choices": [
+            { "key": "①", "text": "멀티모달(Multimodal)" },
+            { "key": "②", "text": "sLM(소형 언어 모델)" },
+            { "key": "③", "text": "OCR(광학 문자 인식)" },
+            { "key": "④", "text": "머신러닝" }
+          ],
+          "correct_choice": "①"
+        },
+        {
+          "question_no": "1-2",
+          "section": "knowledge",
+          "difficulty": "beginner",
+          "question_type": "single",
+          "question_text": "좋은 프롬프트를 작성하기 위한 5요소(역할·맥락·작업·형식·제약) 중 '제약(Constraint)'에 해당하는 지시문은 무엇입니까?",
+          "choices": [
+            { "key": "①", "text": "너는 정책 기획 전문가야." },
+            { "key": "②", "text": "이 문서를 3줄로 요약해줘." },
+            { "key": "③", "text": "개인정보나 민감한 보안 사항은 제외하고 작성해." },
+            { "key": "④", "text": "최근 공공행정 트렌드를 반영해줘." }
+          ],
+          "correct_choice": "③"
+        },
+        {
+          "question_no": "1-3",
+          "section": "knowledge",
+          "difficulty": "intermediate",
+          "question_type": "single",
+          "question_text": "출처가 명확해야 하는 정책 자료 조사 및 자동 보고서 작성에 가장 특화된 AI 서비스는 다음 중 무엇입니까?",
+          "choices": [
+            { "key": "①", "text": "Perplexity" },
+            { "key": "②", "text": "Midjourney" },
+            { "key": "③", "text": "Manus" },
+            { "key": "④", "text": "Genspark" }
+          ],
+          "correct_choice": "①"
+        },
+        {
+          "question_no": "1-4",
+          "section": "knowledge",
+          "difficulty": "intermediate",
+          "question_type": "single",
+          "question_text": "LLM의 환각(Hallucination) 현상을 줄이기 위해, 외부 데이터베이스나 사내 문서에서 관련 정보를 먼저 검색한 후 그 내용을 바탕으로 답변을 생성하게 하는 기술은?",
+          "choices": [
+            { "key": "①", "text": "sLM" },
+            { "key": "②", "text": "RAG(검색 증강 생성)" },
+            { "key": "③", "text": "Fine-Tuning" },
+            { "key": "④", "text": "MCP(Model Context Protocol)" }
+          ],
+          "correct_choice": "②"
+        },
+        {
+          "question_no": "1-5",
+          "section": "knowledge",
+          "difficulty": "advanced",
+          "question_type": "single",
+          "question_text": "AI 모델이 로컬 파일·사내 데이터베이스·외부 API 등 다양한 외부 도구 및 데이터 소스와 표준화된 방식으로 통신할 수 있게 연결해 주는 규격/개념은?",
+          "choices": [
+            { "key": "①", "text": "MCP(Model Context Protocol)" },
+            { "key": "②", "text": "OCR(Optical Character Recognition)" },
+            { "key": "③", "text": "sLM(Small Language Model)" },
+            { "key": "④", "text": "딥러닝(Deep Learning)" }
+          ],
+          "correct_choice": "①"
+        },
+        {
+          "question_no": "U1",
+          "section": "usability",
+          "question_type": "multi",
+          "question_text": "본 과정의 학습 내용을 귀하의 실제 업무에 어떻게 활용할 수 있다고 생각하십니까? (해당하는 항목을 모두 선택)",
+          "choices": [
+            { "key": "①", "text": "보고서·보도자료 등 행정문서 초안 작성 자동화" },
+            { "key": "②", "text": "정책자료 조사 및 시장조사 보고서 자동 생성" },
+            { "key": "③", "text": "카드뉴스·정책 포스터 등 홍보 콘텐츠 제작" },
+            { "key": "④", "text": "회의록·민원자료 정리 및 요약 자동화" },
+            { "key": "⑤", "text": "부서 내 반복 행정업무의 AI 자동화 아이디어 발굴" }
+          ]
+        },
+        {
+          "question_no": "Plan",
+          "section": "plan",
+          "question_type": "text",
+          "question_text": "교육 수료 후 학습한 내용을 본인 업무에 적용하고자 하는 구체적 계획을 100자 내외로 작성해 주십시오."
+        }
+      ]
+    },
+
+    {
+      "code": "2",
+      "cohort_name": "데이터 리터러시",
+      "pre_learning_label": "데이터분석 리터러시",
+      "questions": [
+        {
+          "question_no": "P1",
+          "section": "pre_learning",
+          "question_type": "single",
+          "question_text": "귀하는 본 과정의 권장 사전학습(이러닝) 「데이터분석 리터러시」 과정을 이수하셨습니까?",
+          "choices": [
+            { "key": "①", "text": "이수 완료" },
+            { "key": "②", "text": "일부 수강 (전체 분량의 50% 이상)" },
+            { "key": "③", "text": "일부 수강 (전체 분량의 50% 미만)" },
+            { "key": "④", "text": "미수강 / 미이수" }
+          ]
+        },
+        {
+          "question_no": "S1",
+          "section": "self_diagnosis",
+          "question_type": "likert5",
+          "question_text": "나는 행정 업무에서 데이터 기반 사고와 문제 정의 프레임워크(예: 5 Whys)를 활용해 문제를 정교화할 수 있다."
+        },
+        {
+          "question_no": "S2",
+          "section": "self_diagnosis",
+          "question_type": "likert5",
+          "question_text": "나는 엑셀 함수(VLOOKUP·INDEX/MATCH 등)와 피벗 테이블을 활용한 데이터 집계·분석 경험이 있다."
+        },
+        {
+          "question_no": "S3",
+          "section": "self_diagnosis",
+          "question_type": "likert5",
+          "question_text": "나는 공공데이터포털 등에서 데이터를 수집하여 분석 가능한 형태로 정비할 수 있다."
+        },
+        {
+          "question_no": "2-1",
+          "section": "knowledge",
+          "difficulty": "beginner",
+          "question_type": "single",
+          "question_text": "문제의 근본 원인을 파악하기 위해 '왜?'라는 질문을 반복하여 묻는 문제 정의 기법은 무엇입니까?",
+          "choices": [
+            { "key": "①", "text": "브레인스토밍" },
+            { "key": "②", "text": "SWOT 분석" },
+            { "key": "③", "text": "5 Whys" },
+            { "key": "④", "text": "마인드맵" }
+          ],
+          "correct_choice": "③"
+        },
+        {
+          "question_no": "2-2",
+          "section": "knowledge",
+          "difficulty": "beginner",
+          "question_type": "single",
+          "question_text": "많은 양의 엑셀 데이터를 요약하고 사용자가 원하는 조건에 따라 동적으로 데이터를 집계·분석할 수 있게 해주는 기능은?",
+          "choices": [
+            { "key": "①", "text": "조건부 서식" },
+            { "key": "②", "text": "피벗 테이블" },
+            { "key": "③", "text": "텍스트 나누기" },
+            { "key": "④", "text": "데이터 유효성 검사" }
+          ],
+          "correct_choice": "②"
+        },
+        {
+          "question_no": "2-3",
+          "section": "knowledge",
+          "difficulty": "intermediate",
+          "question_type": "single",
+          "question_text": "엑셀 수식 작성 중 오류가 발생했을 때 생성형 AI(LLM)를 활용하여 디버깅하는 가장 효과적인 방법은?",
+          "choices": [
+            { "key": "①", "text": "단순히 오류가 났다고만 입력하고 답변을 기다린다." },
+            { "key": "②", "text": "엑셀 파일 전체 내용을 복사해서 프롬프트에 통째로 붙여넣는다." },
+            { "key": "③", "text": "오류 메시지와 함께 데이터의 구조 및 샘플을 프롬프트에 포함하여 질문한다." },
+            { "key": "④", "text": "LLM이 알아서 내 컴퓨터의 엑셀 파일을 수정하도록 지시한다." }
+          ],
+          "correct_choice": "③"
+        },
+        {
+          "question_no": "2-4",
+          "section": "knowledge",
+          "difficulty": "intermediate",
+          "question_type": "single",
+          "question_text": "데이터의 분포 중 '퍼져 있는 정도'를 나타내는 산포도 지표가 아닌 것은?",
+          "choices": [
+            { "key": "①", "text": "분산" },
+            { "key": "②", "text": "평균" },
+            { "key": "③", "text": "사분위수 범위(IQR)" },
+            { "key": "④", "text": "표준편차" }
+          ],
+          "correct_choice": "②"
+        },
+        {
+          "question_no": "2-5",
+          "section": "knowledge",
+          "difficulty": "advanced",
+          "question_type": "single",
+          "question_text": "공공데이터포털 등에서 제공하는 외부 데이터를 엑셀로 연결하여 수집·전처리하고 분석 가능한 형태로 자동 갱신할 수 있도록 도와주는 도구는?",
+          "choices": [
+            { "key": "①", "text": "매크로 기록" },
+            { "key": "②", "text": "파워쿼리" },
+            { "key": "③", "text": "시나리오 관리자" },
+            { "key": "④", "text": "목표값 찾기" }
+          ],
+          "correct_choice": "②"
+        },
+        {
+          "question_no": "U1",
+          "section": "usability",
+          "question_type": "multi",
+          "question_text": "본 과정의 학습 내용을 귀하의 실제 업무에 어떻게 활용할 수 있다고 생각하십니까? (해당하는 항목을 모두 선택)",
+          "choices": [
+            { "key": "①", "text": "공공데이터 수집·전처리 및 분석 보고서 자동 생성" },
+            { "key": "②", "text": "엑셀 복잡 함수·피벗·시각화 작업의 효율화" },
+            { "key": "③", "text": "VBA 매크로를 활용한 반복 행정업무 자동화" },
+            { "key": "④", "text": "SQL 활용 행정 데이터 조회 및 통계 자료 작성" },
+            { "key": "⑤", "text": "정책 보고서 초안 자동 작성 및 데이터 인사이트 도출" }
+          ]
+        },
+        {
+          "question_no": "Plan",
+          "section": "plan",
+          "question_type": "text",
+          "question_text": "교육 수료 후 학습한 내용을 본인 업무에 적용하고자 하는 구체적 계획을 100자 내외로 작성해 주십시오."
+        }
+      ]
+    },
+
+    {
+      "code": "3",
+      "cohort_name": "관리자 AI 리더십",
+      "pre_learning_label": "관리자 AI 리더십",
+      "questions": [
+        {
+          "question_no": "P1",
+          "section": "pre_learning",
+          "question_type": "single",
+          "question_text": "귀하는 본 과정의 권장 사전학습(이러닝) 「관리자 AI 리더십」 과정을 이수하셨습니까?",
+          "choices": [
+            { "key": "①", "text": "이수 완료" },
+            { "key": "②", "text": "일부 수강 (전체 분량의 50% 이상)" },
+            { "key": "③", "text": "일부 수강 (전체 분량의 50% 미만)" },
+            { "key": "④", "text": "미수강 / 미이수" }
+          ]
+        },
+        {
+          "question_no": "S1",
+          "section": "self_diagnosis",
+          "question_type": "likert5",
+          "question_text": "나는 AI 시대 공공부문 관리자에게 요구되는 리더십과 디지털 문해력의 중요성을 인지하고 있다."
+        },
+        {
+          "question_no": "S2",
+          "section": "self_diagnosis",
+          "question_type": "likert5",
+          "question_text": "나는 본 기관 내 일상 업무의 비효율(골목길)을 식별하고 AI 도입으로 해결할 영역을 도출할 수 있다."
+        },
+        {
+          "question_no": "S3",
+          "section": "self_diagnosis",
+          "question_type": "likert5",
+          "question_text": "나는 상용 클라우드 LLM과 로컬 오픈소스 LLM의 선택 기준(보안·비용·성능)을 알고 있다."
+        },
+        {
+          "question_no": "3-1",
+          "section": "knowledge",
+          "difficulty": "beginner",
+          "question_type": "single",
+          "question_text": "인공지능(AI) 관련 기술 개념들의 관계를 가장 바르게 설명한 것은?",
+          "choices": [
+            { "key": "①", "text": "생성형 AI가 인공지능 분야에서 가장 넓고 포괄적인 개념이다." },
+            { "key": "②", "text": "딥러닝(DL)은 머신러닝(ML)의 하위 개념에 속한다." },
+            { "key": "③", "text": "머신러닝과 딥러닝은 원리상 전혀 관련이 없는 독립적인 기술이다." },
+            { "key": "④", "text": "생성형 AI는 신경망이나 딥러닝 기술을 사용하지 않는다." }
+          ],
+          "correct_choice": "②"
+        },
+        {
+          "question_no": "3-2",
+          "section": "knowledge",
+          "difficulty": "beginner",
+          "question_type": "single",
+          "question_text": "AI 시대의 관리자에게 요구되는 '실천 자세'로 가장 거리가 먼 것은?",
+          "choices": [
+            { "key": "①", "text": "거창한 혁신보다 조직 내부의 일상적인 비효율(골목길) 개선에 주목한다." },
+            { "key": "②", "text": "처음부터 완벽한 자체 AI 시스템을 대규모로 구축하는 것을 최우선으로 한다." },
+            { "key": "③", "text": "새로운 기술을 직접 만들기보다 기존의 상용 AI 도구를 적극적으로 활용한다." },
+            { "key": "④", "text": "AI 적응력을 높이기 위해 기술 변화를 수용하고 지속적인 자기 성장을 추구한다." }
+          ],
+          "correct_choice": "②"
+        },
+        {
+          "question_no": "3-3",
+          "section": "knowledge",
+          "difficulty": "intermediate",
+          "question_type": "single",
+          "question_text": "조직 내부에 축적된 고유한 데이터나 최신 지침을 바탕으로 LLM이 답변하도록 연결하여 할루시네이션을 줄이는 AI 도입 기술은?",
+          "choices": [
+            { "key": "①", "text": "RAG (검색 증강 생성)" },
+            { "key": "②", "text": "SLM (소형 언어 모델)" },
+            { "key": "③", "text": "Vibe Coding (바이브 코딩)" },
+            { "key": "④", "text": "Electron (일렉트론)" }
+          ],
+          "correct_choice": "①"
+        },
+        {
+          "question_no": "3-4",
+          "section": "knowledge",
+          "difficulty": "intermediate",
+          "question_type": "single",
+          "question_text": "공공기관에서 보안이 중요한 민감 데이터를 다루기 위해 외부 클라우드 연결 없이 내부 망에서 자체 구동할 수 있는 '로컬 오픈소스 LLM' 실행 도구는?",
+          "choices": [
+            { "key": "①", "text": "ChatGPT" },
+            { "key": "②", "text": "Claude" },
+            { "key": "③", "text": "Ollama" },
+            { "key": "④", "text": "Gemini" }
+          ],
+          "correct_choice": "③"
+        },
+        {
+          "question_no": "3-5",
+          "section": "knowledge",
+          "difficulty": "advanced",
+          "question_type": "single",
+          "question_text": "공급자 중심의 거대 시스템 구축 사고방식에서 벗어나 관리자가 지향해야 할 'Agile AI' 접근 전략으로 가장 적절한 것은?",
+          "choices": [
+            { "key": "①", "text": "수년에 걸친 마스터플랜을 수립한 후 단 번에 전사적 AI 시스템을 오픈한다." },
+            { "key": "②", "text": "실패 리스크를 0으로 만들기 위해 완벽한 데이터가 준비될 때까지 AI 도입을 무기한 연기한다." },
+            { "key": "③", "text": "작고 가벼운 모델이나 상용 AI를 활용해 일상의 비효율을 빠르게 테스트하고 점진적으로 확장한다." },
+            { "key": "④", "text": "보안을 위해 부서 간 데이터 공유를 엄격히 차단하고 각 부서별로 독립적인 거대 모델을 구축한다." }
+          ],
+          "correct_choice": "③"
+        },
+        {
+          "question_no": "U1",
+          "section": "usability",
+          "question_type": "multi",
+          "question_text": "본 과정의 학습 내용을 귀하의 실제 업무에 어떻게 활용할 수 있다고 생각하십니까? (해당하는 항목을 모두 선택)",
+          "choices": [
+            { "key": "①", "text": "본 부서 업무 비효율(골목길) 식별 및 AI 도입 우선순위 설정" },
+            { "key": "②", "text": "부서원에게 AI 활용 방향성 제시 및 변화 리딩" },
+            { "key": "③", "text": "본 기관 맞춤형 AI 도구·모델의 선택 기준 수립" },
+            { "key": "④", "text": "결재문서·보고체계의 AI 기반 개선 방향 도출" },
+            { "key": "⑤", "text": "외부 AI 사업 발주·관리 시 핵심 의사결정 지원" }
+          ]
+        },
+        {
+          "question_no": "Plan",
+          "section": "plan",
+          "question_type": "text",
+          "question_text": "교육 수료 후 학습한 내용을 본인 업무에 적용하고자 하는 구체적 계획을 100자 내외로 작성해 주십시오."
+        }
+      ]
+    },
+
+    {
+      "code": "4",
+      "cohort_name": "생성형 AI 활용 노코드 데이터분석",
+      "pre_learning_label": "노코드 데이터분석",
+      "questions": [
+        {
+          "question_no": "P1",
+          "section": "pre_learning",
+          "question_type": "single",
+          "question_text": "귀하는 본 과정의 권장 사전학습(이러닝) 「노코드 데이터분석」 과정을 이수하셨습니까?",
+          "choices": [
+            { "key": "①", "text": "이수 완료" },
+            { "key": "②", "text": "일부 수강 (전체 분량의 50% 이상)" },
+            { "key": "③", "text": "일부 수강 (전체 분량의 50% 미만)" },
+            { "key": "④", "text": "미수강 / 미이수" }
+          ]
+        },
+        {
+          "question_no": "S1",
+          "section": "self_diagnosis",
+          "question_type": "likert5",
+          "question_text": "나는 Colab 또는 로컬 Jupyter 환경에서 생성형 AI에 코드를 요청·실행한 경험이 있다."
+        },
+        {
+          "question_no": "S2",
+          "section": "self_diagnosis",
+          "question_type": "likert5",
+          "question_text": "나는 공공데이터(CSV·XLSX·JSON·API 등)의 구조를 이해하고 분석 가능한 형태로 정비할 수 있다."
+        },
+        {
+          "question_no": "S3",
+          "section": "self_diagnosis",
+          "question_type": "likert5",
+          "question_text": "나는 행정 데이터의 탐색적 분석(EDA)과 시각화를 통해 인사이트를 도출한 경험이 있다."
+        },
+        {
+          "question_no": "4-1",
+          "section": "knowledge",
+          "difficulty": "beginner",
+          "question_type": "single",
+          "question_text": "파이썬 기반 데이터 분석을 위해 별도 설치 없이 웹 브라우저에서 코드를 작성·실행할 수 있도록 구글이 제공하는 클라우드 실행 환경은?",
+          "choices": [
+            { "key": "①", "text": "Google Colab" },
+            { "key": "②", "text": "DBeaver" },
+            { "key": "③", "text": "Tableau" },
+            { "key": "④", "text": "SQLite" }
+          ],
+          "correct_choice": "①"
+        },
+        {
+          "question_no": "4-2",
+          "section": "knowledge",
+          "difficulty": "beginner",
+          "question_type": "single",
+          "question_text": "데이터 전처리 과정에서 값이 비어 있는 상태를 의미하며, 적절히 처리하지 않으면 분석 오류의 원인이 되는 것은?",
+          "choices": [
+            { "key": "①", "text": "이상치(Outlier)" },
+            { "key": "②", "text": "결측치(Missing Value)" },
+            { "key": "③", "text": "대푯값" },
+            { "key": "④", "text": "상관계수" }
+          ],
+          "correct_choice": "②"
+        },
+        {
+          "question_no": "4-3",
+          "section": "knowledge",
+          "difficulty": "intermediate",
+          "question_type": "single",
+          "question_text": "탐색적 데이터 분석(EDA) 과정에서 데이터의 분포를 확인하고 극단적인 이상치(Outlier)를 시각적으로 파악하기에 가장 적합한 기본 차트는?",
+          "choices": [
+            { "key": "①", "text": "선 그래프(Line chart)" },
+            { "key": "②", "text": "원 그래프(Pie chart)" },
+            { "key": "③", "text": "상자 그림(Box plot)" },
+            { "key": "④", "text": "방사형 차트(Radar chart)" }
+          ],
+          "correct_choice": "③"
+        },
+        {
+          "question_no": "4-4",
+          "section": "knowledge",
+          "difficulty": "intermediate",
+          "question_type": "single",
+          "question_text": "마우스를 올렸을 때 구체적 수치가 표시되거나 화면을 확대/축소할 수 있는 '인터랙티브(동적) 차트'를 그릴 때 주로 사용하는 파이썬 시각화 라이브러리는?",
+          "choices": [
+            { "key": "①", "text": "matplotlib" },
+            { "key": "②", "text": "seaborn" },
+            { "key": "③", "text": "plotly" },
+            { "key": "④", "text": "numpy" }
+          ],
+          "correct_choice": "③"
+        },
+        {
+          "question_no": "4-5",
+          "section": "knowledge",
+          "difficulty": "advanced",
+          "question_type": "single",
+          "question_text": "여러 시각화 결과물과 텍스트 설명을 한 화면에 모아 보고용으로 구성하면서, 별도의 서버 구축 없이 브라우저에서 바로 확인할 수 있도록 저장하는 문서 포맷은?",
+          "choices": [
+            { "key": "①", "text": "단일 HTML" },
+            { "key": "②", "text": "CSV 파일" },
+            { "key": "③", "text": "SQL 덤프 파일" },
+            { "key": "④", "text": "DLL 라이브러리 파일" }
+          ],
+          "correct_choice": "①"
+        },
+        {
+          "question_no": "U1",
+          "section": "usability",
+          "question_type": "multi",
+          "question_text": "본 과정의 학습 내용을 귀하의 실제 업무에 어떻게 활용할 수 있다고 생각하십니까? (해당하는 항목을 모두 선택)",
+          "choices": [
+            { "key": "①", "text": "공공데이터 자동 수집·전처리 파이프라인 구축" },
+            { "key": "②", "text": "정기 통계 보고서의 자동 생성 및 시각화" },
+            { "key": "③", "text": "정책 인사이트 도출을 위한 탐색적 데이터 분석" },
+            { "key": "④", "text": "단일 HTML 대시보드 제작 및 부서 내 공유" },
+            { "key": "⑤", "text": "반복 분석 업무의 자동화 스크립트 개발·운영" }
+          ]
+        },
+        {
+          "question_no": "Plan",
+          "section": "plan",
+          "question_type": "text",
+          "question_text": "교육 수료 후 학습한 내용을 본인 업무에 적용하고자 하는 구체적 계획을 100자 내외로 작성해 주십시오."
+        }
+      ]
+    },
+
+    {
+      "code": "5",
+      "cohort_name": "AI 행정 융합 기획",
+      "pre_learning_label": "AI 행정 융합 기획 (또는 동급 AI 리터러시)",
+      "questions": [
+        {
+          "question_no": "P1",
+          "section": "pre_learning",
+          "question_type": "single",
+          "question_text": "귀하는 본 과정의 권장 사전학습(이러닝) 「AI 행정 융합 기획 (또는 동급 AI 리터러시)」 과정을 이수하셨습니까?",
+          "choices": [
+            { "key": "①", "text": "이수 완료" },
+            { "key": "②", "text": "일부 수강 (전체 분량의 50% 이상)" },
+            { "key": "③", "text": "일부 수강 (전체 분량의 50% 미만)" },
+            { "key": "④", "text": "미수강 / 미이수" }
+          ]
+        },
+        {
+          "question_no": "S1",
+          "section": "self_diagnosis",
+          "question_type": "likert5",
+          "question_text": "나는 본 기관의 행정 결핍·문제를 정의하고 LLM과 협업하여 정교화한 경험이 있다."
+        },
+        {
+          "question_no": "S2",
+          "section": "self_diagnosis",
+          "question_type": "likert5",
+          "question_text": "나는 sLM·RAG·API·MCP 등 핵심 AI 기술의 개념과 활용 범위를 이해하고 있다."
+        },
+        {
+          "question_no": "S3",
+          "section": "self_diagnosis",
+          "question_type": "likert5",
+          "question_text": "나는 노코드 도구(Lovable·v0·Bolt 등)를 활용해 신속하게 프로토타입을 제작해 본 경험이 있다."
+        },
+        {
+          "question_no": "5-1",
+          "section": "knowledge",
+          "difficulty": "beginner",
+          "question_type": "single",
+          "question_text": "LLM에게 양질의 기획 아이디어를 얻기 위해 본인의 업무 환경·문제·제약조건 등을 명확하고 구체적으로 지시하는 기법과 가장 관련이 깊은 것은?",
+          "choices": [
+            { "key": "①", "text": "프롬프트 엔지니어링" },
+            { "key": "②", "text": "데이터 크롤링" },
+            { "key": "③", "text": "클라우드 호스팅" },
+            { "key": "④", "text": "딥러닝 모델 학습" }
+          ],
+          "correct_choice": "①"
+        },
+        {
+          "question_no": "5-2",
+          "section": "knowledge",
+          "difficulty": "beginner",
+          "question_type": "single",
+          "question_text": "수요자 관점에서 문제를 정의하기 위해 가상의 대표 사용자를 설정하고, 그들이 공공서비스를 경험하는 전체 과정을 시각화하여 분석하는 기획 기법은?",
+          "choices": [
+            { "key": "①", "text": "SWOT 분석" },
+            { "key": "②", "text": "페르소나 및 사용자 여정 매핑" },
+            { "key": "③", "text": "ERD (개체-관계 모델) 설계" },
+            { "key": "④", "text": "A/B 테스트" }
+          ],
+          "correct_choice": "②"
+        },
+        {
+          "question_no": "5-3",
+          "section": "knowledge",
+          "difficulty": "intermediate",
+          "question_type": "single",
+          "question_text": "인터넷 연동이 제한적인 공공 폐쇄망 환경에서도 브라우저만으로 동작하는 가벼운 업무 도구(계산기·체크리스트 등)를 배포하고자 할 때 가장 적합한 형태는?",
+          "choices": [
+            { "key": "①", "text": "외부 클라우드 기반의 SaaS 실시간 구독" },
+            { "key": "②", "text": "모든 코드와 라이브러리를 내부에 포함한 단일 HTML 파일(인라인 임베드)" },
+            { "key": "③", "text": "무거운 백엔드 프레임워크와 대규모 DB 서버 구축" },
+            { "key": "④", "text": "실시간 외부 API 통신 기반의 웹 애플리케이션" }
+          ],
+          "correct_choice": "②"
+        },
+        {
+          "question_no": "5-4",
+          "section": "knowledge",
+          "difficulty": "intermediate",
+          "question_type": "single",
+          "question_text": "공공기관에서 AI 시스템 구축 사업을 발주할 때, 외부 수행사에게 요구사항과 사업 개요 등을 명시하여 공식적으로 제안을 요청하는 문서를 무엇이라고 합니까?",
+          "choices": [
+            { "key": "①", "text": "RFP (제안요청서)" },
+            { "key": "②", "text": "VPN" },
+            { "key": "③", "text": "FTP" },
+            { "key": "④", "text": "SMTP" }
+          ],
+          "correct_choice": "①"
+        },
+        {
+          "question_no": "5-5",
+          "section": "knowledge",
+          "difficulty": "advanced",
+          "question_type": "single",
+          "question_text": "최근 AI 에이전트가 사내 시스템·외부 데이터베이스 등 다양한 도구·환경에 일관되고 안전하게 접근·연결할 수 있도록 돕는 표준 통신 프로토콜로 기획 단계에서 고려되는 핵심 기술은?",
+          "choices": [
+            { "key": "①", "text": "메타버스(Metaverse)" },
+            { "key": "②", "text": "MCP(Model Context Protocol)" },
+            { "key": "③", "text": "블록체인(Blockchain)" },
+            { "key": "④", "text": "RPA(Robotic Process Automation)" }
+          ],
+          "correct_choice": "②"
+        },
+        {
+          "question_no": "U1",
+          "section": "usability",
+          "question_type": "multi",
+          "question_text": "본 과정의 학습 내용을 귀하의 실제 업무에 어떻게 활용할 수 있다고 생각하십니까? (해당하는 항목을 모두 선택)",
+          "choices": [
+            { "key": "①", "text": "본 기관 AI 전환 사업 기획 및 RFP(제안요청서) 작성" },
+            { "key": "②", "text": "행정 결핍·문제의 체계적 정의 및 사용자 여정 매핑" },
+            { "key": "③", "text": "노코드 도구를 활용한 신속 프로토타입 제작" },
+            { "key": "④", "text": "AI 모델 선택 기준 수립 및 PoC 시나리오 설계" },
+            { "key": "⑤", "text": "부서 단위 AI 서비스 아이디어 발굴 및 우선순위화" }
+          ]
+        },
+        {
+          "question_no": "Plan",
+          "section": "plan",
+          "question_type": "text",
+          "question_text": "교육 수료 후 학습한 내용을 본인 업무에 적용하고자 하는 구체적 계획을 100자 내외로 작성해 주십시오."
+        }
+      ]
+    },
+
+    {
+      "code": "G",
+      "cohort_name_prefix": "AI 챔피언 그린",
+      "pre_learning_label": "④ 생성형 AI 활용 업무 효율화, ⑤ 노코드 데이터분석, ⑧ AI 머신러닝·딥러닝의 이해 및 활용",
+      "questions": [
+        {
+          "question_no": "P1",
+          "section": "pre_learning",
+          "question_type": "single",
+          "question_text": "귀하는 본 과정의 권장 사전학습(이러닝) 「④ 생성형 AI 활용 업무 효율화, ⑤ 노코드 데이터분석, ⑧ AI 머신러닝, 딥러닝의 이해 및 활용」 과정을 이수하셨습니까?",
+          "choices": [
+            { "key": "①", "text": "이수 완료" },
+            { "key": "②", "text": "일부 수강 (전체 분량의 50% 이상)" },
+            { "key": "③", "text": "일부 수강 (전체 분량의 50% 미만)" },
+            { "key": "④", "text": "미수강 / 미이수" }
+          ]
+        },
+        {
+          "question_no": "S1",
+          "section": "self_diagnosis",
+          "question_type": "likert5",
+          "question_text": "나는 행정업무 맥락에서 생성형 AI(ChatGPT·Claude·Gemini 등)를 능숙하게 활용할 수 있다."
+        },
+        {
+          "question_no": "S2",
+          "section": "self_diagnosis",
+          "question_type": "likert5",
+          "question_text": "나는 공공데이터의 수집·정제·시각화 전 과정을 노코드·로우코드 방식으로 수행할 수 있다."
+        },
+        {
+          "question_no": "S3",
+          "section": "self_diagnosis",
+          "question_type": "likert5",
+          "question_text": "나는 본 기관 내 AI 전환·전파 역할을 수행할 의향과 준비가 되어 있다."
+        },
+        {
+          "question_no": "G-1",
+          "section": "knowledge",
+          "difficulty": "beginner",
+          "question_type": "single",
+          "question_text": "생성형 AI에게 원하는 결과물을 얻기 위한 '좋은 프롬프트의 5요소' 중 \"당신은 10년 차 정책 기획 전문가입니다\"라고 지정하는 것은 어느 요소에 해당합니까?",
+          "choices": [
+            { "key": "①", "text": "역할(Role)" },
+            { "key": "②", "text": "맥락(Context)" },
+            { "key": "③", "text": "형식(Format)" },
+            { "key": "④", "text": "제약(Constraint)" }
+          ],
+          "correct_choice": "①"
+        },
+        {
+          "question_no": "G-2",
+          "section": "knowledge",
+          "difficulty": "beginner",
+          "question_type": "single",
+          "question_text": "텍스트뿐만 아니라 이미지·음성·영상 등 다양한 형태의 데이터를 동시에 입력받고 처리할 수 있는 AI 모델 기술을 무엇이라고 합니까?",
+          "choices": [
+            { "key": "①", "text": "블록체인 AI" },
+            { "key": "②", "text": "멀티모달(Multimodal) AI" },
+            { "key": "③", "text": "메타버스 AI" },
+            { "key": "④", "text": "양자 컴퓨팅 AI" }
+          ],
+          "correct_choice": "②"
+        },
+        {
+          "question_no": "G-3",
+          "section": "knowledge",
+          "difficulty": "beginner",
+          "question_type": "single",
+          "question_text": "데이터 전체에서 각 항목이 차지하는 비율을 한눈에 보여주기에 적합하여 보고서·대시보드에 자주 쓰이는 시각화 차트 유형은?",
+          "choices": [
+            { "key": "①", "text": "도넛 차트(또는 원형 차트)" },
+            { "key": "②", "text": "산점도(Scatter plot)" },
+            { "key": "③", "text": "방사형 차트(Radar chart)" },
+            { "key": "④", "text": "주식 차트(Candlestick chart)" }
+          ],
+          "correct_choice": "①"
+        },
+        {
+          "question_no": "G-4",
+          "section": "knowledge",
+          "difficulty": "intermediate",
+          "question_type": "single",
+          "question_text": "LLM에게 공공데이터 분석을 요청하기 전 결측치·이상치 처리, 컬럼 표준화 등 분석용 테이블을 정비하는 과정이 필요한 가장 큰 이유는?",
+          "choices": [
+            { "key": "①", "text": "데이터 파일의 용량을 무조건 1MB 이하로 줄이기 위해서" },
+            { "key": "②", "text": "엑셀의 최신 버전에서만 파일이 열리도록 암호화하기 위해서" },
+            { "key": "③", "text": "정제되지 않은 원본 데이터를 넣으면 LLM이 잘못된 패턴을 학습하거나 환각(Hallucination)을 일으킬 확률이 높아지므로" },
+            { "key": "④", "text": "공공데이터포털의 다운로드 이력을 지워 익명성을 유지하기 위해서" }
+          ],
+          "correct_choice": "③"
+        },
+        {
+          "question_no": "G-5",
+          "section": "knowledge",
+          "difficulty": "intermediate",
+          "question_type": "single",
+          "question_text": "본 부서 반복 업무 중 노코드·로우코드 자동화를 우선 적용할 과제를 ROI(투자 대비 효과) 관점에서 선별할 때 가장 적합한 업무는?",
+          "choices": [
+            { "key": "①", "text": "1년에 한 번 발생하지만 판단 기준이 매우 복잡하고 정성적인 평가가 필요한 업무" },
+            { "key": "②", "text": "발생 빈도가 낮고 처리 시간도 5분 이내로 짧은 단순 업무" },
+            { "key": "③", "text": "매주/매월 규칙적으로 발생하며 데이터 취합과 서식 적용에 많은 수작업 시간이 소요되는 업무" },
+            { "key": "④", "text": "법적 책임이 크게 따르며 사람의 직관적인 예외 처리가 매번 필요한 고위험 업무" }
+          ],
+          "correct_choice": "③"
+        },
+        {
+          "question_no": "G-6",
+          "section": "knowledge",
+          "difficulty": "intermediate",
+          "question_type": "single",
+          "question_text": "업무 목적에 맞춰 ChatGPT·Claude·Gemini 등 주요 LLM 도구를 비교·선택할 때 핵심 고려사항으로 가장 거리가 먼 것은?",
+          "choices": [
+            { "key": "①", "text": "모델이 한 번에 처리할 수 있는 입력 텍스트의 최대 길이(Context Window)" },
+            { "key": "②", "text": "문서 파일 업로드 및 데이터 분석 등 실시간 기능 지원 여부" },
+            { "key": "③", "text": "답변 생성의 속도 및 유료 구독 시 발생하는 비용" },
+            { "key": "④", "text": "개발사인 빅테크 기업의 본사 소재지와 창업자의 국적" }
+          ],
+          "correct_choice": "④"
+        },
+        {
+          "question_no": "G-7",
+          "section": "knowledge",
+          "difficulty": "advanced",
+          "question_type": "single",
+          "question_text": "복잡한 행정 문서를 작성할 때 단일 프롬프트로 끝내지 않고 '초안 작성 → 논리 구조 점검 → 문체 변환 → 템플릿 벤치마킹' 등 단계별로 LLM과 상호작용하며 결과물을 고도화하는 실무 기법은?",
+          "choices": [
+            { "key": "①", "text": "제로샷 프롬프팅 (Zero-shot Prompting)" },
+            { "key": "②", "text": "재질의·정제 루프 (Refinement Loop)" },
+            { "key": "③", "text": "원핫 인코딩 (One-hot Encoding)" },
+            { "key": "④", "text": "하이퍼파라미터 튜닝 (Hyperparameter Tuning)" }
+          ],
+          "correct_choice": "②"
+        },
+        {
+          "question_no": "U1",
+          "section": "usability",
+          "question_type": "multi",
+          "question_text": "본 과정의 학습 내용을 귀하의 실제 업무에 어떻게 활용할 수 있다고 생각하십니까? (해당하는 항목을 모두 선택)",
+          "choices": [
+            { "key": "①", "text": "행정문서·홍보 콘텐츠 AI 협업 작성" },
+            { "key": "②", "text": "공공데이터 분석·시각화를 통한 정책 인사이트 도출" },
+            { "key": "③", "text": "본 부서 반복 업무의 노코드·로우코드 자동화" },
+            { "key": "④", "text": "단일 HTML·VBA·Python 연계 자동화 시나리오 구현" },
+            { "key": "⑤", "text": "본 기관 AI 활용 종합 기획안 수립 및 부서원 전파" }
+          ]
+        },
+        {
+          "question_no": "Plan",
+          "section": "plan",
+          "question_type": "text",
+          "question_text": "교육 수료 후 학습한 내용을 본인 업무에 적용하고자 하는 구체적 계획을 100자 내외로 작성해 주십시오."
+        }
+      ]
+    },
+
+    {
+      "code": "B",
+      "cohort_name_prefix": "AI 챔피언 블루",
+      "pre_learning_label": "④ 생성형 AI 활용 업무 효율화, ⑧ AI 머신러닝·딥러닝의 이해 및 활용, ⑨ AI와 파이썬 활용 데이터 분석 실습",
+      "questions": [
+        {
+          "question_no": "P1",
+          "section": "pre_learning",
+          "question_type": "single",
+          "question_text": "귀하는 본 과정의 권장 사전학습(이러닝) 「④ 생성형 AI 활용 업무 효율화, ⑧ AI 머신러닝, 딥러닝의 이해 및 활용, ⑨ AI와 파이썬 활용 데이터 분석 실습」 과정을 이수하셨습니까?",
+          "choices": [
+            { "key": "①", "text": "이수 완료" },
+            { "key": "②", "text": "일부 수강 (전체 분량의 50% 이상)" },
+            { "key": "③", "text": "일부 수강 (전체 분량의 50% 미만)" },
+            { "key": "④", "text": "미수강 / 미이수" }
+          ]
+        },
+        {
+          "question_no": "S1",
+          "section": "self_diagnosis",
+          "question_type": "likert5",
+          "question_text": "나는 Python(Pandas·scikit-learn 등)을 활용한 데이터 전처리·ML 모델 구축 경험이 있다."
+        },
+        {
+          "question_no": "S2",
+          "section": "self_diagnosis",
+          "question_type": "likert5",
+          "question_text": "나는 OpenAI API·RAG·LangChain 등을 활용한 LLM 서비스 구현 경험이 있다."
+        },
+        {
+          "question_no": "S3",
+          "section": "self_diagnosis",
+          "question_type": "likert5",
+          "question_text": "나는 본 기관 AI 전환 사업의 PoC부터 구축까지 기술 리딩을 수행할 의향과 준비가 되어 있다."
+        },
+        {
+          "question_no": "B-1",
+          "section": "knowledge",
+          "difficulty": "beginner",
+          "question_type": "single",
+          "question_text": "파이썬에서 데이터의 결측치 처리·범주형 변수 인코딩 등 전처리를 수행할 때 가장 기본적으로 사용하는 라이브러리는?",
+          "choices": [
+            { "key": "①", "text": "Matplotlib" },
+            { "key": "②", "text": "Pandas" },
+            { "key": "③", "text": "Flask" },
+            { "key": "④", "text": "BeautifulSoup" }
+          ],
+          "correct_choice": "②"
+        },
+        {
+          "question_no": "B-2",
+          "section": "knowledge",
+          "difficulty": "beginner",
+          "question_type": "single",
+          "question_text": "머신러닝 모델 중 정답(Label)이 주어진 데이터를 학습하여 새로운 데이터의 정답을 예측하는 방식은?",
+          "choices": [
+            { "key": "①", "text": "비지도 학습(Unsupervised Learning)" },
+            { "key": "②", "text": "강화 학습(Reinforcement Learning)" },
+            { "key": "③", "text": "지도 학습(Supervised Learning)" },
+            { "key": "④", "text": "전이 학습(Transfer Learning)" }
+          ],
+          "correct_choice": "③"
+        },
+        {
+          "question_no": "B-3",
+          "section": "knowledge",
+          "difficulty": "beginner",
+          "question_type": "single",
+          "question_text": "텍스트 데이터를 LLM이 이해할 수 있는 숫자 벡터 형태로 변환하는 과정을 무엇이라고 합니까?",
+          "choices": [
+            { "key": "①", "text": "임베딩(Embedding)" },
+            { "key": "②", "text": "디코딩(Decoding)" },
+            { "key": "③", "text": "컴파일링(Compiling)" },
+            { "key": "④", "text": "크롤링(Crawling)" }
+          ],
+          "correct_choice": "①"
+        },
+        {
+          "question_no": "B-4",
+          "section": "knowledge",
+          "difficulty": "intermediate",
+          "question_type": "single",
+          "question_text": "지도학습 기반의 분류(Classification) 모델 평가 시, 모델이 '정답'이라고 예측한 것 중 실제 정답인 비율을 나타내는 지표는?",
+          "choices": [
+            { "key": "①", "text": "재현율(Recall)" },
+            { "key": "②", "text": "정밀도(Precision)" },
+            { "key": "③", "text": "평균 제곱 오차(MSE)" },
+            { "key": "④", "text": "결정 계수(R-squared)" }
+          ],
+          "correct_choice": "②"
+        },
+        {
+          "question_no": "B-5",
+          "section": "knowledge",
+          "difficulty": "intermediate",
+          "question_type": "single",
+          "question_text": "FastAPI를 사용하여 파이썬 백엔드 API를 구축할 때 비동기 처리(Asynchronous)를 지원하여 응답 속도를 높이는 핵심 기술 표준은 무엇인가요?",
+          "choices": [
+            { "key": "①", "text": "WSGI" },
+            { "key": "②", "text": "ASGI" },
+            { "key": "③", "text": "SOAP" },
+            { "key": "④", "text": "GraphQL" }
+          ],
+          "correct_choice": "②"
+        },
+        {
+          "question_no": "B-6",
+          "section": "knowledge",
+          "difficulty": "intermediate",
+          "question_type": "single",
+          "question_text": "머신러닝 모델의 학습 성능을 높이기 위해 사람이 직접 설정해야 하는 매개변수(예: 학습률·트리 깊이 등)를 최적화하는 과정은?",
+          "choices": [
+            { "key": "①", "text": "가비지 컬렉션(Garbage Collection)" },
+            { "key": "②", "text": "오버피팅(Overfitting)" },
+            { "key": "③", "text": "하이퍼파라미터 튜닝(Hyperparameter Tuning)" },
+            { "key": "④", "text": "원-핫 인코딩(One-hot Encoding)" }
+          ],
+          "correct_choice": "③"
+        },
+        {
+          "question_no": "B-7",
+          "section": "knowledge",
+          "difficulty": "advanced",
+          "question_type": "single",
+          "question_text": "기존 거대 언어 모델(LLM)의 모든 파라미터를 업데이트하지 않고 일부 적은 수의 가중치만 추가·수정하여 효율적으로 특정 도메인에 맞게 미세 조정하는 기술은?",
+          "choices": [
+            { "key": "①", "text": "사전 학습(Pre-training)" },
+            { "key": "②", "text": "프롬프트 엔지니어링(Prompt Engineering)" },
+            { "key": "③", "text": "LoRA(Low-Rank Adaptation)" },
+            { "key": "④", "text": "지도 미세조정(Supervised Fine-Tuning – Full)" }
+          ],
+          "correct_choice": "③"
+        },
+        {
+          "question_no": "U1",
+          "section": "usability",
+          "question_type": "multi",
+          "question_text": "본 과정의 학습 내용을 귀하의 실제 업무에 어떻게 활용할 수 있다고 생각하십니까? (해당하는 항목을 모두 선택)",
+          "choices": [
+            { "key": "①", "text": "행정 데이터 전처리 및 ML/DL 예측·분류 모델 구축" },
+            { "key": "②", "text": "OpenAI API + RAG 기반 챗봇·문서 검색 서비스 구현" },
+            { "key": "③", "text": "FastAPI·Streamlit 활용 풀스택 AI 행정 웹서비스 개발" },
+            { "key": "④", "text": "데이터 파이프라인 자동화 스크립트 구축·운영" },
+            { "key": "⑤", "text": "본 기관 AI 전환 사업의 PoC·구축 기술 리딩" }
+          ]
+        },
+        {
+          "question_no": "Plan",
+          "section": "plan",
+          "question_type": "text",
+          "question_text": "교육 수료 후 학습한 내용을 본인 업무에 적용하고자 하는 구체적 계획을 100자 내외로 작성해 주십시오."
+        }
+      ]
+    }
+  ]
+}
