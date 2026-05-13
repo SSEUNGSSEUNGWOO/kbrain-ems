@@ -26,13 +26,13 @@ export default async function ApplicantDetailPage({
     email: string | null;
     phone: string | null;
     notes: string | null;
-    organizations: { name: string } | null;
+    organizations: { name: string; category: string | null } | null;
   };
 
   const { data: applicantRows, error: applicantError } = await supabase
     .from('applicants')
     .select(
-      'id, name, department, job_title, job_role, birth_date, email, phone, notes, organizations(name)'
+      'id, name, department, job_title, job_role, birth_date, email, phone, notes, organizations(name, category)'
     )
     .eq('id', applicantId)
     .limit(1)
@@ -46,6 +46,7 @@ export default async function ApplicantDetailPage({
     id: row.id,
     name: row.name,
     organizationName: row.organizations?.name ?? null,
+    organizationCategory: row.organizations?.category ?? null,
     department: row.department,
     job_title: row.job_title,
     job_role: row.job_role,

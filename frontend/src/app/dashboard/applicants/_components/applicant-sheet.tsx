@@ -20,6 +20,7 @@ export type Applicant = {
   id: string;
   name: string;
   organizationName: string | null;
+  organizationCategory: string | null;
   department: string | null;
   job_title: string | null;
   job_role: string | null;
@@ -63,9 +64,7 @@ export function ApplicantSheet({ applicant, trigger }: ApplicantSheetProps) {
         <SheetHeader>
           <SheetTitle>{isEdit ? '지원자 수정' : '지원자 추가'}</SheetTitle>
           <SheetDescription>
-            {isEdit
-              ? '지원자 정보를 수정합니다.'
-              : '새 지원자를 등록합니다.'}
+            {isEdit ? '지원자 정보를 수정합니다.' : '새 지원자를 등록합니다.'}
           </SheetDescription>
         </SheetHeader>
         <form action={onSubmit} className='grid gap-4 px-4 py-4'>
@@ -83,11 +82,11 @@ export function ApplicantSheet({ applicant, trigger }: ApplicantSheetProps) {
             />
           </div>
           <div className='grid gap-2'>
-            <Label htmlFor='department'>구분</Label>
+            <Label htmlFor='department'>부서</Label>
             <Input
               id='department'
               name='department'
-              placeholder='예: 광역지자체'
+              placeholder='예: 인사혁신과'
               defaultValue={applicant?.department ?? ''}
             />
           </div>
@@ -123,13 +122,7 @@ export function ApplicantSheet({ applicant, trigger }: ApplicantSheetProps) {
           {error && <div className='text-destructive text-sm'>{error}</div>}
           <SheetFooter>
             <Button type='submit' disabled={pending}>
-              {pending
-                ? isEdit
-                  ? '저장 중...'
-                  : '추가 중...'
-                : isEdit
-                  ? '저장'
-                  : '추가'}
+              {pending ? (isEdit ? '저장 중...' : '추가 중...') : isEdit ? '저장' : '추가'}
             </Button>
           </SheetFooter>
         </form>

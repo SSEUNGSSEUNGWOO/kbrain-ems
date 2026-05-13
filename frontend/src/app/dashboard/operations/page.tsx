@@ -11,9 +11,10 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { compareOperators } from '@/lib/operator-rank';
 import Link from 'next/link';
 import { EditAuxSheet } from './_components/edit-aux-sheet';
+import { SearchInput } from './_components/search-input';
 
 type Props = {
-  searchParams: Promise<{ month?: string; past?: string; cat?: string }>;
+  searchParams: Promise<{ month?: string; past?: string; cat?: string; q?: string }>;
 };
 
 const DOW = ['일', '월', '화', '수', '목', '금', '토'] as const;
@@ -33,24 +34,17 @@ const CATEGORIES: { key: Category; label: string }[] = [
 ];
 
 export default async function OperationsPage({ searchParams }: Props) {
-  const { month: monthRaw, past, cat: catRaw } = await searchParams;
+  const { month: monthRaw, past, cat: catRaw, q: qRaw } = await searchParams;
   const monthFilter = monthRaw && /^\d{1,2}$/.test(monthRaw) ? Number(monthRaw) : null;
   const hidePast = past === 'hide';
   const catFilter = CATEGORIES.find((c) => c.key === catRaw)?.key ?? null;
+  const searchTerm = (qRaw ?? '').trim().toLowerCase();
 
   const supabase = createAdminClient();
 
   const [mainInsRes, subInsRes, operatorsRes] = await Promise.all([
-    supabase
-      .from('instructors')
-      .select('id, name, affiliation')
-      .eq('kind', 'main')
-      .order('name'),
-    supabase
-      .from('instructors')
-      .select('id, name, affiliation')
-      .eq('kind', 'sub')
-      .order('name'),
+    supabase.from('instructors').select('id, name, affiliation').eq('kind', 'main').order('name'),
+    supabase.from('instructors').select('id, name, affiliation').eq('kind', 'sub').order('name'),
     supabase.from('operators').select('id, name, title').neq('role', 'head')
   ]);
   const mainInstructorsList = mainInsRes.data ?? [];
@@ -73,7 +67,12 @@ export default async function OperationsPage({ searchParams }: Props) {
     session_end_date: string | null;
     title: string | null;
     cohort_id: string;
-    cohorts: { id: string; name: string; category: string | null; delivery_method: string | null } | null;
+    cohorts: {
+      id: string;
+      name: string;
+      category: string | null;
+      delivery_method: string | null;
+    } | null;
     session_instructors: {
       role: string;
       instructors: { id: string; name: string } | null;
@@ -94,6 +93,18 @@ export default async function OperationsPage({ searchParams }: Props) {
       const endDate = s.session_end_date ?? s.session_date;
       if (endDate < today) return false;
     }
+    if (searchTerm) {
+      const haystack = [
+        s.cohorts?.name,
+        s.title,
+        ...s.session_instructors.map((si) => si.instructors?.name),
+        ...s.session_operators.map((so) => so.operators?.name)
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      if (!haystack.includes(searchTerm)) return false;
+    }
     return true;
   });
 
@@ -107,12 +118,13 @@ export default async function OperationsPage({ searchParams }: Props) {
     cat?: Category | 'all';
   }) => {
     const params = new URLSearchParams();
-    const m = overrides.month ?? (monthFilter ?? 'all');
+    const m = overrides.month ?? monthFilter ?? 'all';
     const p = overrides.past ?? (hidePast ? 'hide' : 'show');
-    const c = overrides.cat ?? (catFilter ?? 'all');
+    const c = overrides.cat ?? catFilter ?? 'all';
     if (m !== 'all') params.set('month', String(m));
     if (p === 'hide') params.set('past', 'hide');
     if (c !== 'all') params.set('cat', c);
+    if (searchTerm) params.set('q', qRaw ?? '');
     const qs = params.toString();
     return `/dashboard/operations${qs ? `?${qs}` : ''}`;
   };
@@ -123,31 +135,34 @@ export default async function OperationsPage({ searchParams }: Props) {
       pageDescription={`표시 ${data.length}개 / 전체 ${allData.length}개 회차`}
     >
       <div className='mb-4 flex flex-col gap-3'>
-        {/* 구분 (PDF 카테고리) */}
-        <div className='inline-flex w-fit rounded-lg border bg-card p-1'>
-          <Link
-            href={buildHref({ cat: 'all' })}
-            className={`rounded-md px-3 py-1 text-xs font-semibold transition ${
-              catFilter === null
-                ? 'bg-slate-700 text-white'
-                : 'text-muted-foreground hover:bg-muted'
-            }`}
-          >
-            전체 구분
-          </Link>
-          {CATEGORIES.map((c) => (
+        {/* 구분 (PDF 카테고리) + 검색 */}
+        <div className='flex flex-wrap items-center justify-between gap-3'>
+          <div className='inline-flex w-fit rounded-lg border bg-card p-1'>
             <Link
-              key={c.key}
-              href={buildHref({ cat: c.key })}
+              href={buildHref({ cat: 'all' })}
               className={`rounded-md px-3 py-1 text-xs font-semibold transition ${
-                catFilter === c.key
+                catFilter === null
                   ? 'bg-slate-700 text-white'
                   : 'text-muted-foreground hover:bg-muted'
               }`}
             >
-              {c.label}
+              전체 구분
             </Link>
-          ))}
+            {CATEGORIES.map((c) => (
+              <Link
+                key={c.key}
+                href={buildHref({ cat: c.key })}
+                className={`rounded-md px-3 py-1 text-xs font-semibold transition ${
+                  catFilter === c.key
+                    ? 'bg-slate-700 text-white'
+                    : 'text-muted-foreground hover:bg-muted'
+                }`}
+              >
+                {c.label}
+              </Link>
+            ))}
+          </div>
+          <SearchInput />
         </div>
 
         <div className='flex flex-wrap items-center gap-3'>
@@ -183,9 +198,7 @@ export default async function OperationsPage({ searchParams }: Props) {
           >
             <span
               className={`inline-flex h-4 w-4 items-center justify-center rounded border ${
-                hidePast
-                  ? 'border-muted-foreground'
-                  : 'border-blue-600 bg-blue-600 text-white'
+                hidePast ? 'border-muted-foreground' : 'border-blue-600 bg-blue-600 text-white'
               }`}
             >
               {!hidePast && '✓'}
