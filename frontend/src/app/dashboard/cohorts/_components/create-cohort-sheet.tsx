@@ -51,6 +51,21 @@ export function CreateCohortSheet() {
             <Label htmlFor='name'>기수 이름</Label>
             <Input id='name' name='name' required placeholder='예: AI 챔피언 26-1기' />
           </div>
+          <div className='grid gap-2'>
+            <Label htmlFor='create-category'>구분</Label>
+            <select
+              id='create-category'
+              name='category'
+              defaultValue=''
+              className='flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring'
+            >
+              <option value=''>— 미분류</option>
+              <option value='champion'>AI 챔피언</option>
+              <option value='general'>일반교육</option>
+              <option value='special'>특화교육</option>
+              <option value='experts'>전문인재</option>
+            </select>
+          </div>
           <div className='grid grid-cols-2 gap-2'>
             <div className='grid gap-2'>
               <Label htmlFor='started_at'>교육 시작일</Label>

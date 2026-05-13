@@ -91,6 +91,7 @@ export type Database = {
         Row: {
           id: string;
           name: string;
+          category: string | null;
           started_at: string | null;
           ended_at: string | null;
           application_start_at: string | null;
@@ -101,12 +102,14 @@ export type Database = {
           orientation_date: string | null;
           recruiting_slug: string | null;
           max_capacity: number | null;
+          recruitment_round_id: string | null;
           created_at: string;
           updated_at: string;
         };
         Insert: {
           id?: string;
           name: string;
+          category?: string | null;
           started_at?: string | null;
           ended_at?: string | null;
           application_start_at?: string | null;
@@ -117,12 +120,14 @@ export type Database = {
           orientation_date?: string | null;
           recruiting_slug?: string | null;
           max_capacity?: number | null;
+          recruitment_round_id?: string | null;
           created_at?: string;
           updated_at?: string;
         };
         Update: {
           id?: string;
           name?: string;
+          category?: string | null;
           started_at?: string | null;
           ended_at?: string | null;
           application_start_at?: string | null;
@@ -133,6 +138,54 @@ export type Database = {
           orientation_date?: string | null;
           recruiting_slug?: string | null;
           max_capacity?: number | null;
+          recruitment_round_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'cohorts_recruitment_round_id_fkey';
+            columns: ['recruitment_round_id'];
+            referencedRelation: 'recruitment_rounds';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+
+      recruitment_rounds: {
+        Row: {
+          id: string;
+          round_no: number;
+          label: string | null;
+          application_start_at: string | null;
+          application_end_at: string | null;
+          selection_at: string | null;
+          announce_at: string | null;
+          note: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          round_no: number;
+          label?: string | null;
+          application_start_at?: string | null;
+          application_end_at?: string | null;
+          selection_at?: string | null;
+          announce_at?: string | null;
+          note?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          round_no?: number;
+          label?: string | null;
+          application_start_at?: string | null;
+          application_end_at?: string | null;
+          selection_at?: string | null;
+          announce_at?: string | null;
+          note?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -247,11 +300,13 @@ export type Database = {
           id: string;
           applicant_id: string;
           cohort_id: string;
+          track_id: string | null;
           status: string;
           rejected_stage: string | null;
           applied_at: string | null;
           decided_at: string | null;
           note: string | null;
+          /** @deprecated application_answers로 이관 예정 */
           self_diagnosis: Json | null;
           recommended_track_id: string | null;
           motivation: string | null;
@@ -259,6 +314,10 @@ export type Database = {
           application_file_path: string | null;
           application_file_name: string | null;
           application_file_size: number | null;
+          knowledge_score: number | null;
+          knowledge_correct_count: number | null;
+          knowledge_total_count: number | null;
+          self_diagnosis_avg: number | null;
           created_at: string;
           updated_at: string;
         };
@@ -266,6 +325,7 @@ export type Database = {
           id?: string;
           applicant_id: string;
           cohort_id: string;
+          track_id?: string | null;
           status?: string;
           rejected_stage?: string | null;
           applied_at?: string | null;
@@ -278,6 +338,10 @@ export type Database = {
           application_file_path?: string | null;
           application_file_name?: string | null;
           application_file_size?: number | null;
+          knowledge_score?: number | null;
+          knowledge_correct_count?: number | null;
+          knowledge_total_count?: number | null;
+          self_diagnosis_avg?: number | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -285,6 +349,7 @@ export type Database = {
           id?: string;
           applicant_id?: string;
           cohort_id?: string;
+          track_id?: string | null;
           status?: string;
           rejected_stage?: string | null;
           applied_at?: string | null;
@@ -297,6 +362,10 @@ export type Database = {
           application_file_path?: string | null;
           application_file_name?: string | null;
           application_file_size?: number | null;
+          knowledge_score?: number | null;
+          knowledge_correct_count?: number | null;
+          knowledge_total_count?: number | null;
+          self_diagnosis_avg?: number | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -314,9 +383,127 @@ export type Database = {
             referencedColumns: ['id'];
           },
           {
+            foreignKeyName: 'applications_track_id_fkey';
+            columns: ['track_id'];
+            referencedRelation: 'tracks';
+            referencedColumns: ['id'];
+          },
+          {
             foreignKeyName: 'applications_recommended_track_id_fkey';
             columns: ['recommended_track_id'];
             referencedRelation: 'tracks';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+
+      application_questions: {
+        Row: {
+          id: string;
+          cohort_id: string;
+          track_id: string | null;
+          section: string;
+          question_no: string;
+          difficulty: string | null;
+          question_text: string;
+          question_type: string;
+          choices: Json | null;
+          correct_choice: string | null;
+          weight: number;
+          display_order: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          cohort_id: string;
+          track_id?: string | null;
+          section: string;
+          question_no: string;
+          difficulty?: string | null;
+          question_text: string;
+          question_type: string;
+          choices?: Json | null;
+          correct_choice?: string | null;
+          weight?: number;
+          display_order?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          cohort_id?: string;
+          track_id?: string | null;
+          section?: string;
+          question_no?: string;
+          difficulty?: string | null;
+          question_text?: string;
+          question_type?: string;
+          choices?: Json | null;
+          correct_choice?: string | null;
+          weight?: number;
+          display_order?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'application_questions_cohort_id_fkey';
+            columns: ['cohort_id'];
+            referencedRelation: 'cohorts';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'application_questions_track_id_fkey';
+            columns: ['track_id'];
+            referencedRelation: 'tracks';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+
+      application_answers: {
+        Row: {
+          id: string;
+          application_id: string;
+          question_id: string;
+          answer_value: Json | null;
+          is_correct: boolean | null;
+          score: number | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          application_id: string;
+          question_id: string;
+          answer_value?: Json | null;
+          is_correct?: boolean | null;
+          score?: number | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          application_id?: string;
+          question_id?: string;
+          answer_value?: Json | null;
+          is_correct?: boolean | null;
+          score?: number | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'application_answers_application_id_fkey';
+            columns: ['application_id'];
+            referencedRelation: 'applications';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'application_answers_question_id_fkey';
+            columns: ['question_id'];
+            referencedRelation: 'application_questions';
             referencedColumns: ['id'];
           }
         ];

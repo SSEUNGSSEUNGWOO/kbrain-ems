@@ -23,7 +23,7 @@ function formatDate(ymd: string): string {
   return `${String(date.getMonth() + 1).padStart(2, '0')}.${String(date.getDate()).padStart(2, '0')}.(${DOW[date.getDay()]})`;
 }
 
-type Category = 'champion' | 'general' | 'special' | 'experts' | 'other';
+type Category = 'champion' | 'general' | 'special' | 'experts';
 
 const CATEGORIES: { key: Category; label: string }[] = [
   { key: 'champion', label: 'AI 챔피언' },
@@ -31,15 +31,6 @@ const CATEGORIES: { key: Category; label: string }[] = [
   { key: 'special', label: '특화교육' },
   { key: 'experts', label: '전문인재' }
 ];
-
-function categorize(cohortName: string | undefined | null): Category {
-  if (!cohortName) return 'other';
-  if (cohortName.startsWith('AI 챔피언')) return 'champion';
-  if (cohortName.startsWith('전문인재')) return 'experts';
-  if (cohortName.startsWith('일반')) return 'general';
-  if (cohortName.startsWith('특화')) return 'special';
-  return 'other';
-}
 
 export default async function OperationsPage({ searchParams }: Props) {
   const { month: monthRaw, past, cat: catRaw } = await searchParams;
@@ -70,7 +61,7 @@ export default async function OperationsPage({ searchParams }: Props) {
     .from('sessions')
     .select(
       `id, session_date, session_end_date, title, cohort_id,
-       cohorts(id, name, delivery_method),
+       cohorts(id, name, category, delivery_method),
        session_instructors(role, instructors(id, name)),
        session_operators(operators(id, name, title))`
     )
@@ -82,7 +73,7 @@ export default async function OperationsPage({ searchParams }: Props) {
     session_end_date: string | null;
     title: string | null;
     cohort_id: string;
-    cohorts: { id: string; name: string; delivery_method: string | null } | null;
+    cohorts: { id: string; name: string; category: string | null; delivery_method: string | null } | null;
     session_instructors: {
       role: string;
       instructors: { id: string; name: string } | null;
@@ -96,7 +87,7 @@ export default async function OperationsPage({ searchParams }: Props) {
   const today = new Date().toISOString().slice(0, 10);
 
   const data = allData.filter((s) => {
-    if (catFilter !== null && categorize(s.cohorts?.name) !== catFilter) return false;
+    if (catFilter !== null && s.cohorts?.category !== catFilter) return false;
     const startMonth = Number(s.session_date.split('-')[1]);
     if (monthFilter !== null && startMonth !== monthFilter) return false;
     if (hidePast) {

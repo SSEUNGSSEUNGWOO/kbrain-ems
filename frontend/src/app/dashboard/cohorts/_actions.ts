@@ -23,6 +23,71 @@ export async function reorderCohorts(order: string[]): Promise<ActionResult> {
   return {};
 }
 
+/** cohort 일정 정보 (모집·선발·교육·OT·방법·정원) 일괄 업데이트. */
+export async function updateCohortSchedule(
+  cohortId: string,
+  formData: FormData
+): Promise<ActionResult> {
+  const operator = await getOperator();
+  if (!operator) return { error: '인증이 필요합니다.' };
+
+  const nullableDate = (key: string): string | null => {
+    const v = String(formData.get(key) ?? '').trim();
+    return v || null;
+  };
+  const nullableText = (key: string): string | null => {
+    const v = String(formData.get(key) ?? '').trim();
+    return v || null;
+  };
+  const capacityRaw = String(formData.get('max_capacity') ?? '').trim();
+  const maxCapacity = capacityRaw ? Number.parseInt(capacityRaw, 10) : null;
+  if (capacityRaw && !Number.isFinite(maxCapacity)) {
+    return { error: '정원은 숫자여야 합니다.' };
+  }
+
+  const supabase = createAdminClient();
+  const { error } = await supabase
+    .from('cohorts')
+    .update({
+      application_start_at: nullableDate('application_start_at'),
+      application_end_at: nullableDate('application_end_at'),
+      decided_at: nullableDate('decided_at'),
+      notified_at: nullableDate('notified_at'),
+      started_at: nullableDate('started_at'),
+      ended_at: nullableDate('ended_at'),
+      orientation_date: nullableDate('orientation_date'),
+      delivery_method: nullableText('delivery_method'),
+      max_capacity: maxCapacity
+    })
+    .eq('id', cohortId);
+  if (error) return { error: error.message };
+
+  revalidatePath(`/dashboard/cohorts/${cohortId}`);
+  revalidatePath('/dashboard/cohorts');
+  revalidatePath('/dashboard/calendar');
+  return {};
+}
+
+/** cohort의 모집 라운드 매핑 변경. roundId === null이면 매핑 해제. */
+export async function setCohortRecruitmentRound(
+  cohortId: string,
+  roundId: string | null
+): Promise<ActionResult> {
+  const operator = await getOperator();
+  if (!operator) return { error: '인증이 필요합니다.' };
+
+  const supabase = createAdminClient();
+  const { error } = await supabase
+    .from('cohorts')
+    .update({ recruitment_round_id: roundId })
+    .eq('id', cohortId);
+  if (error) return { error: error.message };
+
+  revalidatePath(`/dashboard/cohorts/${cohortId}`);
+  revalidatePath('/dashboard/cohorts');
+  return {};
+}
+
 function val(formData: FormData, key: string): string {
   return String(formData.get(key) ?? '').trim();
 }
@@ -92,7 +157,8 @@ export async function updateCohort(id: string, formData: FormData): Promise<Acti
       recruiting_slug: recruitingSlug || null,
       application_start_at: val(formData, 'application_start_at') || null,
       application_end_at: val(formData, 'application_end_at') || null,
-      max_capacity: nullableInt(val(formData, 'max_capacity'))
+      max_capacity: nullableInt(val(formData, 'max_capacity')),
+      category: val(formData, 'category') || null
     })
     .eq('id', id);
   if (error) return { error: error.message };

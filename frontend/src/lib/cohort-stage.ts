@@ -57,7 +57,7 @@ export const STAGE_LABEL: Record<CohortStage, string> = {
 
 /** 단계별 노출 DOMAIN slug — 사이드바·문서·테이블에서 공통 사용 */
 export const STAGE_DOMAINS: Record<CohortStage, readonly string[]> = {
-  recruiting: ['students', 'lessons', 'instructors', 'surveys'],
+  recruiting: ['applications', 'students', 'lessons', 'instructors', 'surveys'],
   active: ['students', 'lessons', 'attendance', 'assignments', 'surveys', 'instructors'],
   finished: [
     'students',
@@ -69,9 +69,10 @@ export const STAGE_DOMAINS: Record<CohortStage, readonly string[]> = {
     'reports'
   ],
   // 일정만 있음 — 모집 시작 전이라 학생·강사·수업 계획 메뉴 노출
-  preparing: ['students', 'lessons', 'instructors', 'surveys'],
+  preparing: ['applications', 'students', 'lessons', 'instructors', 'surveys'],
   // 일정 정보 자체 부족 — 모든 코어 메뉴 노출 (가장 보수적)
   unset: [
+    'applications',
     'students',
     'lessons',
     'attendance',
