@@ -90,7 +90,8 @@ const { data: fees } = await sb
     'session_instructor_id, hourly_rate, hours, calculated_amount, approved_amount, status'
   )
   .in('session_instructor_id', sessionInstructorIds.length > 0 ? sessionInstructorIds : ['__none__']);
-const feeBySI = new Map<string, (typeof fees)[number]>();
+type FeeRow = NonNullable<typeof fees>[number];
+const feeBySI = new Map<string, FeeRow>();
 for (const f of fees ?? []) feeBySI.set(f.session_instructor_id, f);
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
