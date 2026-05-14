@@ -12,14 +12,14 @@ import {
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { fetchDispatchMaterial, type DispatchMaterial } from '../_actions';
+import { fetchDispatchMaterialBundle, type DispatchMaterial } from '../_actions';
 import type { DispatchTemplate } from '@/lib/dispatch-stages';
 
 type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   cohortId: string;
-  template: DispatchTemplate;
+  templates: DispatchTemplate[];
   stageLabel: string;
 };
 
@@ -36,18 +36,19 @@ export function DispatchMaterialDialog({
   open,
   onOpenChange,
   cohortId,
-  template,
+  templates,
   stageLabel
 }: Props) {
   const [loading, setLoading] = useState(false);
   const [material, setMaterial] = useState<DispatchMaterial | null>(null);
   const [body, setBody] = useState('');
+  const templatesKey = templates.join(',');
 
   useEffect(() => {
     if (!open) return;
     setLoading(true);
     setMaterial(null);
-    fetchDispatchMaterial(cohortId, template)
+    fetchDispatchMaterialBundle(cohortId, templates)
       .then((res) => {
         if (!res.ok) {
           toast.error(res.error);
@@ -58,7 +59,8 @@ export function DispatchMaterialDialog({
         setBody(res.data.body);
       })
       .finally(() => setLoading(false));
-  }, [open, cohortId, template, onOpenChange]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, cohortId, templatesKey]);
 
   const emails = (material?.recipients ?? [])
     .filter((r) => r.email)

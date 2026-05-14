@@ -2,25 +2,16 @@ import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 import {
   computeDispatchStages,
+  groupStagesByDate,
   isInDispatchWindow,
-  isPendingActionable,
-  STAGE_CATALOG,
-  type NotificationLite
+  isPendingActionable
 } from '@/lib/dispatch-stages';
-
-const STAGE_TEMPLATE_CODES = STAGE_CATALOG.map((t) => t.code);
-
-const todayIso = (): string => {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-};
+import { fetchDispatchInbox } from '@/lib/dispatch-inbox';
+import { todayKst } from '@/lib/format';
 
 export async function GET() {
   const supabase = createAdminClient();
-  const today = todayIso();
+  const today = todayKst();
 
   const { data: cohorts } = await supabase
     .from('cohorts')
@@ -38,34 +29,7 @@ export async function GET() {
     return NextResponse.json({ count: 0 });
   }
 
-  const [{ data: notifs }, { data: configRows }] = await Promise.all([
-    supabase
-      .from('notifications')
-      .select(
-        'id, cohort_id, template_code, status, channel, channels, sent_at, sent_by_operator_id'
-      )
-      .in('cohort_id', cohortIds)
-      .in('template_code', [...STAGE_TEMPLATE_CODES]),
-    supabase
-      .from('cohort_dispatch_config')
-      .select('cohort_id, template_code, enabled')
-      .in('cohort_id', cohortIds)
-  ]);
-
-  const notifsByCohort = new Map<string, NotificationLite[]>();
-  for (const n of notifs ?? []) {
-    if (!n.cohort_id) continue;
-    const arr = notifsByCohort.get(n.cohort_id) ?? [];
-    arr.push(n);
-    notifsByCohort.set(n.cohort_id, arr);
-  }
-
-  const enabledByCohort = new Map<string, Map<string, boolean>>();
-  for (const r of configRows ?? []) {
-    if (!enabledByCohort.has(r.cohort_id))
-      enabledByCohort.set(r.cohort_id, new Map());
-    enabledByCohort.get(r.cohort_id)!.set(r.template_code, r.enabled);
-  }
+  const { notifsByCohort, enabledByCohort } = await fetchDispatchInbox(supabase, cohortIds);
 
   let count = 0;
   for (const c of inWindow) {
@@ -77,7 +41,9 @@ export async function GET() {
       ns,
       enabledMap
     );
-    count += stages.filter((s) => isPendingActionable(s.state)).length;
+    // 그룹 단위로 카운트 (통합 row는 1건). UI row 개수와 일치.
+    const groups = groupStagesByDate(stages);
+    count += groups.filter((g) => isPendingActionable(g.state)).length;
   }
 
   return NextResponse.json({ count });

@@ -3,6 +3,7 @@ import PageContainer from '@/components/layout/page-container';
 import { createAdminClient } from '@/lib/supabase/server';
 import { Icons } from '@/components/icons';
 import { Button } from '@/components/ui/button';
+import { todayKst } from '@/lib/format';
 import { CreateSessionSheet } from './_components/create-session-sheet';
 import { BulkCreateSessionSheet } from './_components/bulk-create-session-sheet';
 import { SessionList } from './_components/session-list';
@@ -78,7 +79,7 @@ export default async function AttendancePage({
       attendance_records: recordsBySession.get(s.id) ?? []
     }));
 
-    const today = new Date().toISOString().split('T')[0];
+    const today = todayKst();
 
     const future = raw
       .filter((s) => s.session_date >= today)

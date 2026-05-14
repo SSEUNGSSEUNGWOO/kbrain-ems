@@ -11,6 +11,7 @@ import {
   SelectValue
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { todayKst } from '@/lib/format';
 import {
   classifyOrganization,
   ORGANIZATION_CATEGORY_LABEL,
@@ -113,7 +114,7 @@ export function AssignmentSubmissionTable({
     : students.filter((s) => statuses[s.id] === filter);
 
   const markAllSubmitted = () => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = todayKst();
     setStatuses(Object.fromEntries(students.map((s) => [s.id, 'submitted'])));
     setSubmittedDates((prev) => Object.fromEntries(
       students.map((s) => [s.id, prev[s.id] || today])

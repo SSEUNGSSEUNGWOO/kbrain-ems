@@ -21,21 +21,15 @@ export default async function CohortsPage() {
 
     const cohorts = sortCohortsByPreference(cohortRows ?? [], operator?.cohort_order ?? []);
 
-    // Per-cohort student & session counts (group by 미지원 → JS reduce)
-    const { data: studentRows } = await supabase
-      .from('students')
-      .select('cohort_id');
-    const { data: sessionRows } = await supabase
-      .from('sessions')
-      .select('cohort_id');
-
+    // Per-cohort student & session counts — cohort_summary RPC로 SQL 측 GROUP BY
+    type CohortSummary = { cohort_id: string; student_count: number; session_count: number };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: summaryRows } = await (supabase as any).rpc('cohort_summary');
     const studentCountMap = new Map<string, number>();
-    for (const r of studentRows ?? []) {
-      studentCountMap.set(r.cohort_id, (studentCountMap.get(r.cohort_id) ?? 0) + 1);
-    }
     const sessionCountMap = new Map<string, number>();
-    for (const r of sessionRows ?? []) {
-      sessionCountMap.set(r.cohort_id, (sessionCountMap.get(r.cohort_id) ?? 0) + 1);
+    for (const r of (summaryRows ?? []) as CohortSummary[]) {
+      studentCountMap.set(r.cohort_id, Number(r.student_count));
+      sessionCountMap.set(r.cohort_id, Number(r.session_count));
     }
 
     const data = cohorts.map((c) => ({

@@ -7,11 +7,11 @@ import type { DispatchTemplate } from '@/lib/dispatch-stages';
 
 type Props = {
   cohortId: string;
-  template: DispatchTemplate;
+  templates: DispatchTemplate[];
   stageLabel: string;
 };
 
-export function DispatchMaterialTrigger({ cohortId, template, stageLabel }: Props) {
+export function DispatchMaterialTrigger({ cohortId, templates, stageLabel }: Props) {
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -22,7 +22,7 @@ export function DispatchMaterialTrigger({ cohortId, template, stageLabel }: Prop
         open={open}
         onOpenChange={setOpen}
         cohortId={cohortId}
-        template={template}
+        templates={templates}
         stageLabel={stageLabel}
       />
     </>

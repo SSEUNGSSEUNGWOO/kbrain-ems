@@ -4,15 +4,14 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   computeDispatchStages,
+  groupStagesByDate,
   isInDispatchWindow,
-  isStageInInboxRange,
-  STAGE_CATALOG
+  isStageInInboxRange
 } from '@/lib/dispatch-stages';
+import { fetchDispatchInbox } from '@/lib/dispatch-inbox';
 import Link from 'next/link';
 import { StageRow } from './_components/stage-row';
 import { RangeSelector } from './_components/range-selector';
-
-const STAGE_TEMPLATE_CODES = STAGE_CATALOG.map((t) => t.code);
 
 const todayIso = (): string => {
   const d = new Date();
@@ -48,44 +47,18 @@ export default async function NotificationsInboxPage({ searchParams }: Props) {
   const inWindow = (cohortRows ?? []).filter((c) =>
     isInDispatchWindow(
       { decided_at: c.decided_at, started_at: c.started_at, ended_at: c.ended_at },
-      today
+      today,
+      maxDays
     )
   );
 
   const cohortIds = inWindow.map((c) => c.id);
-  const [{ data: notifs }, { data: configRows }] = await Promise.all([
-    supabase
-      .from('notifications')
-      .select(
-        'id, cohort_id, template_code, status, channel, channels, sent_at, sent_by_operator_id'
-      )
-      .in('cohort_id', cohortIds.length > 0 ? cohortIds : ['__none__'])
-      .in('template_code', [...STAGE_TEMPLATE_CODES])
-      .order('sent_at', { ascending: false }),
-    supabase
-      .from('cohort_dispatch_config')
-      .select('cohort_id, template_code, enabled')
-      .in('cohort_id', cohortIds.length > 0 ? cohortIds : ['__none__'])
-  ]);
-
-  const notifsByCohort = new Map<string, typeof notifs>();
-  for (const n of notifs ?? []) {
-    if (!n.cohort_id) continue;
-    const arr = notifsByCohort.get(n.cohort_id) ?? [];
-    arr.push(n);
-    notifsByCohort.set(n.cohort_id, arr);
-  }
-
-  const enabledByCohort = new Map<string, Map<string, boolean>>();
-  for (const r of configRows ?? []) {
-    if (!enabledByCohort.has(r.cohort_id))
-      enabledByCohort.set(r.cohort_id, new Map());
-    enabledByCohort.get(r.cohort_id)!.set(r.template_code, r.enabled);
-  }
+  const { notifsByCohort, enabledByCohort } = await fetchDispatchInbox(supabase, cohortIds);
 
   const operatorIds = [
     ...new Set(
-      (notifs ?? [])
+      [...notifsByCohort.values()]
+        .flat()
         .map((n) => n.sent_by_operator_id)
         .filter((x): x is string => !!x)
     )
@@ -115,18 +88,34 @@ export default async function NotificationsInboxPage({ searchParams }: Props) {
         ns,
         enabledMap
       );
-      // 임박한 미발송 단계만 (overdue/due + upcoming 중 +maxDays 이내). 이른 발송일 순 정렬.
-      const stages = allStages
-        .filter((s) => isStageInInboxRange(s, maxDays))
+      // 같은 ideal_send_date 단계 그룹화 → 임박한 그룹만 → 이른 날짜순
+      const groups = groupStagesByDate(allStages)
+        .filter((g) =>
+          isStageInInboxRange(
+            // group은 stage 형태가 아니라 변환. state/d_offset/ideal_send_date 활용
+            {
+              state: g.state,
+              d_offset_from_today: g.d_offset_from_today,
+              ideal_send_date: g.ideal_send_date,
+              // 나머지 필드는 isStageInInboxRange에서 안 씀
+              template: g.templates[0],
+              label: '',
+              hint: '',
+              triggerColumn: 'started_at',
+              latest_notification: null,
+              recipientFilter: g.recipientFilter
+            },
+            maxDays
+          )
+        )
         .toSorted(sortByIdealDate);
-      return { cohort: c, stages };
+      return { cohort: c, groups };
     })
-    .filter((x) => x.stages.length > 0)
-    // cohort 자체도 가장 이른 미발송 단계 날짜순
+    .filter((x) => x.groups.length > 0)
     .toSorted((a, b) =>
       sortByIdealDate(
-        a.stages[0] ?? { ideal_send_date: null },
-        b.stages[0] ?? { ideal_send_date: null }
+        a.groups[0] ?? { ideal_send_date: null },
+        b.groups[0] ?? { ideal_send_date: null }
       )
     );
 
@@ -143,10 +132,9 @@ export default async function NotificationsInboxPage({ searchParams }: Props) {
           </div>
         )}
 
-        {cohortsWithStages.map(({ cohort, stages }) => {
-          // 가장 가까운 due/overdue 단계를 헤더 D-day로
-          const headDue = stages.find(
-            (s) => s.state === 'due' || s.state === 'overdue'
+        {cohortsWithStages.map(({ cohort, groups }) => {
+          const headDue = groups.find(
+            (g) => g.state === 'due' || g.state === 'overdue'
           );
           const dOffset = headDue?.d_offset_from_today ?? null;
           return (
@@ -177,11 +165,11 @@ export default async function NotificationsInboxPage({ searchParams }: Props) {
               </CardHeader>
               <CardContent>
                 <div className='space-y-2'>
-                  {stages.map((st) => (
+                  {groups.map((g) => (
                     <StageRow
-                      key={st.template}
+                      key={g.templates.join(',')}
                       cohortId={cohort.id}
-                      stage={st}
+                      group={g}
                       operatorNameById={operatorNameById}
                     />
                   ))}

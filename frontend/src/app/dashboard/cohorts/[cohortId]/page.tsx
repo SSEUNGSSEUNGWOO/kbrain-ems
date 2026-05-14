@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Icons } from '@/components/icons';
 import { computeCohortStage, STAGE_DOMAINS } from '@/lib/cohort-stage';
+import { todayKst } from '@/lib/format';
 import { RecruitingCard } from './_components/recruiting-card';
 import { RoundSelector, type RoundOption } from './_components/round-selector';
 import { ScheduleEditSheet } from './_components/schedule-edit-sheet';
@@ -144,7 +145,7 @@ export default async function CohortOverviewPage({
     allRecords = records ?? [];
   }
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = todayKst();
   const totalSessions = sessionRows.length;
   const doneSessions = sessionRows.filter((s) => s.session_date < today).length;
   const nextSession = sessionRows.find((s) => s.session_date >= today);
