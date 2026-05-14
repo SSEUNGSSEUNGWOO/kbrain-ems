@@ -1538,12 +1538,14 @@ export type Database = {
           recipient_type: string;
           recipient_id: string | null;
           channel: string;
+          channels: string[] | null;
           template_code: string | null;
           subject: string | null;
           body: string | null;
           status: string;
           scheduled_at: string | null;
           sent_at: string | null;
+          sent_by_operator_id: string | null;
           error_message: string | null;
           external_message_id: string | null;
           created_at: string;
@@ -1555,12 +1557,14 @@ export type Database = {
           recipient_type: string;
           recipient_id?: string | null;
           channel: string;
+          channels?: string[] | null;
           template_code?: string | null;
           subject?: string | null;
           body?: string | null;
           status?: string;
           scheduled_at?: string | null;
           sent_at?: string | null;
+          sent_by_operator_id?: string | null;
           error_message?: string | null;
           external_message_id?: string | null;
           created_at?: string;
@@ -1572,12 +1576,14 @@ export type Database = {
           recipient_type?: string;
           recipient_id?: string | null;
           channel?: string;
+          channels?: string[] | null;
           template_code?: string | null;
           subject?: string | null;
           body?: string | null;
           status?: string;
           scheduled_at?: string | null;
           sent_at?: string | null;
+          sent_by_operator_id?: string | null;
           error_message?: string | null;
           external_message_id?: string | null;
           created_at?: string;
@@ -1586,6 +1592,47 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: 'notifications_cohort_id_fkey';
+            columns: ['cohort_id'];
+            referencedRelation: 'cohorts';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'notifications_sent_by_operator_id_fkey';
+            columns: ['sent_by_operator_id'];
+            referencedRelation: 'operators';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+
+      cohort_dispatch_config: {
+        Row: {
+          id: string;
+          cohort_id: string;
+          template_code: string;
+          enabled: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          cohort_id: string;
+          template_code: string;
+          enabled?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          cohort_id?: string;
+          template_code?: string;
+          enabled?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'cohort_dispatch_config_cohort_id_fkey';
             columns: ['cohort_id'];
             referencedRelation: 'cohorts';
             referencedColumns: ['id'];

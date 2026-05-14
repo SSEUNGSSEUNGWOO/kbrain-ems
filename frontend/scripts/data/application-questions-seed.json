@@ -405,7 +405,7 @@
             { "key": "①", "text": "ChatGPT" },
             { "key": "②", "text": "Claude" },
             { "key": "③", "text": "Ollama" },
-            { "key": "④", "text": "Gemini" }
+            { "key": "④", "text": "Node.js" }
           ],
           "correct_choice": "③"
         },
@@ -656,12 +656,12 @@
           "question_type": "single",
           "question_text": "공공기관에서 AI 시스템 구축 사업을 발주할 때, 외부 수행사에게 요구사항과 사업 개요 등을 명시하여 공식적으로 제안을 요청하는 문서를 무엇이라고 합니까?",
           "choices": [
-            { "key": "①", "text": "RFP (제안요청서)" },
-            { "key": "②", "text": "VPN" },
-            { "key": "③", "text": "FTP" },
-            { "key": "④", "text": "SMTP" }
+            { "key": "①", "text": "NDA (비밀유지계약서)" },
+            { "key": "②", "text": "SLA (서비스수준협약서)" },
+            { "key": "③", "text": "API (응용프로그램 인터페이스)" },
+            { "key": "④", "text": "RFP (제안요청서)" }
           ],
-          "correct_choice": "①"
+          "correct_choice": "④"
         },
         {
           "question_no": "5-5",

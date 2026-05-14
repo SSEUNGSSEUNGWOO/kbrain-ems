@@ -59,6 +59,7 @@ export default function AppSidebar() {
   const pathname = usePathname();
   const { isDeveloper } = useAuth();
   const [cohorts, setCohorts] = React.useState<Cohort[]>([]);
+  const [pendingDispatchCount, setPendingDispatchCount] = React.useState(0);
 
   const activeCohortId = pathname.match(/^\/dashboard\/cohorts\/([^/]+)/)?.[1] ?? null;
   const isInsideCohorts = pathname.startsWith('/dashboard/cohorts');
@@ -74,6 +75,13 @@ export default function AppSidebar() {
       .then((res) => res.json())
       .then((data) => setCohorts(data ?? []))
       .catch(() => setCohorts([]));
+  }, [pathname]);
+
+  React.useEffect(() => {
+    fetch('/api/notifications-pending-count')
+      .then((res) => res.json())
+      .then((data) => setPendingDispatchCount(data?.count ?? 0))
+      .catch(() => setPendingDispatchCount(0));
   }, [pathname]);
 
   // 카테고리별로 그룹화
@@ -151,6 +159,25 @@ export default function AppSidebar() {
                 <Link href='/dashboard/calendar'>
                   <Icons.calendar className='text-pink-600 dark:text-pink-400' />
                   <span>캘린더</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+
+            {/* 알림 발송 inbox — 글로벌 */}
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                tooltip='알림 발송'
+                isActive={pathname === '/dashboard/notifications'}
+              >
+                <Link href='/dashboard/notifications'>
+                  <Icons.notification className='text-yellow-600 dark:text-yellow-400' />
+                  <span>알림 발송 (beta)</span>
+                  {pendingDispatchCount > 0 && (
+                    <span className='ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white group-data-[collapsible=icon]:absolute group-data-[collapsible=icon]:right-1 group-data-[collapsible=icon]:top-1 group-data-[collapsible=icon]:ml-0 group-data-[collapsible=icon]:h-3.5 group-data-[collapsible=icon]:min-w-3.5'>
+                      {pendingDispatchCount}
+                    </span>
+                  )}
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
