@@ -1,0 +1,33 @@
+[project]
+name = "doc-audit"
+version = "0.1.0"
+description = "NIA·발주처 산출물(.hwp) 6종 오류 자동 검수 CLI"
+requires-python = ">=3.12"
+dependencies = [
+    "pyhwpx>=0.44.0",
+    "openai>=1.0.0",
+    "python-dotenv>=1.0.0",
+    "pydantic>=2.0.0",
+    "typer>=0.12.0",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.6.0",
+    "pytest>=8.0.0",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["doc_audit"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
