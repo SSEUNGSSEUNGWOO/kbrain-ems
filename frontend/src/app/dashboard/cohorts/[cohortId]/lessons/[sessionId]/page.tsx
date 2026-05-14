@@ -1,6 +1,7 @@
 import PageContainer from '@/components/layout/page-container';
 import { Button } from '@/components/ui/button';
 import { createAdminClient } from '@/lib/supabase/server';
+import { assistantNeedFor } from '@/lib/assistant-schedule';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
@@ -75,12 +76,24 @@ export default async function LessonDetailPage({ params }: Props) {
       .from('assignments')
       .select('id, title, description, due_date')
       .eq('session_id', sessionId),
-    supabase.from('cohorts').select('id, name').eq('id', cohortId).maybeSingle(),
+    supabase.from('cohorts').select('id, name, delivery_method').eq('id', cohortId).maybeSingle(),
     supabase
       .from('students')
       .select('id', { count: 'exact', head: true })
       .eq('cohort_id', cohortId)
   ]);
+
+  // 보조강사 산출 — cohort 내 sessions 순번 필요
+  const { data: cohortSessions } = await supabase
+    .from('sessions')
+    .select('id, session_date')
+    .eq('cohort_id', cohortId)
+    .order('session_date');
+  const assistantNeed = assistantNeedFor(
+    cohortRes.data?.delivery_method ?? null,
+    cohortSessions ?? [],
+    sessionId
+  );
 
   // 출결 분포
   const att = attRes.data ?? [];
@@ -285,6 +298,30 @@ export default async function LessonDetailPage({ params }: Props) {
             </div>
           </section>
         )}
+
+        {/* 보조강사 필요 시간 */}
+        <section
+          className={`rounded-xl border px-6 py-5 shadow-sm ${
+            assistantNeed.needed
+              ? 'border-emerald-200 bg-emerald-50/40 dark:border-emerald-900/30 dark:bg-emerald-900/10'
+              : 'border-slate-200 bg-slate-50/40 dark:border-slate-800 dark:bg-slate-900/20'
+          }`}
+        >
+          <h2 className='mb-2 text-sm font-bold'>보조강사</h2>
+          <div className='flex items-center gap-3'>
+            <span
+              className={`rounded-md px-2 py-1 text-xs font-bold ${
+                assistantNeed.needed
+                  ? 'bg-emerald-600 text-white'
+                  : 'bg-slate-300 text-slate-700 dark:bg-slate-700 dark:text-slate-200'
+              }`}
+            >
+              {assistantNeed.needed ? '필요' : '불필요'}
+            </span>
+            <span className='text-base font-bold tabular-nums'>{assistantNeed.timeRange}</span>
+            <span className='text-xs text-muted-foreground'>{assistantNeed.reason}</span>
+          </div>
+        </section>
 
         {/* 강사 카드 */}
         {instructorList.length > 0 && (

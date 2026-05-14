@@ -25,6 +25,8 @@ type SessionRow = {
   session_end_date: string | null;
   title: string | null;
   instructors: string[];
+  assistant_needed: boolean;
+  assistant_time_range: string;
 };
 
 type Round = {
@@ -290,6 +292,9 @@ export function Calendar({ year, month, cohorts, sessions, rounds }: Props) {
     for (const s of sessions) {
       const cohortName = cohortNameById.get(s.cohort_id) ?? '';
       const instr = s.instructors.join('·');
+      const assistantLabel = s.assistant_needed
+        ? `보조강사 ${s.assistant_time_range}`
+        : '';
       out.push({
         key: `session::${s.id}`,
         start: s.session_date,
@@ -297,12 +302,10 @@ export function Calendar({ year, month, cohorts, sessions, rounds }: Props) {
         kind: 'session',
         cohortId: s.cohort_id,
         cohortName,
-        label: cohortName,
-        tooltip: [
-          `[수업] ${cohortName}`,
-          s.title ?? '',
-          instr
-        ].filter(Boolean).join(' · '),
+        label: s.assistant_needed ? `🎯 ${cohortName}` : cohortName,
+        tooltip: [`[수업] ${cohortName}`, s.title ?? '', instr, assistantLabel]
+          .filter(Boolean)
+          .join(' · '),
         href: `/dashboard/cohorts/${s.cohort_id}/lessons/${s.id}`
       });
     }
@@ -444,23 +447,42 @@ export function Calendar({ year, month, cohorts, sessions, rounds }: Props) {
           const [, m, day] = date.split('-').map(Number);
           const inMonth = m === month;
           const isToday = date === today;
+          const isPast = date < today;
           const holiday = HOLIDAYS[date];
           const weekIdx = Math.floor(idx / 7);
           const lanes = laneGrid.get(date) ?? [];
           const weekMaxLanes = maxLanesPerWeek[weekIdx] ?? 0;
 
+          // 지난 셀: 살짝 회색 + 텍스트는 자식에서 dim 처리
+          const cellTone = !inMonth
+            ? 'opacity-40 bg-card'
+            : isPast
+              ? holiday
+                ? 'bg-red-50/50 dark:bg-red-950/20'
+                : 'bg-muted/40 dark:bg-muted/20'
+              : holiday
+                ? 'bg-red-50 dark:bg-red-950/30'
+                : 'bg-card';
+
+          const todayBg = isToday
+            ? 'bg-blue-50/80 ring-2 ring-blue-500 ring-inset dark:bg-blue-950/40 dark:ring-blue-400'
+            : '';
+
           return (
             <div
               key={date}
-              className={`min-h-[128px] p-1.5 text-xs ${
-                holiday ? 'bg-red-50 dark:bg-red-950/30' : 'bg-card'
-              } ${inMonth ? '' : 'opacity-40'}`}
+              className={`relative min-h-[128px] p-1.5 text-xs ${cellTone} ${todayBg} ${isPast && inMonth ? 'text-muted-foreground' : ''}`}
             >
+              {isToday && (
+                <span className='absolute -top-px right-1.5 rounded-b-md bg-blue-600 px-1.5 py-0.5 text-[9px] font-bold tracking-wider text-white shadow-sm dark:bg-blue-500'>
+                  TODAY
+                </span>
+              )}
               <div className='mb-1 flex items-center gap-1.5'>
                 <div
-                  className={`inline-flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-bold tabular-nums ${
+                  className={`text-[13px] font-bold tabular-nums ${
                     isToday
-                      ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/30'
+                      ? 'text-blue-700 dark:text-blue-300'
                       : holiday
                         ? 'text-red-600 dark:text-red-400'
                         : 'text-foreground'

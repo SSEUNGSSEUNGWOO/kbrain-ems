@@ -9,6 +9,8 @@ import {
 } from '@/components/ui/table';
 import { createAdminClient } from '@/lib/supabase/server';
 import { compareOperators } from '@/lib/operator-rank';
+import { computeAssistantSchedule } from '@/lib/assistant-schedule';
+import { todayKst } from '@/lib/format';
 import Link from 'next/link';
 import { EditAuxSheet } from './_components/edit-aux-sheet';
 import { SearchInput } from './_components/search-input';
@@ -83,7 +85,24 @@ export default async function OperationsPage({ searchParams }: Props) {
   };
   const allData = (rows ?? []) as unknown as Row[];
 
-  const today = new Date().toISOString().slice(0, 10);
+  // 보조강사 필요 시간 산출 — cohort 단위로 sessions 묶어 회차 순번 적용
+  const sessionsByCohort = new Map<string, Row[]>();
+  for (const s of allData) {
+    const arr = sessionsByCohort.get(s.cohort_id) ?? [];
+    arr.push(s);
+    sessionsByCohort.set(s.cohort_id, arr);
+  }
+  const assistantBySession = new Map<string, { needed: boolean; timeRange: string }>();
+  for (const [cohortId, cohortSessions] of sessionsByCohort) {
+    const delivery = cohortSessions[0]?.cohorts?.delivery_method ?? null;
+    const map = computeAssistantSchedule(delivery, cohortSessions);
+    for (const [id, v] of map) {
+      assistantBySession.set(id, { needed: v.needed, timeRange: v.timeRange });
+    }
+    void cohortId;
+  }
+
+  const today = todayKst();
 
   const data = allData.filter((s) => {
     if (catFilter !== null && s.cohorts?.category !== catFilter) return false;
@@ -250,10 +269,12 @@ export default async function OperationsPage({ searchParams }: Props) {
               const subInstructors = subList.map((i) => i.name).join(', ');
               const operators = opList.map((o) => o.name).join(', ');
 
+              const assistant = assistantBySession.get(s.id) ?? { needed: false, timeRange: '—' };
+              const subRequired = assistant.needed;
               const status: 'green' | 'yellow' | 'red' =
                 mainList.length === 0 || opList.length === 0
                   ? 'red'
-                  : subList.length === 0
+                  : subRequired && subList.length === 0
                     ? 'yellow'
                     : 'green';
               const statusDot =
@@ -266,7 +287,7 @@ export default async function OperationsPage({ searchParams }: Props) {
                 status === 'green'
                   ? '배정 완료'
                   : status === 'yellow'
-                    ? '보조강사 미배정'
+                    ? `보조강사 미배정 (필요 시간 ${assistant.timeRange})`
                     : '강사 또는 운영자 미배정';
 
               const dateLabel =
@@ -322,8 +343,17 @@ export default async function OperationsPage({ searchParams }: Props) {
                     {dateLabel}
                   </TableCell>
                   <TableCell className='align-middle text-sm'>{mainInstructors || '—'}</TableCell>
-                  <TableCell className='align-middle text-sm text-muted-foreground'>
-                    {subInstructors || '—'}
+                  <TableCell className='align-middle text-sm'>
+                    {subRequired ? (
+                      <div className='flex flex-col gap-0.5'>
+                        <span className='text-muted-foreground'>{subInstructors || '미배정'}</span>
+                        <span className='text-[10px] font-mono text-amber-700 dark:text-amber-400'>
+                          {assistant.timeRange}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className='text-muted-foreground/60 text-xs'>불필요</span>
+                    )}
                   </TableCell>
                   <TableCell className='align-middle text-sm text-muted-foreground'>
                     {operators || '—'}
