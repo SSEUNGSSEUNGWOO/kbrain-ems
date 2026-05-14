@@ -113,36 +113,23 @@ export default async function StudentsPage({
       .returns<StudentRow[]>();
     if (studentError) throw new Error(studentError.message);
 
-    // Total sessions count for this cohort
+    // Per-student attended session count + total sessions — cohort_attendance_summary RPC로 SQL 측 집계
+    type AttSummary = { student_id: string; present_count: number; total_count: number };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: attSummary } = await (supabase as any).rpc('cohort_attendance_summary', {
+      p_cohort_id: cohortId
+    });
+    const attendanceMap = new Map<string, number>();
+    for (const r of (attSummary ?? []) as AttSummary[]) {
+      attendanceMap.set(r.student_id, Number(r.present_count));
+    }
+
+    // totalSessions는 cohort의 모든 세션 (학생 무관) — 별도 count head
     const { count: totalSessions, error: sessionCountError } = await supabase
       .from('sessions')
       .select('id', { count: 'exact', head: true })
       .eq('cohort_id', cohortId);
     if (sessionCountError) throw new Error(sessionCountError.message);
-
-    // Per-student attended session count (출석 인정 status만)
-    // Drizzle의 inner join + group by 대체: cohort 세션 id를 먼저 가져와서 in 필터
-    const { data: cohortSessions } = await supabase
-      .from('sessions')
-      .select('id')
-      .eq('cohort_id', cohortId);
-    const cohortSessionIds = (cohortSessions ?? []).map((s) => s.id);
-
-    let attendanceRows: { student_id: string; status: string }[] = [];
-    if (cohortSessionIds.length > 0) {
-      const { data: attData, error: attError } = await supabase
-        .from('attendance_records')
-        .select('student_id, status')
-        .in('session_id', cohortSessionIds)
-        .not('status', 'in', '(absent,none)');
-      if (attError) throw new Error(attError.message);
-      attendanceRows = attData ?? [];
-    }
-
-    const attendanceMap = new Map<string, number>();
-    for (const r of attendanceRows) {
-      attendanceMap.set(r.student_id, (attendanceMap.get(r.student_id) ?? 0) + 1);
-    }
 
     const mapped = (studentRows ?? []).map((r) => ({
       id: r.id,

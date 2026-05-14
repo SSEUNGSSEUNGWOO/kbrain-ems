@@ -8,18 +8,17 @@ import { Textarea } from '@/components/ui/textarea';
 import { Icons } from '@/components/icons';
 import { toast } from 'sonner';
 import {
-  markStageSent,
-  unmarkStageSent,
+  markStagesSent,
+  unmarkStagesSent,
   type DispatchChannel
 } from '../_actions';
 import type { DispatchTemplate } from '@/lib/dispatch-stages';
 
 type Props = {
   cohortId: string;
-  template: DispatchTemplate;
+  templates: DispatchTemplate[];
   stageLabel: string;
-  // 이미 발송된 row가 있으면 취소용 id
-  sentNotificationId?: string | null;
+  sentNotificationIds: string[]; // 비어 있으면 미발송 — 발송 처리 UI. 있으면 모두 취소.
 };
 
 const CHANNEL_OPTIONS: { value: DispatchChannel; label: string }[] = [
@@ -27,7 +26,12 @@ const CHANNEL_OPTIONS: { value: DispatchChannel; label: string }[] = [
   { value: 'sms', label: 'SMS' }
 ];
 
-export function StageActionPopover({ cohortId, template, stageLabel, sentNotificationId }: Props) {
+export function StageActionPopover({
+  cohortId,
+  templates,
+  stageLabel,
+  sentNotificationIds
+}: Props) {
   const [open, setOpen] = useState(false);
   const [channels, setChannels] = useState<DispatchChannel[]>(['email', 'sms']);
   const [note, setNote] = useState('');
@@ -36,7 +40,7 @@ export function StageActionPopover({ cohortId, template, stageLabel, sentNotific
   const toggle = (c: DispatchChannel) =>
     setChannels((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]));
 
-  if (sentNotificationId) {
+  if (sentNotificationIds.length > 0) {
     return (
       <Button
         variant='ghost'
@@ -44,7 +48,7 @@ export function StageActionPopover({ cohortId, template, stageLabel, sentNotific
         disabled={pending}
         onClick={() =>
           start(async () => {
-            const res = await unmarkStageSent(sentNotificationId, cohortId);
+            const res = await unmarkStagesSent(sentNotificationIds, cohortId);
             if (!res.ok) toast.error(res.error);
             else toast.success(`${stageLabel} 발송 기록을 취소했습니다`);
           })
@@ -66,7 +70,10 @@ export function StageActionPopover({ cohortId, template, stageLabel, sentNotific
         <div className='space-y-3'>
           <div>
             <div className='text-sm font-medium'>{stageLabel}</div>
-            <div className='text-muted-foreground text-xs'>발송한 채널과 비고를 기록합니다.</div>
+            <div className='text-muted-foreground text-xs'>
+              발송한 채널과 비고를 기록합니다.
+              {templates.length > 1 && ` (${templates.length}개 단계 동시 처리)`}
+            </div>
           </div>
           <div className='space-y-2'>
             {CHANNEL_OPTIONS.map((c) => (
@@ -94,9 +101,9 @@ export function StageActionPopover({ cohortId, template, stageLabel, sentNotific
               disabled={pending || channels.length === 0}
               onClick={() =>
                 start(async () => {
-                  const res = await markStageSent({
+                  const res = await markStagesSent({
                     cohortId,
-                    template,
+                    templates,
                     channels,
                     note: note.trim() || undefined
                   });

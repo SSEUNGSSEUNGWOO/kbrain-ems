@@ -42,6 +42,9 @@ export type StageDef = {
   offsetDays: number;          // 트리거 컬럼 기준 (음수=이전, 0=당일, 양수=이후)
   hint: string;
   recipientFilter: DispatchRecipientFilter;
+  notBeforeColumn?: DispatchTriggerColumn;  // ideal_send_date가 이 컬럼보다 빠를 수 없음 (짧은 과정 충돌 방지)
+  mergeGroup?: string;  // 같은 mergeGroup + 같은 ideal_send_date면 통합 발송 (예: 합격자 발표·D-7 입과 안내)
+  skipOnSingleDay?: boolean;  // started_at === ended_at(1일 과정)이면 자동 비활성
 };
 
 export const STAGE_CATALOG: ReadonlyArray<StageDef> = [
@@ -51,7 +54,8 @@ export const STAGE_CATALOG: ReadonlyArray<StageDef> = [
     triggerColumn: 'decided_at',
     offsetDays: 0,
     hint: '선발 확정자에게 합격·입과 자격 안내',
-    recipientFilter: 'selected_applicants'
+    recipientFilter: 'selected_applicants',
+    mergeGroup: 'pass_orientation'
   },
   {
     code: 'recruit_fail',
@@ -67,7 +71,9 @@ export const STAGE_CATALOG: ReadonlyArray<StageDef> = [
     triggerColumn: 'started_at',
     offsetDays: -7,
     hint: '과정 개요·일정·사전이수 안내·준비물',
-    recipientFilter: 'all_students'
+    recipientFilter: 'all_students',
+    notBeforeColumn: 'decided_at', // 합격자 발표보다 빠르면 발표일로 자동 정렬
+    mergeGroup: 'pass_orientation'
   },
   {
     code: 'd3_prereq_check',
@@ -99,7 +105,8 @@ export const STAGE_CATALOG: ReadonlyArray<StageDef> = [
     triggerColumn: 'ended_at',
     offsetDays: -1,
     hint: '종강식·수료 평가·설문 안내',
-    recipientFilter: 'all_students'
+    recipientFilter: 'all_students',
+    skipOnSingleDay: true
   },
   {
     code: 'completion_certificate',
@@ -187,9 +194,19 @@ export function computeDispatchStages(
     byTemplate.set(n.template_code, arr);
   }
 
-  return STAGE_CATALOG.filter((t) => enabledMap?.get(t.code) !== false).map((t) => {
+  const startedDate = extractDate(cohort.started_at);
+  const endedDate = extractDate(cohort.ended_at);
+  const isSingleDay = !!(startedDate && endedDate && startedDate === endedDate);
+
+  return STAGE_CATALOG.filter((t) => enabledMap?.get(t.code) !== false)
+    .filter((t) => !(isSingleDay && t.skipOnSingleDay))
+    .map((t) => {
     const trigger = extractDate(cohort[t.triggerColumn]);
-    const idealDate = trigger ? addDays(trigger, t.offsetDays) : null;
+    let idealDate = trigger ? addDays(trigger, t.offsetDays) : null;
+    if (idealDate && t.notBeforeColumn) {
+      const floor = extractDate(cohort[t.notBeforeColumn]);
+      if (floor && idealDate < floor) idealDate = floor;
+    }
     const offsetFromToday = idealDate ? dayDiff(today, idealDate) : null;
 
     const matching = byTemplate.get(t.code) ?? [];
@@ -225,14 +242,18 @@ export function computeDispatchStages(
 /**
  * 오늘이 cohort의 알림 범위 안인지.
  * 트리거 컬럼이 셋 다 비면 false.
- * 어느 하나라도 (오늘 -14d ~ +30d) 사이면 true.
+ * 어느 하나라도 (오늘 -30d ~ +maxFutureDays) 사이면 true.
  */
-export function isInDispatchWindow(cohort: CohortDates, today: string): boolean {
+export function isInDispatchWindow(
+  cohort: CohortDates,
+  today: string,
+  maxFutureDays = 14
+): boolean {
   for (const col of ['decided_at', 'started_at', 'ended_at'] as const) {
     const d = extractDate(cohort[col]);
     if (!d) continue;
     const offset = dayDiff(today, d);
-    if (offset >= -30 && offset <= 14) return true;
+    if (offset >= -30 && offset <= maxFutureDays) return true;
   }
   return false;
 }
@@ -255,6 +276,76 @@ export const stateLabel = (s: DispatchStageState): string => {
 /** 오늘 발송 처리 필요한 단계인지 (사이드바 배지 카운트). */
 export const isPendingActionable = (state: DispatchStageState): boolean =>
   state === 'due' || state === 'overdue';
+
+/**
+ * 같은 ideal_send_date를 가진 단계들을 한 그룹으로 묶기.
+ * 단계 통합 발송용 (예: 짧은 과정에서 합격자 발표 + D-7이 같은 날).
+ */
+export type DispatchStageGroup = {
+  templates: DispatchTemplate[];
+  labels: string[];
+  hint: string;
+  ideal_send_date: string | null;
+  d_offset_from_today: number | null;
+  state: DispatchStageState; // 가장 우선 상태 (overdue > due > upcoming > sent)
+  latest_notifications: NotificationLite[]; // 그룹 내 sent된 row만 (개별 취소용)
+  recipientFilter: DispatchRecipientFilter; // 그룹 첫 단계 기준 (보통 합격자 발표가 먼저)
+};
+
+const stagePriority = (s: DispatchStageState): number => {
+  switch (s) {
+    case 'overdue':
+      return 0;
+    case 'due':
+      return 1;
+    case 'upcoming':
+      return 2;
+    case 'no_trigger':
+      return 3;
+    case 'sent':
+      return 4;
+  }
+};
+
+export function groupStagesByDate(stages: DispatchStage[]): DispatchStageGroup[] {
+  // mergeGroup이 명시된 단계만 통합. 같은 mergeGroup + 같은 ideal_send_date면 한 row.
+  // mergeGroup 없는 단계는 항상 단독.
+  const catalogByTemplate = new Map(STAGE_CATALOG.map((c) => [c.code, c]));
+  const buckets = new Map<string, DispatchStage[]>();
+  for (const s of stages) {
+    const def = catalogByTemplate.get(s.template);
+    const mg = def?.mergeGroup;
+    const key = mg
+      ? `mg:${mg}|${s.ideal_send_date ?? '__null__'}`
+      : `solo:${s.template}`;
+    const arr = buckets.get(key) ?? [];
+    arr.push(s);
+    buckets.set(key, arr);
+  }
+  return Array.from(buckets.values()).map((arr) => {
+    // 그룹 상태: 가장 우선순위 높은 단계의 state 사용 + sent 단계 분리
+    const sentCount = arr.filter((s) => s.state === 'sent').length;
+    const allSent = sentCount === arr.length;
+    const groupState: DispatchStageState = allSent
+      ? 'sent'
+      : (arr
+          .filter((s) => s.state !== 'sent')
+          .sort((a, b) => stagePriority(a.state) - stagePriority(b.state))[0]?.state ??
+        arr[0].state);
+    return {
+      templates: arr.map((s) => s.template),
+      labels: arr.map((s) => s.label),
+      hint: arr.map((s) => s.hint).join(' · '),
+      ideal_send_date: arr[0].ideal_send_date,
+      d_offset_from_today: arr[0].d_offset_from_today,
+      state: groupState,
+      latest_notifications: arr
+        .map((s) => (s.state === 'sent' ? s.latest_notification : null))
+        .filter((x): x is NotificationLite => !!x),
+      recipientFilter: arr[0].recipientFilter
+    };
+  });
+}
 
 /**
  * inbox에 표시할 만큼 임박한 단계인지.

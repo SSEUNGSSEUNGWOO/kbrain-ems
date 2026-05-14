@@ -17,7 +17,10 @@ export default async function ApplicantsPage({ searchParams }: Props) {
     const pageSize = APPLICANTS_PAGE_SIZE;
     const from = (page - 1) * pageSize;
     const to = from + pageSize - 1;
-    const search = q.trim();
+    // PostgREST or 필터에서 ,/)/%/(/\\ 가 특수문자로 해석되므로 검색어에서 제거.
+    // % 는 와일드카드라 사용자가 그대로 입력해도 검색 의도 표현 X.
+    const sanitizeSearch = (s: string) => s.replace(/[%,()\\]/g, ' ').replace(/\s+/g, ' ').trim();
+    const search = sanitizeSearch(q.trim());
     const categoryFilter = (category || null) as OrganizationCategory | null;
 
     type ApplicantRow = {

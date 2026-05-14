@@ -10,6 +10,7 @@ import {
   type OrganizationCategory
 } from '@/lib/organization-category';
 import { computeCohortStage } from '@/lib/cohort-stage';
+import { todayKst } from '@/lib/format';
 import { CategoryPieChart } from './_components/category-pie-chart';
 import { RecruitingCohortsCard } from './_components/recruiting-cohorts-card';
 import {
@@ -47,7 +48,7 @@ function formatShortDate(dateStr: string): string {
 }
 
 export default async function OverviewPage() {
-  const today = new Date().toISOString().split('T')[0];
+  const today = todayKst();
   const supabase = createAdminClient();
 
   // Fetch all cohorts (incl. recruiting metadata)
@@ -263,25 +264,26 @@ export default async function OverviewPage() {
     color: COHORT_COLORS[i % COHORT_COLORS.length]
   }));
 
+  // (cohortId, sessionDate) → { total, present } 누적 Map을 한 번만 빌드 — O(sessions).
+  // 이후 date×cohort lookup만 → O(dates × cohorts). 삼중 루프 → 이중으로 감소.
   const attendanceDateSet = new Set<string>();
+  const attendanceByCohortDate = new Map<string, { total: number; present: number }>();
   for (const s of allSessions) {
-    if (attendanceMap.has(s.id)) attendanceDateSet.add(s.sessionDate);
+    const att = attendanceMap.get(s.id);
+    if (!att) continue;
+    attendanceDateSet.add(s.sessionDate);
+    const key = `${s.cohortId}|${s.sessionDate}`;
+    const cur = attendanceByCohortDate.get(key) ?? { total: 0, present: 0 };
+    cur.total += att.total;
+    cur.present += att.present;
+    attendanceByCohortDate.set(key, cur);
   }
   const attendanceDates = [...attendanceDateSet].toSorted();
   const attendanceTrendData: ChartPoint[] = attendanceDates.map((date) => {
     const row: ChartPoint = { date };
     for (const c of allCohorts) {
-      let total = 0;
-      let present = 0;
-      for (const s of allSessions) {
-        if (s.cohortId !== c.id || s.sessionDate !== date) continue;
-        const att = attendanceMap.get(s.id);
-        if (att) {
-          total += att.total;
-          present += att.present;
-        }
-      }
-      row[c.id] = total > 0 ? Math.round((present / total) * 100) : null;
+      const agg = attendanceByCohortDate.get(`${c.id}|${date}`);
+      row[c.id] = agg && agg.total > 0 ? Math.round((agg.present / agg.total) * 100) : null;
     }
     return row;
   });

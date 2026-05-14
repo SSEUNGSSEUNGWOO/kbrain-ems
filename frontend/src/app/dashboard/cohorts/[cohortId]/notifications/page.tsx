@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { notFound } from 'next/navigation';
 import {
   computeDispatchStages,
+  groupStagesByDate,
   STAGE_CATALOG,
   type NotificationLite
 } from '@/lib/dispatch-stages';
@@ -103,17 +104,16 @@ export default async function CohortNotificationsPage({ params }: Props) {
     enabledMap
   );
 
-  // 이른 발송일 순 정렬. 발송 완료 단계는 인보스에서 숨김 (취소가 필요하면 발송 로그 카드에서 확인).
-  const stages = allStages
-    .filter((s) => s.state !== 'sent')
+  // 같은 ideal_send_date 단계 그룹화 → sent 그룹 제외 → 이른 날짜순
+  const groups = groupStagesByDate(allStages)
+    .filter((g) => g.state !== 'sent')
     .toSorted((a, b) => {
       const av = a.ideal_send_date ?? '9999-12-31';
       const bv = b.ideal_send_date ?? '9999-12-31';
       return av.localeCompare(bv);
     });
 
-  // 헤더 D-day: 가장 가까운 due/overdue
-  const headDue = stages.find((s) => s.state === 'due' || s.state === 'overdue');
+  const headDue = groups.find((g) => g.state === 'due' || g.state === 'overdue');
   const dOffset = headDue?.d_offset_from_today ?? null;
 
   return (
@@ -146,18 +146,18 @@ export default async function CohortNotificationsPage({ params }: Props) {
             </div>
           </CardHeader>
           <CardContent>
-            {stages.length === 0 && (
+            {groups.length === 0 && (
               <div className='border-muted bg-muted/30 text-muted-foreground rounded-md border p-4 text-center text-sm'>
-                활성화된 단계가 없습니다. 위 카드에서 단계를 켜 주세요.
+                활성화된 단계가 없거나 모두 발송 완료 상태입니다.
               </div>
             )}
-            {stages.length > 0 && (
+            {groups.length > 0 && (
               <div className='space-y-2'>
-                {stages.map((st) => (
+                {groups.map((g) => (
                   <StageRow
-                    key={st.template}
+                    key={g.templates.join(',')}
                     cohortId={cohort.id}
-                    stage={st}
+                    group={g}
                     operatorNameById={operatorNameById}
                   />
                 ))}

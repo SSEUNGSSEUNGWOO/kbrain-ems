@@ -19,6 +19,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import * as React from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/lib/auth-context';
 import { Icons } from '../icons';
 import { STAGE_DOMAINS, STAGE_LABEL, type CohortStage } from '@/lib/cohort-stage';
@@ -58,8 +59,6 @@ const DOMAINS = [
 export default function AppSidebar() {
   const pathname = usePathname();
   const { isDeveloper } = useAuth();
-  const [cohorts, setCohorts] = React.useState<Cohort[]>([]);
-  const [pendingDispatchCount, setPendingDispatchCount] = React.useState(0);
 
   const activeCohortId = pathname.match(/^\/dashboard\/cohorts\/([^/]+)/)?.[1] ?? null;
   const isInsideCohorts = pathname.startsWith('/dashboard/cohorts');
@@ -70,19 +69,21 @@ export default function AppSidebar() {
     if (activeCohortId) setOpenCohortId(activeCohortId);
   }, [activeCohortId]);
 
-  React.useEffect(() => {
-    fetch('/api/cohorts-list')
-      .then((res) => res.json())
-      .then((data) => setCohorts(data ?? []))
-      .catch(() => setCohorts([]));
-  }, [pathname]);
+  // 페이지 전환마다 fetch 안 하도록 TanStack Query로 캐시. staleTime 안에선 메모리 사용.
+  const { data: cohorts = [] } = useQuery<Cohort[]>({
+    queryKey: ['sidebar', 'cohorts-list'],
+    queryFn: () => fetch('/api/cohorts-list').then((r) => r.json()),
+    staleTime: 60_000
+  });
 
-  React.useEffect(() => {
-    fetch('/api/notifications-pending-count')
-      .then((res) => res.json())
-      .then((data) => setPendingDispatchCount(data?.count ?? 0))
-      .catch(() => setPendingDispatchCount(0));
-  }, [pathname]);
+  const { data: pendingDispatchCount = 0 } = useQuery<number>({
+    queryKey: ['sidebar', 'notifications-pending-count'],
+    queryFn: () =>
+      fetch('/api/notifications-pending-count')
+        .then((r) => r.json())
+        .then((d) => d?.count ?? 0),
+    staleTime: 30_000
+  });
 
   // 카테고리별로 그룹화
   const cohortsByCategory = React.useMemo(() => {
