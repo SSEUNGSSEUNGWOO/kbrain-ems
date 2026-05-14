@@ -71,8 +71,8 @@ export function DispatchMaterialDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className='max-w-2xl'>
-        <DialogHeader>
+      <DialogContent className='flex max-h-[90vh] max-w-2xl flex-col gap-0 p-0'>
+        <DialogHeader className='border-b px-6 pt-6 pb-4'>
           <DialogTitle>{stageLabel} — 발송 자료</DialogTitle>
           <DialogDescription>
             {loading ? '대상자 명단을 불러오는 중...' : material
@@ -82,7 +82,7 @@ export function DispatchMaterialDialog({
         </DialogHeader>
 
         {material && (
-          <div className='space-y-4'>
+          <div className='flex-1 space-y-4 overflow-y-auto px-6 py-4'>
             <Section
               title={`이메일 (${emails.length}명, BCC 발송용)`}
               content={emails.join(', ')}
@@ -135,7 +135,7 @@ export function DispatchMaterialDialog({
           </div>
         )}
 
-        <DialogFooter>
+        <DialogFooter className='border-t px-6 py-4'>
           <Button variant='outline' onClick={() => onOpenChange(false)}>
             닫기
           </Button>
