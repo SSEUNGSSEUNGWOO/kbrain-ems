@@ -23,7 +23,7 @@ export default async function InstructorPoolPage({ searchParams }: Props) {
       .from('survey_questions')
       .select('id, instructor_id, survey_id')
       .not('instructor_id', 'is', null)
-      .eq('type', 'likert5')
+      .eq('type', 'likert10')
   ]);
 
   // 강사별 만족도 평균 — survey_questions(instructor_id) × survey_responses 응답 집계

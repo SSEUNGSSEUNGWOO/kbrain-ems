@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { buildDisplayNoMap, computeFollowUpMap } from '@/lib/survey-display';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { IndividualResponses, type QuestionInfo, type ResponseRow } from './_components/individual-responses';
 import { SectionAverageChart } from './_components/section-average-chart';
 
 type Props = {
@@ -14,17 +15,17 @@ type LikertStat = {
   count: number;
   sum: number;
   avg: number | null;
-  distribution: number[]; // index 0 = score 1, .. index 4 = score 5
+  distribution: number[]; // index 0 = score 1, .. index 9 = score 10
 };
 
 function emptyStat(): LikertStat {
-  return { count: 0, sum: 0, avg: null, distribution: [0, 0, 0, 0, 0] };
+  return { count: 0, sum: 0, avg: null, distribution: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] };
 }
 
 function pushScore(stat: LikertStat, v: number) {
   stat.count++;
   stat.sum += v;
-  if (v >= 1 && v <= 5) stat.distribution[v - 1]++;
+  if (v >= 1 && v <= 10) stat.distribution[v - 1]++;
 }
 
 function finalize(stat: LikertStat) {
@@ -48,9 +49,10 @@ export default async function SurveyResultsPage({ params }: Props) {
       .order('question_no', { ascending: true }),
     supabase
       .from('survey_responses')
-      .select('responses, submitted_at')
+      .select('id, responses, submitted_at')
       .eq('survey_id', surveyId)
-      .not('submitted_at', 'is', null),
+      .not('submitted_at', 'is', null)
+      .order('submitted_at', { ascending: true }),
     supabase.from('cohorts').select('id, name').eq('id', cohortId).maybeSingle()
   ]);
 
@@ -92,7 +94,7 @@ export default async function SurveyResultsPage({ params }: Props) {
 
   // recommend Q 찾기 — "추천" 키워드 + likert5 + section_no=1
   const recommendQ = questions.find(
-    (q) => q.type === 'likert5' && q.section_no === 1 && q.text.includes('추천')
+    (q) => q.type === 'likert10' && q.section_no === 1 && q.text.includes('추천')
   );
   const recommendStat = emptyStat();
 
@@ -111,7 +113,7 @@ export default async function SurveyResultsPage({ params }: Props) {
       const v = obj[q.id];
       if (v === undefined || v === null || v === '') continue;
 
-      if (q.type === 'likert5' && typeof v === 'number') {
+      if (q.type === 'likert10' && typeof v === 'number') {
         pushScore(overall, v);
 
         const sec = q.section_no ?? 0;
@@ -177,7 +179,7 @@ export default async function SurveyResultsPage({ params }: Props) {
   }));
 
   // 문항별 분포 (척도만) — 섹션별 그룹핑
-  const likertQuestions = questions.filter((q) => q.type === 'likert5');
+  const likertQuestions = questions.filter((q) => q.type === 'likert10');
   const sectionGroups = Array.from(
     likertQuestions.reduce(
       (acc, q) => {
@@ -210,6 +212,47 @@ export default async function SurveyResultsPage({ params }: Props) {
   // follow-up 정렬
   const followUpQuestions = questions.filter((q) => followUpMap.has(q.id));
 
+  // 개별 응답 — 정규화
+  const individualQuestions: QuestionInfo[] = questions
+    .filter((q) => q.type === 'likert10' || q.type === 'text')
+    .map((q) => ({
+      id: q.id,
+      displayNo: getDisplayNo(q.id),
+      type: q.type as 'likert10' | 'text',
+      text: q.text,
+      sectionNo: q.section_no ?? 0,
+      sectionTitle: q.section_title ?? `섹션 ${q.section_no ?? 0}`,
+      instructorName: q.instructor_id ? instructorNameById.get(q.instructor_id) ?? null : null,
+      isFollowUp: followUpMap.has(q.id)
+    }));
+
+  const individualRows: ResponseRow[] = submitted
+    .filter((r): r is typeof r & { submitted_at: string } => !!r.submitted_at)
+    .map((r, idx) => {
+      const obj = (r.responses ?? {}) as Record<string, unknown>;
+      const answers: Record<string, number | string> = {};
+      let sum = 0;
+      let cnt = 0;
+      for (const q of questions) {
+        const v = obj[q.id];
+        if (v === undefined || v === null || v === '') continue;
+        if (q.type === 'likert10' && typeof v === 'number') {
+          answers[q.id] = v;
+          sum += v;
+          cnt++;
+        } else if (q.type === 'text' && typeof v === 'string') {
+          answers[q.id] = v;
+        }
+      }
+      return {
+        no: idx + 1,
+        submittedAt: r.submitted_at,
+        avg: cnt > 0 ? sum / cnt : null,
+        likertCount: cnt,
+        answers
+      };
+    });
+
   return (
     <PageContainer
       pageTitle='설문 결과'
@@ -231,7 +274,7 @@ export default async function SurveyResultsPage({ params }: Props) {
           <Kpi
             label='전체 평균'
             value={overall.avg !== null ? overall.avg.toFixed(2) : '-'}
-            unit='/ 5'
+            unit='/ 10'
             sub={`척도 응답 ${overall.count}건`}
             accent='blue'
             valueClassName={scoreColor(overall.avg).text}
@@ -245,7 +288,7 @@ export default async function SurveyResultsPage({ params }: Props) {
           <Kpi
             label='추천 의향'
             value={recommendStat.avg !== null ? recommendStat.avg.toFixed(2) : '-'}
-            unit='/ 5'
+            unit='/ 10'
             sub={recommendQ ? `Q${getDisplayNo(recommendQ.id)}` : '추천 문항 없음'}
             accent='violet'
             valueClassName={scoreColor(recommendStat.avg).text}
@@ -262,7 +305,7 @@ export default async function SurveyResultsPage({ params }: Props) {
         {sectionChartData.length > 0 && (
           <section className='rounded-xl border bg-card px-6 py-5 shadow-sm'>
             <h2 className='mb-1 text-sm font-bold'>섹션별 평균</h2>
-            <p className='mb-4 text-xs text-muted-foreground'>각 섹션의 척도 문항 평균 (5점 만점)</p>
+            <p className='mb-4 text-xs text-muted-foreground'>각 섹션의 척도 문항 평균 (10점 만점)</p>
             <SectionAverageChart data={sectionChartData} />
           </section>
         )}
@@ -418,6 +461,9 @@ export default async function SurveyResultsPage({ params }: Props) {
             </div>
           </section>
         )}
+
+        {/* 개별 응답 */}
+        <IndividualResponses rows={individualRows} questions={individualQuestions} />
       </div>
     </PageContainer>
   );
@@ -456,13 +502,13 @@ function Kpi({
   );
 }
 
-// 평균 점수 범위별 색 (5점 만점 기준)
+// 평균 점수 범위별 색 (10점 만점 기준)
 function scoreColor(avg: number | null): { text: string; bar: string } {
   if (avg === null) return { text: 'text-muted-foreground', bar: 'bg-muted' };
-  if (avg >= 4.5) return { text: 'text-emerald-700 dark:text-emerald-300', bar: 'bg-emerald-500' };
-  if (avg >= 4.0) return { text: 'text-blue-700 dark:text-blue-300', bar: 'bg-blue-500' };
-  if (avg >= 3.5) return { text: 'text-amber-700 dark:text-amber-300', bar: 'bg-amber-500' };
-  if (avg >= 3.0) return { text: 'text-orange-700 dark:text-orange-300', bar: 'bg-orange-500' };
+  if (avg >= 9.0) return { text: 'text-emerald-700 dark:text-emerald-300', bar: 'bg-emerald-500' };
+  if (avg >= 8.0) return { text: 'text-blue-700 dark:text-blue-300', bar: 'bg-blue-500' };
+  if (avg >= 7.0) return { text: 'text-amber-700 dark:text-amber-300', bar: 'bg-amber-500' };
+  if (avg >= 6.0) return { text: 'text-orange-700 dark:text-orange-300', bar: 'bg-orange-500' };
   return { text: 'text-red-700 dark:text-red-300', bar: 'bg-red-500' };
 }
 
@@ -505,7 +551,7 @@ function QuestionStatBlock({
             const pct = (c / total) * 100;
             return (
               <div key={score} className='flex items-center gap-2 text-[11px]'>
-                <span className='w-3 shrink-0 text-right text-muted-foreground'>{score}</span>
+                <span className='w-5 shrink-0 text-right tabular-nums text-muted-foreground'>{score}</span>
                 <div className='relative h-2 flex-1 overflow-hidden rounded-full bg-muted'>
                   <div
                     className={`absolute inset-y-0 left-0 ${color.bar}`}
@@ -544,7 +590,7 @@ function InstructorBlock({
       </div>
       <div className={`mt-1 text-2xl font-bold tabular-nums ${color.text}`}>
         {avg !== null ? avg.toFixed(2) : '-'}
-        <span className='ml-1 text-xs font-normal text-muted-foreground'>/ 5</span>
+        <span className='ml-1 text-xs font-normal text-muted-foreground'>/ 10</span>
       </div>
       <div className='mt-3 space-y-1'>
         {distribution
@@ -554,7 +600,7 @@ function InstructorBlock({
             const pct = (count / total) * 100;
             return (
               <div key={score} className='flex items-center gap-2 text-[11px]'>
-                <span className='w-3 shrink-0 text-right text-muted-foreground'>{score}</span>
+                <span className='w-5 shrink-0 text-right tabular-nums text-muted-foreground'>{score}</span>
                 <div className='relative h-2 flex-1 overflow-hidden rounded-full bg-muted'>
                   <div
                     className={`absolute inset-y-0 left-0 ${color.bar}`}

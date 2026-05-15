@@ -58,7 +58,7 @@ export default async function InstructorDetailPage({ params }: Props) {
       .from('survey_questions')
       .select('id, survey_id, text, surveys(id, title, cohort_id)')
       .eq('instructor_id', instructorId)
-      .eq('type', 'likert5')
+      .eq('type', 'likert10')
       .returns<QuestionWithSurvey[]>()
   ]);
 
@@ -205,7 +205,7 @@ function InstructorHeader({
           <span className='text-muted-foreground text-xs'>평균 만족도</span>
           <span className='text-foreground text-3xl leading-tight font-semibold tabular-nums'>
             {avgScore !== null ? avgScore.toFixed(2) : '—'}
-            <span className='text-muted-foreground ml-1 text-base font-normal'>/ 5</span>
+            <span className='text-muted-foreground ml-1 text-base font-normal'>/ 10</span>
           </span>
           <span className='text-muted-foreground text-xs'>
             응답 {responseCount}건
@@ -250,7 +250,7 @@ function CohortAvgSection({
                 <div className='flex items-center gap-2'>
                   <span className='font-semibold tabular-nums'>{avg.toFixed(2)}</span>
                   <span className='text-muted-foreground text-xs'>
-                    / 5 · {stat.count}건
+                    / 10 · {stat.count}건
                   </span>
                 </div>
               </div>

@@ -20,6 +20,17 @@ type Props = {
   scaleQuestionCount: number;
 };
 
+// SSR/CSR locale 차이(오전 vs AM) hydration mismatch 회피 — 직접 포맷
+function formatPublishedAt(iso: string): string {
+  const d = new Date(iso);
+  const y = d.getFullYear();
+  const mo = String(d.getMonth() + 1).padStart(2, '0');
+  const da = String(d.getDate()).padStart(2, '0');
+  const h = String(d.getHours()).padStart(2, '0');
+  const mi = String(d.getMinutes()).padStart(2, '0');
+  return `${y}.${mo}.${da} ${h}:${mi}`;
+}
+
 export function SurveyCard({
   id,
   cohortId,
@@ -84,7 +95,7 @@ export function SurveyCard({
                 ? 'rounded-md bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
                 : 'rounded-md bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
             }
-            title={published && publishedAt ? new Date(publishedAt).toLocaleString('ko-KR') : undefined}
+            title={published && publishedAt ? formatPublishedAt(publishedAt) : undefined}
           >
             {published ? '발행됨' : '초안'}
           </span>
@@ -201,7 +212,7 @@ export function SurveyCard({
             <div className='mt-1 text-2xl font-bold tabular-nums'>
               {avgScore !== null ? avgScore.toFixed(1) : '-'}
               {avgScore !== null && (
-                <span className='text-sm font-normal text-muted-foreground'> /5</span>
+                <span className='text-sm font-normal text-muted-foreground'> /10</span>
               )}
             </div>
             <div className='text-xs text-muted-foreground'>척도 {scaleQuestionCount}문항 평균</div>

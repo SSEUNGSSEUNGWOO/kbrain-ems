@@ -117,17 +117,17 @@ function SatisfactionCell({ avg, count }: { avg: number | null; count: number })
   }
   // 색조: 4.5+ emerald / 4.0+ blue / 3.5+ amber / 그 외 rose
   const tone =
-    avg >= 4.5
+    avg >= 9.0
       ? 'text-emerald-700 dark:text-emerald-300'
-      : avg >= 4.0
+      : avg >= 8.0
         ? 'text-blue-700 dark:text-blue-300'
-        : avg >= 3.5
+        : avg >= 7.0
           ? 'text-amber-700 dark:text-amber-300'
           : 'text-rose-700 dark:text-rose-300';
   return (
     <span className='inline-flex items-baseline gap-1.5'>
       <span className={`font-semibold ${tone}`}>{avg.toFixed(2)}</span>
-      <span className='text-muted-foreground text-xs'>/ 5</span>
+      <span className='text-muted-foreground text-xs'>/ 10</span>
       <span className='text-muted-foreground text-xs'>({count})</span>
     </span>
   );

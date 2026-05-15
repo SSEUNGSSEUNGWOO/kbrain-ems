@@ -23,8 +23,19 @@ type Props = {
 };
 
 // 척도 ≤ 임계값(불만족 이하)일 때만 직후 사유 입력칸을 노출
-const FOLLOW_UP_THRESHOLD = 2;
-const LIKERT5_LABELS = ['매우 불만족', '불만족', '보통', '만족', '매우 만족'] as const;
+const FOLLOW_UP_THRESHOLD = 4;
+const LIKERT10_LABELS = [
+  '매우 불만족',
+  '',
+  '',
+  '',
+  '보통',
+  '',
+  '',
+  '',
+  '',
+  '매우 만족'
+] as const;
 
 export function SurveyForm({ responseId, surveyTitle, studentName, questions }: Props) {
   const [responses, setResponses] = useState<Record<string, string | number>>({});
@@ -51,7 +62,7 @@ export function SurveyForm({ responseId, surveyTitle, studentName, questions }: 
     const map = new Map<string, string>();
     let prevScale: Question | null = null;
     for (const q of questions) {
-      if (q.type === 'likert5') {
+      if (q.type === 'likert10') {
         prevScale = q;
       } else if (q.type === 'text' && prevScale) {
         const sameSection = prevScale.section_no === q.section_no;
@@ -160,7 +171,7 @@ export function SurveyForm({ responseId, surveyTitle, studentName, questions }: 
               const visible = isQuestionVisible(q);
               if (!visible) return null;
 
-              if (q.type === 'likert5') {
+              if (q.type === 'likert10') {
                 const current = responses[q.id];
                 return (
                   <div key={q.id}>
@@ -168,8 +179,8 @@ export function SurveyForm({ responseId, surveyTitle, studentName, questions }: 
                       {q.text}
                       {q.required && <span className='ml-1 text-red-500'>*</span>}
                     </label>
-                    <div className='mt-3 grid grid-cols-5 gap-1.5 sm:gap-2'>
-                      {LIKERT5_LABELS.map((label, i) => {
+                    <div className='mt-3 grid grid-cols-10 gap-1 sm:gap-1.5'>
+                      {LIKERT10_LABELS.map((label, i) => {
                         const n = i + 1;
                         const selected = current === n;
                         return (
@@ -177,7 +188,7 @@ export function SurveyForm({ responseId, surveyTitle, studentName, questions }: 
                             key={n}
                             type='button'
                             onClick={() => setScale(q.id, n)}
-                            className={`flex flex-col items-center gap-0.5 rounded-lg border px-1 py-1.5 transition sm:gap-1 sm:px-2 sm:py-2 ${
+                            className={`flex flex-col items-center gap-0.5 rounded-lg border px-0.5 py-1.5 transition sm:gap-1 sm:px-1 sm:py-2 ${
                               selected
                                 ? 'border-blue-600 bg-blue-600 text-white shadow-sm'
                                 : 'border-slate-200 bg-white text-slate-600 hover:border-blue-300 hover:bg-blue-50'
@@ -185,13 +196,15 @@ export function SurveyForm({ responseId, surveyTitle, studentName, questions }: 
                             style={{ wordBreak: 'keep-all' }}
                           >
                             <span className='text-sm font-bold tabular-nums sm:text-base'>{n}</span>
-                            <span
-                              className={`text-[10px] leading-[1.15] sm:text-[11px] ${
-                                selected ? 'text-white/90' : 'text-slate-500'
-                              }`}
-                            >
-                              {label}
-                            </span>
+                            {label && (
+                              <span
+                                className={`text-[9px] leading-[1.15] sm:text-[10px] ${
+                                  selected ? 'text-white/90' : 'text-slate-500'
+                                }`}
+                              >
+                                {label}
+                              </span>
+                            )}
                           </button>
                         );
                       })}

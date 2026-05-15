@@ -128,7 +128,7 @@ export default async function LessonDetailPage({ params }: Props) {
           .not('submitted_at', 'is', null)
       ]);
       const likertIds = new Set(
-        (qsRes.data ?? []).filter((q) => q.type === 'likert5').map((q) => q.id)
+        (qsRes.data ?? []).filter((q) => q.type === 'likert10').map((q) => q.id)
       );
       let sum = 0;
       let n = 0;
@@ -248,7 +248,7 @@ export default async function LessonDetailPage({ params }: Props) {
           <Kpi
             label='만족도 평균'
             value={surveyOverallAvg !== null ? surveyOverallAvg.toFixed(2) : '-'}
-            unit={surveyOverallAvg !== null ? '/ 5' : undefined}
+            unit={surveyOverallAvg !== null ? '/ 10' : undefined}
             sub={surveys.length === 0 ? '연결된 설문 없음' : `설문 ${surveys.length}개`}
             accent='violet'
             valueClassName={scoreColor(surveyOverallAvg)}

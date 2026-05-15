@@ -1,12 +1,12 @@
 'use server';
 
 import { createAdminClient } from '@/lib/supabase/server';
-import { LIKERT5_LABELS, SCALE_OPTIONS } from '@/lib/survey-templates/satisfaction';
+import { LIKERT10_LABELS, SCALE_OPTIONS } from '@/lib/survey-templates/satisfaction';
 import type { Json, TablesInsert } from '@/lib/supabase/types';
 import { revalidatePath } from 'next/cache';
 
 export type QuestionDraft = {
-  type: 'likert5' | 'text' | 'choice';
+  type: 'likert10' | 'text' | 'choice';
   text: string;
   required: boolean;
   options: Json | null;
@@ -67,8 +67,8 @@ export async function saveSurveyDraft(
     const sectionNo = sectionIdx + 1;
     section.questions.forEach((q) => {
       const options =
-        q.type === 'likert5'
-          ? ({ ...SCALE_OPTIONS, labels: [...LIKERT5_LABELS] } as Json)
+        q.type === 'likert10'
+          ? ({ ...SCALE_OPTIONS, labels: [...LIKERT10_LABELS] } as Json)
           : q.options;
       rows.push({
         survey_id: surveyId,

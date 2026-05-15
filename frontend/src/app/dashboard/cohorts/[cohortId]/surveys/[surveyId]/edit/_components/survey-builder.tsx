@@ -34,7 +34,7 @@ type Instructor = {
   affiliation: string | null;
 };
 
-type QuestionType = 'likert5' | 'text' | 'choice';
+type QuestionType = 'likert10' | 'text' | 'choice';
 
 type LocalQuestion = {
   key: string;
@@ -61,7 +61,7 @@ type Props = {
 };
 
 const TYPE_LABELS: Record<QuestionType, string> = {
-  likert5: '5점 척도',
+  likert10: '10점 척도',
   text: '서술형',
   choice: '객관식 (옵션 편집은 차후 지원)'
 };
@@ -99,7 +99,7 @@ const EMPTY_SECTION = (idx: number): LocalSection => ({
   title: `섹션 ${idx}`,
   instructor_id: null,
   questions: [
-    { key: uid(), type: 'likert5', text: '', required: true, options: null }
+    { key: uid(), type: 'likert10', text: '', required: true, options: null }
   ]
 });
 
@@ -193,7 +193,7 @@ export function SurveyBuilder({
                 ...s.questions,
                 {
                   key: uid(),
-                  type: 'likert5',
+                  type: 'likert10',
                   text: '',
                   required: true,
                   options: null
@@ -609,7 +609,7 @@ function SortableQuestion({
             </label>
             {isFollowUp && (
               <span className='text-[11px] text-amber-700 dark:text-amber-400'>
-                조건부 — 직전 척도 점수 2 이하일 때만 노출
+                조건부 — 직전 척도 점수 4 이하일 때만 노출
               </span>
             )}
             {question.type === 'choice' && (
@@ -618,6 +618,23 @@ function SortableQuestion({
               </span>
             )}
           </div>
+          {question.type === 'likert10' && (
+            <div className='mt-1 grid grid-cols-10 gap-0.5'>
+              {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
+                <div
+                  key={n}
+                  className='rounded border border-slate-200 bg-slate-50 py-1 text-center text-[10px] tabular-nums text-slate-400 dark:border-slate-700 dark:bg-slate-900'
+                >
+                  {n}
+                </div>
+              ))}
+            </div>
+          )}
+          {question.type === 'text' && (
+            <div className='mt-1 rounded-md border border-dashed border-slate-200 bg-slate-50/50 px-3 py-2 text-[11px] italic text-slate-400 dark:border-slate-700 dark:bg-slate-900/30'>
+              응답자가 자유 서술 입력
+            </div>
+          )}
         </div>
         {!readOnly && canRemove && (
           <button

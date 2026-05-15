@@ -12,7 +12,7 @@ export default async function NewSurveyPage({ params }: Props) {
   const supabase = createAdminClient();
 
   const [cohortRes, instructorsRes, surveysRes, sessionListRes] = await Promise.all([
-    supabase.from('cohorts').select('id, name').eq('id', cohortId).maybeSingle(),
+    supabase.from('cohorts').select('id, name, category').eq('id', cohortId).maybeSingle(),
     supabase.from('instructors').select('id, name, affiliation, specialty').eq('kind', 'main').order('name'),
     supabase
       .from('surveys')
@@ -45,12 +45,15 @@ export default async function NewSurveyPage({ params }: Props) {
       <NewSurveyForm
         cohortId={cohortId}
         cohortName={cohortRes.data.name}
+        cohortCategory={cohortRes.data.category}
         instructors={instructorsRes.data ?? []}
         cloneSources={cloneSources}
-        sessions={(sessionListRes.data ?? []).map((s) => ({
+        sessions={(sessionListRes.data ?? []).map((s, idx) => ({
           id: s.id,
           title: s.title,
           session_date: s.session_date,
+          // session_date 오름차순 인덱스 = 회차 번호 (1-based)
+          sessionNo: idx + 1,
           instructors: (s.session_instructors ?? [])
             .map((si) => si.instructors)
             .filter((i): i is { id: string; name: string } => !!i)
