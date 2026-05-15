@@ -9,7 +9,18 @@ type Props = {
   params: Promise<{ cohortId: string; surveyId: string }>;
 };
 
-const LIKERT5_LABELS = ['매우 불만족', '불만족', '보통', '만족', '매우 만족'] as const;
+const LIKERT10_LABELS = [
+  '매우 불만족',
+  '',
+  '',
+  '',
+  '보통',
+  '',
+  '',
+  '',
+  '',
+  '매우 만족'
+] as const;
 
 export default async function SurveyPreviewPage({ params }: Props) {
   const { cohortId, surveyId } = await params;
@@ -74,7 +85,7 @@ export default async function SurveyPreviewPage({ params }: Props) {
               {section.items.map((q) => {
                 const isFollowUp = followUpMap.has(q.id);
 
-                if (q.type === 'likert5') {
+                if (q.type === 'likert10') {
                   return (
                     <div key={q.id}>
                       <div className='flex items-baseline gap-2'>
@@ -84,17 +95,19 @@ export default async function SurveyPreviewPage({ params }: Props) {
                           {q.required && <span className='ml-1 text-red-500'>*</span>}
                         </label>
                       </div>
-                      <div className='mt-2 grid grid-cols-5 gap-1.5 sm:gap-2'>
-                        {LIKERT5_LABELS.map((label, i) => (
+                      <div className='mt-2 grid grid-cols-10 gap-1 sm:gap-1.5'>
+                        {LIKERT10_LABELS.map((label, i) => (
                           <div
                             key={i}
-                            className='flex flex-col items-center gap-0.5 rounded-lg border border-slate-200 bg-white px-1 py-1.5 text-center text-slate-400 sm:gap-1 sm:px-2 sm:py-2'
+                            className='flex flex-col items-center gap-0.5 rounded-lg border border-slate-200 bg-white px-0.5 py-1.5 text-center text-slate-400 sm:gap-1 sm:px-1 sm:py-2'
                             style={{ wordBreak: 'keep-all' }}
                           >
                             <span className='text-sm font-bold tabular-nums sm:text-base'>{i + 1}</span>
-                            <span className='text-[10px] leading-[1.15] text-slate-500 sm:text-[11px]'>
-                              {label}
-                            </span>
+                            {label && (
+                              <span className='text-[9px] leading-[1.15] text-slate-500 sm:text-[10px]'>
+                                {label}
+                              </span>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -123,7 +136,7 @@ export default async function SurveyPreviewPage({ params }: Props) {
                         disabled
                         placeholder={
                           isFollowUp
-                            ? '척도 2(불만족) 이하일 때만 노출 — 어떤 점이 아쉬우셨나요?'
+                            ? '척도 4 이하일 때만 노출 — 어떤 점이 아쉬우셨나요?'
                             : '자유롭게 작성해 주세요'
                         }
                         className='mt-2 w-full resize-none rounded-md border bg-muted/30 px-3 py-2 text-sm'

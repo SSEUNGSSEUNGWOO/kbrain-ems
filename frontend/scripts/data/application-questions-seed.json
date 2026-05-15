@@ -21,45 +21,43 @@
     {
       "question_no": "C2",
       "section": "common",
-      "question_type": "text",
-      "question_text": "귀하의 【 소속기관 / 실·국명 / 부서·과명 】을 온-나라 수신처 기준으로 정확하게 입력해 주세요."
+      "question_type": "single",
+      "question_text": "귀하의 【 소속 기관의 형태 】를 선택해 주십시오.",
+      "choices": [
+        { "key": "①", "text": "중앙행정기관 (부·처·청)" },
+        { "key": "②", "text": "광역자치단체 (특별시·광역시·도·특별자치시·도)" },
+        { "key": "③", "text": "기초자치단체 (시·군·구)" },
+        { "key": "④", "text": "공공기관 / 지방공공기관 (공사·공단, 국책/지방연구원, 출연기관)" },
+        { "key": "⑤", "text": "교육행정기관 (시·도 교육청, 교육지원청, 학교)" },
+        { "key": "⑥", "text": "기타 (국회, 법원, 선관위, 헌법기구 등)" }
+      ]
     },
     {
       "question_no": "C3",
       "section": "common",
       "question_type": "text",
-      "question_text": "선발 안내를 위해 귀하의 【 사무실 번호 】를 정확하게 입력해주세요."
+      "question_text": "귀하의 【 소속기관 / 실·국명 / 부서·과명 】을 온-나라 수신처 기준으로 정확하게 입력해 주세요."
     },
     {
       "question_no": "C4",
       "section": "common",
-      "question_type": "single",
-      "question_text": "귀하의 【직렬】은 무엇입니까?",
-      "choices": [
-        { "key": "①", "text": "행정직렬" },
-        { "key": "②", "text": "전산직렬" },
-        { "key": "③", "text": "전산직 제외 기술직렬 등" },
-        { "key": "④", "text": "특수직렬(외무·경찰·소방·교육), 연구 직렬 등" }
-      ]
+      "question_type": "text",
+      "question_text": "선발 안내를 위해 귀하의 【 사무실 번호 】를 정확하게 입력해주세요."
     },
     {
       "question_no": "C5",
       "section": "common",
       "question_type": "single",
-      "question_text": "본 교육과정에서 학습한 내용을 귀하의 실제 담당 업무에 즉시 적용하여 활용할 수 있습니까?",
+      "question_text": "귀하의 【 직렬 】을 선택해주세요.",
       "choices": [
-        { "key": "①", "text": "전혀 적용할 수 없다 (매우 낮음)" },
-        { "key": "②", "text": "당장 실무에 적용하기는 어렵다 (낮음)" },
-        { "key": "③", "text": "일부 업무 상황에 맞춰 적용해 볼 수 있다 (보통)" },
-        { "key": "④", "text": "배운 내용을 실무에 바로 적용하여 효율을 높일 수 있다 (높음)" },
-        { "key": "⑤", "text": "당면한 업무의 문제(비효율)를 즉시 해결할 수 있을 만큼 적합하다 (매우 높음)" }
+        { "key": "①", "text": "행정 (일반행정, 교육행정, 감사, 사서, 법무 등)" },
+        { "key": "②", "text": "전산 (전산, 정보보안, 통신 등)" },
+        { "key": "③", "text": "기술 (전산 제외 공업, 농업, 녹지, 환경, 시설, 토목, 건축 등)" },
+        { "key": "④", "text": "특수 (경찰, 소방, 외무, 군무원 등)" },
+        { "key": "⑤", "text": "연구 및 지도 (학예 연구, 기상 연구, 농촌 지도 등)" },
+        { "key": "⑥", "text": "보건·의료 (사회복지, 보건, 간호, 식품위생 등)" },
+        { "key": "⑦", "text": "관리 운영 및 기타 (방호, 시설관리, 운전 등)" }
       ]
-    },
-    {
-      "question_no": "C6",
-      "section": "common",
-      "question_type": "text",
-      "question_text": "기타 교육과정 운영 및 참여 관련 의견이 있으면 자유롭게 작성해 주십시오."
     }
   ],
 
@@ -73,33 +71,13 @@
           "question_no": "P1",
           "section": "pre_learning",
           "question_type": "single",
-          "question_text": "귀하는 본 과정의 권장 사전학습(이러닝) 「AI 리터러시」 과정을 이수하셨습니까?",
+          "question_text": "귀하는 본 과정의 권장 사전학습(이러닝) 【 ① AI 리터러시 】 과정을 이수하셨습니까?",
           "choices": [
             { "key": "①", "text": "이수 완료" },
-            { "key": "②", "text": "일부 수강 (전체 분량의 50% 이상)" },
-            { "key": "③", "text": "일부 수강 (전체 분량의 50% 미만)" },
-            { "key": "④", "text": "미수강 / 미이수" }
+            { "key": "②", "text": "미수강" }
           ]
         },
-        {
-          "question_no": "S1",
-          "section": "self_diagnosis",
-          "question_type": "likert5",
-          "question_text": "나는 ChatGPT·Claude·Gemini 등 주요 생성형 AI 도구를 업무 목적에 따라 구분하여 활용할 수 있다."
-        },
-        {
-          "question_no": "S2",
-          "section": "self_diagnosis",
-          "question_type": "likert5",
-          "question_text": "나는 행정문서(보고서·보도자료) 작성 시 좋은 프롬프트의 5요소(역할·맥락·작업·형식·제약)를 적용해 본 경험이 있다."
-        },
-        {
-          "question_no": "S3",
-          "section": "self_diagnosis",
-          "question_type": "likert5",
-          "question_text": "나는 생성형 AI 활용 시 개인정보·보안 관련 유의사항을 인지하고 실무에서 적용하고 있다."
-        },
-        {
+{
           "question_no": "1-1",
           "section": "knowledge",
           "difficulty": "beginner",
@@ -200,33 +178,13 @@
           "question_no": "P1",
           "section": "pre_learning",
           "question_type": "single",
-          "question_text": "귀하는 본 과정의 권장 사전학습(이러닝) 「데이터분석 리터러시」 과정을 이수하셨습니까?",
+          "question_text": "귀하는 본 과정의 권장 사전학습(이러닝) 【 ② 데이터분석 리터러시 】 과정을 이수하셨습니까?",
           "choices": [
             { "key": "①", "text": "이수 완료" },
-            { "key": "②", "text": "일부 수강 (전체 분량의 50% 이상)" },
-            { "key": "③", "text": "일부 수강 (전체 분량의 50% 미만)" },
-            { "key": "④", "text": "미수강 / 미이수" }
+            { "key": "②", "text": "미수강" }
           ]
         },
-        {
-          "question_no": "S1",
-          "section": "self_diagnosis",
-          "question_type": "likert5",
-          "question_text": "나는 행정 업무에서 데이터 기반 사고와 문제 정의 프레임워크(예: 5 Whys)를 활용해 문제를 정교화할 수 있다."
-        },
-        {
-          "question_no": "S2",
-          "section": "self_diagnosis",
-          "question_type": "likert5",
-          "question_text": "나는 엑셀 함수(VLOOKUP·INDEX/MATCH 등)와 피벗 테이블을 활용한 데이터 집계·분석 경험이 있다."
-        },
-        {
-          "question_no": "S3",
-          "section": "self_diagnosis",
-          "question_type": "likert5",
-          "question_text": "나는 공공데이터포털 등에서 데이터를 수집하여 분석 가능한 형태로 정비할 수 있다."
-        },
-        {
+{
           "question_no": "2-1",
           "section": "knowledge",
           "difficulty": "beginner",
@@ -327,33 +285,13 @@
           "question_no": "P1",
           "section": "pre_learning",
           "question_type": "single",
-          "question_text": "귀하는 본 과정의 권장 사전학습(이러닝) 「관리자 AI 리더십」 과정을 이수하셨습니까?",
+          "question_text": "귀하는 본 과정의 권장 사전학습(이러닝) 【 ③ 관리자 AI 리더십 】 과정을 이수하셨습니까?",
           "choices": [
             { "key": "①", "text": "이수 완료" },
-            { "key": "②", "text": "일부 수강 (전체 분량의 50% 이상)" },
-            { "key": "③", "text": "일부 수강 (전체 분량의 50% 미만)" },
-            { "key": "④", "text": "미수강 / 미이수" }
+            { "key": "②", "text": "미수강" }
           ]
         },
-        {
-          "question_no": "S1",
-          "section": "self_diagnosis",
-          "question_type": "likert5",
-          "question_text": "나는 AI 시대 공공부문 관리자에게 요구되는 리더십과 디지털 문해력의 중요성을 인지하고 있다."
-        },
-        {
-          "question_no": "S2",
-          "section": "self_diagnosis",
-          "question_type": "likert5",
-          "question_text": "나는 본 기관 내 일상 업무의 비효율(골목길)을 식별하고 AI 도입으로 해결할 영역을 도출할 수 있다."
-        },
-        {
-          "question_no": "S3",
-          "section": "self_diagnosis",
-          "question_type": "likert5",
-          "question_text": "나는 상용 클라우드 LLM과 로컬 오픈소스 LLM의 선택 기준(보안·비용·성능)을 알고 있다."
-        },
-        {
+{
           "question_no": "3-1",
           "section": "knowledge",
           "difficulty": "beginner",
@@ -454,33 +392,13 @@
           "question_no": "P1",
           "section": "pre_learning",
           "question_type": "single",
-          "question_text": "귀하는 본 과정의 권장 사전학습(이러닝) 「노코드 데이터분석」 과정을 이수하셨습니까?",
+          "question_text": "귀하는 본 과정의 권장 사전학습(이러닝) 【 ④ 노코드 데이터분석 】 과정을 이수하셨습니까?",
           "choices": [
             { "key": "①", "text": "이수 완료" },
-            { "key": "②", "text": "일부 수강 (전체 분량의 50% 이상)" },
-            { "key": "③", "text": "일부 수강 (전체 분량의 50% 미만)" },
-            { "key": "④", "text": "미수강 / 미이수" }
+            { "key": "②", "text": "미수강" }
           ]
         },
-        {
-          "question_no": "S1",
-          "section": "self_diagnosis",
-          "question_type": "likert5",
-          "question_text": "나는 Colab 또는 로컬 Jupyter 환경에서 생성형 AI에 코드를 요청·실행한 경험이 있다."
-        },
-        {
-          "question_no": "S2",
-          "section": "self_diagnosis",
-          "question_type": "likert5",
-          "question_text": "나는 공공데이터(CSV·XLSX·JSON·API 등)의 구조를 이해하고 분석 가능한 형태로 정비할 수 있다."
-        },
-        {
-          "question_no": "S3",
-          "section": "self_diagnosis",
-          "question_type": "likert5",
-          "question_text": "나는 행정 데이터의 탐색적 분석(EDA)과 시각화를 통해 인사이트를 도출한 경험이 있다."
-        },
-        {
+{
           "question_no": "4-1",
           "section": "knowledge",
           "difficulty": "beginner",
@@ -581,33 +499,13 @@
           "question_no": "P1",
           "section": "pre_learning",
           "question_type": "single",
-          "question_text": "귀하는 본 과정의 권장 사전학습(이러닝) 「AI 행정 융합 기획 (또는 동급 AI 리터러시)」 과정을 이수하셨습니까?",
+          "question_text": "귀하는 본 과정의 권장 사전학습(이러닝) 【 ⑤ AI 행정 융합 기획 (또는 동급 AI 리터러시) 】 과정을 이수하셨습니까?",
           "choices": [
             { "key": "①", "text": "이수 완료" },
-            { "key": "②", "text": "일부 수강 (전체 분량의 50% 이상)" },
-            { "key": "③", "text": "일부 수강 (전체 분량의 50% 미만)" },
-            { "key": "④", "text": "미수강 / 미이수" }
+            { "key": "②", "text": "미수강" }
           ]
         },
-        {
-          "question_no": "S1",
-          "section": "self_diagnosis",
-          "question_type": "likert5",
-          "question_text": "나는 본 기관의 행정 결핍·문제를 정의하고 LLM과 협업하여 정교화한 경험이 있다."
-        },
-        {
-          "question_no": "S2",
-          "section": "self_diagnosis",
-          "question_type": "likert5",
-          "question_text": "나는 sLM·RAG·API·MCP 등 핵심 AI 기술의 개념과 활용 범위를 이해하고 있다."
-        },
-        {
-          "question_no": "S3",
-          "section": "self_diagnosis",
-          "question_type": "likert5",
-          "question_text": "나는 노코드 도구(Lovable·v0·Bolt 등)를 활용해 신속하게 프로토타입을 제작해 본 경험이 있다."
-        },
-        {
+{
           "question_no": "5-1",
           "section": "knowledge",
           "difficulty": "beginner",
@@ -708,33 +606,15 @@
           "question_no": "P1",
           "section": "pre_learning",
           "question_type": "single",
-          "question_text": "귀하는 본 과정의 권장 사전학습(이러닝) 「④ 생성형 AI 활용 업무 효율화, ⑤ 노코드 데이터분석, ⑧ AI 머신러닝, 딥러닝의 이해 및 활용」 과정을 이수하셨습니까?",
+          "question_text": "귀하는 본 【 Ⓖ AI 챔피언 그린(초급) 종합과정 】의 권장 사전학습(이러닝) 과정을 얼마나 이수하셨습니까?\n\n④ 생성형 AI 활용 업무 효율화\n⑤ 노코드 데이터분석\n⑧ AI 머신러닝, 딥러닝의 이해 및 활용",
           "choices": [
-            { "key": "①", "text": "이수 완료" },
-            { "key": "②", "text": "일부 수강 (전체 분량의 50% 이상)" },
-            { "key": "③", "text": "일부 수강 (전체 분량의 50% 미만)" },
-            { "key": "④", "text": "미수강 / 미이수" }
+            { "key": "①", "text": "3개 과정 (④, ⑤, ⑧) 모두 이수 완료" },
+            { "key": "②", "text": "2개 과정 이수 완료" },
+            { "key": "③", "text": "1개 과정 이수 완료" },
+            { "key": "④", "text": "미수강" }
           ]
         },
-        {
-          "question_no": "S1",
-          "section": "self_diagnosis",
-          "question_type": "likert5",
-          "question_text": "나는 행정업무 맥락에서 생성형 AI(ChatGPT·Claude·Gemini 등)를 능숙하게 활용할 수 있다."
-        },
-        {
-          "question_no": "S2",
-          "section": "self_diagnosis",
-          "question_type": "likert5",
-          "question_text": "나는 공공데이터의 수집·정제·시각화 전 과정을 노코드·로우코드 방식으로 수행할 수 있다."
-        },
-        {
-          "question_no": "S3",
-          "section": "self_diagnosis",
-          "question_type": "likert5",
-          "question_text": "나는 본 기관 내 AI 전환·전파 역할을 수행할 의향과 준비가 되어 있다."
-        },
-        {
+{
           "question_no": "G-1",
           "section": "knowledge",
           "difficulty": "beginner",
@@ -863,33 +743,15 @@
           "question_no": "P1",
           "section": "pre_learning",
           "question_type": "single",
-          "question_text": "귀하는 본 과정의 권장 사전학습(이러닝) 「④ 생성형 AI 활용 업무 효율화, ⑧ AI 머신러닝, 딥러닝의 이해 및 활용, ⑨ AI와 파이썬 활용 데이터 분석 실습」 과정을 이수하셨습니까?",
+          "question_text": "귀하는 본 【 Ⓑ AI 챔피언 블루(중급) 종합과정 】의 권장 사전학습(이러닝) 과정을 얼마나 이수하셨습니까?\n\n④ 생성형 AI 활용 업무 효율화\n⑧ AI 머신러닝, 딥러닝의 이해 및 활용\n⑨ AI와 파이썬 활용 데이터 분석 실습",
           "choices": [
-            { "key": "①", "text": "이수 완료" },
-            { "key": "②", "text": "일부 수강 (전체 분량의 50% 이상)" },
-            { "key": "③", "text": "일부 수강 (전체 분량의 50% 미만)" },
-            { "key": "④", "text": "미수강 / 미이수" }
+            { "key": "①", "text": "3개 과정 (④, ⑧, ⑨) 모두 이수 완료" },
+            { "key": "②", "text": "2개 과정 이수 완료" },
+            { "key": "③", "text": "1개 과정 이수 완료" },
+            { "key": "④", "text": "미수강" }
           ]
         },
-        {
-          "question_no": "S1",
-          "section": "self_diagnosis",
-          "question_type": "likert5",
-          "question_text": "나는 Python(Pandas·scikit-learn 등)을 활용한 데이터 전처리·ML 모델 구축 경험이 있다."
-        },
-        {
-          "question_no": "S2",
-          "section": "self_diagnosis",
-          "question_type": "likert5",
-          "question_text": "나는 OpenAI API·RAG·LangChain 등을 활용한 LLM 서비스 구현 경험이 있다."
-        },
-        {
-          "question_no": "S3",
-          "section": "self_diagnosis",
-          "question_type": "likert5",
-          "question_text": "나는 본 기관 AI 전환 사업의 PoC부터 구축까지 기술 리딩을 수행할 의향과 준비가 되어 있다."
-        },
-        {
+{
           "question_no": "B-1",
           "section": "knowledge",
           "difficulty": "beginner",

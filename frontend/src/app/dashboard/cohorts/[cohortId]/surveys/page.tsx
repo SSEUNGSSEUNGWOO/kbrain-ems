@@ -46,7 +46,7 @@ export default async function SurveysPage({ params }: Props) {
       const submitted = responses.filter((r) => r.submitted_at);
 
       const scaleIds = new Set(
-        questions.filter((q) => q.type === 'likert5').map((q) => q.id)
+        questions.filter((q) => q.type === 'likert10').map((q) => q.id)
       );
 
       let sum = 0;

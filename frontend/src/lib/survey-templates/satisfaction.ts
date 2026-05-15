@@ -13,17 +13,28 @@
 
 import type { TablesInsert } from '@/lib/supabase/types';
 
-/** 5점 척도 라벨 (1=매우 불만족, 5=매우 만족) */
-export const LIKERT5_LABELS = ['매우 불만족', '불만족', '보통', '만족', '매우 만족'] as const;
+/** 10점 척도 라벨 (1=매우 불만족, 5=보통, 10=매우 만족 — 중간 위치만 표기) */
+export const LIKERT10_LABELS = [
+  '매우 불만족',
+  '',
+  '',
+  '',
+  '보통',
+  '',
+  '',
+  '',
+  '',
+  '매우 만족'
+] as const;
 
 export const SCALE_OPTIONS = {
   min: 1,
-  max: 5,
-  labels: LIKERT5_LABELS
+  max: 10,
+  labels: LIKERT10_LABELS
 } as const;
 
 type StaticQuestion = {
-  type: 'likert5' | 'text';
+  type: 'likert10' | 'text';
   text: string;
   required: boolean;
 };
@@ -33,27 +44,27 @@ const HEADER_SECTIONS: { section_title: string; questions: StaticQuestion[] }[] 
   {
     section_title: '교육 프로그램에 대한 전반적인 만족도',
     questions: [
-      { type: 'likert5', text: '이번 프로그램 전반에 대하여 얼마나 만족하셨습니까?', required: true },
+      { type: 'likert10', text: '이번 프로그램 전반에 대하여 얼마나 만족하셨습니까?', required: true },
       { type: 'text', text: '불만족 시 사유', required: false },
-      { type: 'likert5', text: '이번 프로그램을 다른 사람에게 추천하실 의향이 있으십니까?', required: true },
+      { type: 'likert10', text: '이번 프로그램을 다른 사람에게 추천하실 의향이 있으십니까?', required: true },
       { type: 'text', text: '추천하지 않으실 경우 사유', required: false }
     ]
   },
   {
     section_title: '교육 내용 만족도',
     questions: [
-      { type: 'likert5', text: '본 과정은 학습자 수준에 맞춰 체계적인 내용으로 구성되었습니까?', required: true },
+      { type: 'likert10', text: '본 과정은 학습자 수준에 맞춰 체계적인 내용으로 구성되었습니까?', required: true },
       { type: 'text', text: '불만족 시 사유', required: false }
     ]
   },
   {
     section_title: '환경 만족도',
     questions: [
-      { type: 'likert5', text: '본 과정의 교육 시설 및 환경에 만족하셨습니까?', required: true },
+      { type: 'likert10', text: '본 과정의 교육 시설 및 환경에 만족하셨습니까?', required: true },
       { type: 'text', text: '시설·환경 불만족 시 사유', required: false },
-      { type: 'likert5', text: '본 과정을 위해 주어진 시간은 적절하였습니까?', required: true },
+      { type: 'likert10', text: '본 과정을 위해 주어진 시간은 적절하였습니까?', required: true },
       { type: 'text', text: '시간 적절성 불만족 시 사유', required: false },
-      { type: 'likert5', text: '본 과정을 위한 운영·지원에 대하여 만족하셨습니까?', required: true },
+      { type: 'likert10', text: '본 과정을 위한 운영·지원에 대하여 만족하셨습니까?', required: true },
       { type: 'text', text: '운영·지원 불만족 시 사유', required: false }
     ]
   }
@@ -61,11 +72,11 @@ const HEADER_SECTIONS: { section_title: string; questions: StaticQuestion[] }[] 
 
 // 강사 1명당 6문항 — 강사명·세션제목은 builder에서 섹션 제목에 주입
 const INSTRUCTOR_QUESTIONS: StaticQuestion[] = [
-  { type: 'likert5', text: '본 과정의 강사는 교육을 열정적으로 이끌었습니까?', required: true },
+  { type: 'likert10', text: '본 과정의 강사는 교육을 열정적으로 이끌었습니까?', required: true },
   { type: 'text', text: '열정 부분 불만족 시 사유', required: false },
-  { type: 'likert5', text: '본 과정의 강사는 질의응답 혹은 피드백에 적극적으로 답하였습니까?', required: true },
+  { type: 'likert10', text: '본 과정의 강사는 질의응답 혹은 피드백에 적극적으로 답하였습니까?', required: true },
   { type: 'text', text: '질의응답·피드백 불만족 시 사유', required: false },
-  { type: 'likert5', text: '본 과정의 난이도는 대체로 적절하였습니까?', required: true },
+  { type: 'likert10', text: '본 과정의 난이도는 대체로 적절하였습니까?', required: true },
   { type: 'text', text: '난이도 불만족 시 사유', required: false }
 ];
 
@@ -112,7 +123,7 @@ export function buildSatisfactionQuestions(args: BuildArgs): TablesInsert<'surve
         section_no: sectionNo,
         section_title: section.section_title,
         instructor_id: null,
-        options: q.type === 'likert5' ? { ...SCALE_OPTIONS, labels: [...LIKERT5_LABELS] } : null
+        options: q.type === 'likert10' ? { ...SCALE_OPTIONS, labels: [...LIKERT10_LABELS] } : null
       });
     }
   });
@@ -133,7 +144,7 @@ export function buildSatisfactionQuestions(args: BuildArgs): TablesInsert<'surve
         section_no: sectionNo,
         section_title: sectionTitle,
         instructor_id: inst.id,
-        options: q.type === 'likert5' ? { ...SCALE_OPTIONS, labels: [...LIKERT5_LABELS] } : null
+        options: q.type === 'likert10' ? { ...SCALE_OPTIONS, labels: [...LIKERT10_LABELS] } : null
       });
     }
   });

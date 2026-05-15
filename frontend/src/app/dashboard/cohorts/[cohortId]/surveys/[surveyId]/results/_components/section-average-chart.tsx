@@ -22,7 +22,7 @@ export function SectionAverageChart({ data }: { data: DataPoint[] }) {
             height={60}
             interval={0}
           />
-          <YAxis domain={[0, 5]} tick={{ fontSize: 11 }} ticks={[0, 1, 2, 3, 4, 5]} />
+          <YAxis domain={[0, 10]} tick={{ fontSize: 11 }} ticks={[0, 2, 4, 6, 8, 10]} />
           <Tooltip
             contentStyle={{
               fontSize: 12,
@@ -31,7 +31,7 @@ export function SectionAverageChart({ data }: { data: DataPoint[] }) {
               border: '1px solid #e5e7eb'
             }}
             formatter={(value: number, name) =>
-              name === '평균' ? [value.toFixed(2), '평균 (5점)'] : [value, '응답 수']
+              name === '평균' ? [value.toFixed(2), '평균 (10점)'] : [value, '응답 수']
             }
           />
           <Bar dataKey='평균' fill='#3b82f6' radius={[6, 6, 0, 0]} />

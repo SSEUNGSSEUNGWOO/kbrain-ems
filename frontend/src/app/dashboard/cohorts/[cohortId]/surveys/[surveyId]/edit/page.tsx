@@ -48,7 +48,7 @@ export default async function SurveyEditPage({ params }: Props) {
     }
     // 같은 섹션의 instructor_id가 일관되지 않으면 첫 값을 신뢰
     section.questions.push({
-      type: (q.type as 'likert5' | 'text' | 'choice') ?? 'text',
+      type: (q.type as 'likert10' | 'text' | 'choice') ?? 'text',
       text: q.text,
       required: q.required,
       options: q.options ?? null

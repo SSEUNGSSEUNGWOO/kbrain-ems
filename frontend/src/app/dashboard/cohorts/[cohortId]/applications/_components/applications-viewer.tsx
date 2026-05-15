@@ -67,6 +67,8 @@ const DIFFICULTY_TONE: Record<string, string> = {
     'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/30 dark:text-rose-300 dark:border-rose-900'
 };
 
+const ALL_TAB = 'all';
+
 export function ApplicationsViewer({ questions }: { questions: Question[] }) {
   const bySection = new Map<string, Question[]>();
   for (const q of questions) {
@@ -90,8 +92,14 @@ export function ApplicationsViewer({ questions }: { questions: Question[] }) {
         knowledgeMax={maxScore}
       />
 
-      <Tabs defaultValue={visibleSections[0]}>
+      <Tabs defaultValue={ALL_TAB}>
         <TabsList className='h-auto flex-wrap gap-1'>
+          <TabsTrigger value={ALL_TAB} className='gap-2'>
+            <span>전체</span>
+            <span className='text-muted-foreground bg-muted rounded-full px-1.5 text-xs font-normal'>
+              {questions.length}
+            </span>
+          </TabsTrigger>
           {visibleSections.map((s) => (
             <TabsTrigger key={s} value={s} className='gap-2'>
               <span>{SECTION_LABEL[s] ?? s}</span>
@@ -101,6 +109,17 @@ export function ApplicationsViewer({ questions }: { questions: Question[] }) {
             </TabsTrigger>
           ))}
         </TabsList>
+
+        <TabsContent value={ALL_TAB} className='mt-4'>
+          <p className='text-muted-foreground mb-4 text-sm'>
+            display_order 순서대로 전체 문항 — 신청자가 보는 순서와 동일
+          </p>
+          <div className='flex flex-col gap-3'>
+            {questions.map((q, i) => (
+              <QuestionCard key={q.id} q={q} ordinal={i + 1} showSection />
+            ))}
+          </div>
+        </TabsContent>
 
         {visibleSections.map((s) => (
           <TabsContent key={s} value={s} className='mt-4'>
@@ -162,13 +181,32 @@ function Stat({
   );
 }
 
-function QuestionCard({ q }: { q: Question }) {
+function QuestionCard({
+  q,
+  ordinal,
+  showSection
+}: {
+  q: Question;
+  ordinal?: number;
+  showSection?: boolean;
+}) {
   const isKnowledge = q.section === 'knowledge';
+  const isMulti = q.question_type === 'multi';
 
   return (
     <Card className='gap-3 py-4'>
       <CardContent className='flex flex-col gap-3 px-5'>
         <div className='flex flex-wrap items-center gap-2'>
+          {ordinal !== undefined && (
+            <span className='bg-primary text-primary-foreground inline-flex h-6 min-w-6 items-center justify-center rounded-md px-1.5 font-mono text-xs font-semibold tabular-nums'>
+              {ordinal}
+            </span>
+          )}
+          {showSection && (
+            <Badge variant='secondary' className='font-normal'>
+              {SECTION_LABEL[q.section] ?? q.section}
+            </Badge>
+          )}
           <span className='bg-muted text-muted-foreground rounded-md px-2 py-0.5 font-mono text-xs'>
             {q.question_no}
           </span>
@@ -188,7 +226,7 @@ function QuestionCard({ q }: { q: Question }) {
           )}
         </div>
 
-        <p className='text-sm leading-relaxed'>{q.question_text}</p>
+        <p className='text-sm leading-relaxed whitespace-pre-line'>{q.question_text}</p>
 
         {q.choices.length > 0 && (
           <ul className='flex flex-col gap-1.5 text-sm'>
@@ -204,6 +242,12 @@ function QuestionCard({ q }: { q: Question }) {
                       : 'border border-transparent'
                   )}
                 >
+                  {isMulti && (
+                    <span
+                      aria-hidden
+                      className='border-muted-foreground/50 mt-0.5 size-4 flex-shrink-0 rounded-sm border'
+                    />
+                  )}
                   <span
                     className={cn(
                       'flex-shrink-0 font-mono text-xs leading-relaxed',
