@@ -89,7 +89,7 @@ export default async function InstructorDetailPage({ params }: Props) {
 
     for (const qid of questionIds) {
       const v = obj[qid];
-      if (typeof v !== 'number' || v < 1 || v > 5) continue;
+      if (typeof v !== 'number' || v < 1 || v > 10) continue;
       scoreSum += v;
       scoreCount += 1;
       if (cohortId) {

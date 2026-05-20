@@ -53,7 +53,7 @@ export default async function InstructorPoolPage({ searchParams }: Props) {
     for (const [instId, qIds] of qIdsByInstructor) {
       for (const qid of qIds) {
         const v = obj[qid];
-        if (typeof v !== 'number' || v < 1 || v > 5) continue;
+        if (typeof v !== 'number' || v < 1 || v > 10) continue;
         const entry = statByInstructor.get(instId) ?? { sum: 0, count: 0 };
         entry.sum += v;
         entry.count += 1;

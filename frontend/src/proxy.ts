@@ -27,7 +27,10 @@ export async function proxy(req: NextRequest) {
           for (const { name, value } of cookiesToSet) req.cookies.set(name, value);
           response = NextResponse.next({ request: req });
           for (const { name, value, options } of cookiesToSet) {
-            response.cookies.set(name, value, options);
+            const opts = { ...options };
+            delete opts.maxAge;
+            delete opts.expires;
+            response.cookies.set(name, value, opts);
           }
         }
       }

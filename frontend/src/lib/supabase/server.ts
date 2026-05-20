@@ -21,7 +21,10 @@ export async function createClient() {
         setAll(cookiesToSet) {
           try {
             for (const { name, value, options } of cookiesToSet) {
-              cookieStore.set(name, value, options);
+              const opts = { ...options };
+              delete opts.maxAge;
+              delete opts.expires;
+              cookieStore.set(name, value, opts);
             }
           } catch {
             // Server Component에서 set 호출하면 throw — 미들웨어에서 처리되므로 무시.
