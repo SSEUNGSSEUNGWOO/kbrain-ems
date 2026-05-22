@@ -372,20 +372,39 @@ async function generateInstructorAnalysis(group: InstructorGroup): Promise<strin
   );
 }
 
-async function generateTextClassification(
+async function generateNarrativeOpinion(
   survey: SessionReportData['surveys'][number]
 ): Promise<string[]> {
-  const textQs = survey.questions.filter((q) => q.type === 'text' && q.text_responses);
+  const textQs = survey.questions.filter(
+    (q) => q.type === 'text' && q.section_title === '서술형' && q.text_responses
+  );
   if (textQs.length === 0) return [];
 
   const sys = `${ANALYSIS_BASE_RULES}
 
-서술형 응답을 의미별로 분류해 text 블록 여러 개로. 각 블록은:
-- 첫 줄 "○ {라벨}" (예: "교육 진행 중 좋았던 점", "교육 진행 중 개선되었으면 하는 점", "향후 희망 사항", "기타 의견").
-- 다음 줄부터 응답들을 " - ..." 불릿 (raw 응답 그대로, 음슴체 변형 X).
-- 한 블록당 대표 5~10개. 비방·욕설은 [비방성 의견]으로, 개인 이름·소속은 [학습자]로 마스킹.
+서술형 응답을 결과보고서용으로 정리. blocks 배열에 정확히 2개.
 
-분류 라벨은 응답 내용에 따라 자유롭게 정함. 같은 분류는 한 블록으로 묶음.`;
+블록 1은 반드시 아래 형식:
+"1. 서술형 종합 의견
+  ○ 교육생을 대상으로 교육 의견을 수집한 결과, {주요 강점 3~6개} 등이 주요 강점으로 도출됨. 개선사항으로는 {개선 의견 1~3개} 등이 제기됨."
+
+블록 2는 반드시 아래 형식:
+"2. 서술형 세부 의견
+  ○ {질문 1의 짧은 라벨}
+ - {응답 의미를 문서식으로 정제한 bullet}
+ - {응답 의미를 문서식으로 정제한 bullet}
+
+  ○ {질문 2의 짧은 라벨}
+ - {응답 의미를 문서식으로 정제한 bullet}
+ ..."
+
+규칙:
+- raw 응답을 그대로 붙여넣지 말고, 같은 의미는 통합·중복 제거해 문서식 문장으로 정리.
+- 각 질문별 bullet은 핵심 의견 3~10개.
+- bullet은 "- ...함", "- ...되었음", "- ...희망"처럼 짧게 작성.
+- 질문 라벨은 입력 question text의 의미를 보존하되, 너무 길면 간결하게 축약.
+- 입력에 없는 의견을 새로 만들지 않음.
+- 개인 이름·소속이 보이면 [학습자]로, 비방·욕설은 [비방성 의견]으로 마스킹.`;
 
   return await callForBlocks(
     sys,
@@ -395,7 +414,7 @@ async function generateTextClassification(
         responses: q.text_responses ?? []
       }))
     },
-    1
+    2
   );
 }
 
@@ -416,11 +435,11 @@ export async function buildSatisfactionSection(data: SessionReportData): Promise
   const instructorGroups = groupByInstructor(survey);
 
   // 분석 멘트 LLM 호출 — 병렬
-  const [overall, areaAnalyses, instructorAnalyses, textBlocks] = await Promise.all([
+  const [overall, areaAnalyses, instructorAnalyses, narrativeOpinion] = await Promise.all([
     generateOverall(data, survey, areas, instructorGroups),
     Promise.all(areas.map((a) => generateAreaAnalysis(a))),
     Promise.all(instructorGroups.map((g) => generateInstructorAnalysis(g))),
-    generateTextClassification(survey)
+    generateNarrativeOpinion(survey)
   ]);
 
   const blocks: ReportBlock[] = [];
@@ -461,8 +480,8 @@ export async function buildSatisfactionSection(data: SessionReportData): Promise
     sectionNo++;
   }
 
-  // 서술형
-  for (const body of textBlocks) {
+  // 서술형 종합·세부 의견
+  for (const body of narrativeOpinion) {
     blocks.push({ kind: 'text', body });
   }
 
