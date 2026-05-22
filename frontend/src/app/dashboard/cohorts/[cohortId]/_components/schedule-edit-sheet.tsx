@@ -12,7 +12,7 @@ import {
   SheetTitle,
   SheetTrigger
 } from '@/components/ui/sheet';
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { updateCohortSchedule } from '../../_actions';
 
@@ -24,6 +24,12 @@ export type ScheduleValues = {
   started_at: string | null;
   ended_at: string | null;
   orientation_date: string | null;
+  pre_online_start_at: string | null;
+  pre_online_end_at: string | null;
+  certification_start_at: string | null;
+  certification_end_at: string | null;
+  self_study_start_at: string | null;
+  self_study_end_at: string | null;
   delivery_method: string | null;
   max_capacity: number | null;
 };
@@ -42,6 +48,11 @@ export function ScheduleEditSheet({
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  // Radix Dialog의 asChild + Slot이 SSR에서 trigger button에 주입하는 aria/data-* 속성이
+  // 환경에 따라 hydration mismatch를 일으키는 케이스가 있어, mount 후에만 Sheet로 감싼다.
+  // SSR/first paint에서는 trigger만 plain 렌더 → 100ms 내 Sheet 활성화.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   function onSubmit(formData: FormData) {
     setError(null);
@@ -55,6 +66,10 @@ export function ScheduleEditSheet({
       toast.success('일정 정보가 저장되었습니다.');
       setOpen(false);
     });
+  }
+
+  if (!mounted) {
+    return <>{trigger}</>;
   }
 
   return (
@@ -105,6 +120,42 @@ export function ScheduleEditSheet({
               <FieldDate id='ended_at' label='교육 종료' defaultValue={initial.ended_at} />
             </div>
             <FieldDate id='orientation_date' label='OT' defaultValue={initial.orientation_date} />
+            <div className='grid grid-cols-2 gap-2'>
+              <FieldDate
+                id='pre_online_start_at'
+                label='사전 온라인 시작'
+                defaultValue={initial.pre_online_start_at}
+              />
+              <FieldDate
+                id='pre_online_end_at'
+                label='사전 온라인 종료'
+                defaultValue={initial.pre_online_end_at}
+              />
+            </div>
+            <div className='grid grid-cols-2 gap-2'>
+              <FieldDate
+                id='self_study_start_at'
+                label='셀프스터디 시작'
+                defaultValue={initial.self_study_start_at}
+              />
+              <FieldDate
+                id='self_study_end_at'
+                label='셀프스터디 종료'
+                defaultValue={initial.self_study_end_at}
+              />
+            </div>
+            <div className='grid grid-cols-2 gap-2'>
+              <FieldDate
+                id='certification_start_at'
+                label='인증평가 시작'
+                defaultValue={initial.certification_start_at}
+              />
+              <FieldDate
+                id='certification_end_at'
+                label='인증평가 종료'
+                defaultValue={initial.certification_end_at}
+              />
+            </div>
           </section>
 
           <section className='grid gap-3'>

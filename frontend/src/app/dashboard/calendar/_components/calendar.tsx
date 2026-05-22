@@ -13,6 +13,12 @@ type Cohort = {
   decided_at: string | null;
   notified_at: string | null;
   orientation_date: string | null;
+  pre_online_start_at: string | null;
+  pre_online_end_at: string | null;
+  certification_start_at: string | null;
+  certification_end_at: string | null;
+  self_study_start_at: string | null;
+  self_study_end_at: string | null;
   started_at: string | null;
   ended_at: string | null;
   recruitment_round_id: string | null;
@@ -47,28 +53,37 @@ type Props = {
   rounds: Round[];
 };
 
-type EventKind = 'recruit' | 'decided' | 'notified' | 'orientation' | 'session';
+type EventKind = 'recruit' | 'decided' | 'notified' | 'preonline' | 'orientation' | 'session' | 'selfstudy' | 'certification';
 
 
-// 정렬 룰: "오늘 할 일 우선" — 수업 → OT → 통보 → 선발 → 모집 순으로 위에 표시.
+// 정렬 룰: "오늘 할 일 우선" — 수업 → 인증평가 → OT → 사전온라인 → 셀프스터디 → 통보 → 선발 → 모집 순으로 위에 표시.
 // 범례·lane 정렬·KIND_* 룩업 정의 순서를 일치시켜 운영자가 룰을 시각적으로 인식할 수 있게.
 const KIND_DOT: Record<EventKind, string> = {
   session: 'bg-blue-500',
+  certification: 'bg-rose-500',
   orientation: 'bg-violet-500',
-  notified: 'bg-emerald-500',
+  preonline: 'bg-teal-500',
+  selfstudy: 'bg-slate-500',
+  notified: 'bg-fuchsia-500',
   decided: 'bg-amber-500',
   recruit: 'bg-orange-500'
 };
 const KIND_STRIP: Record<EventKind, string> = {
   session: 'bg-blue-100 text-blue-900 border-l-2 border-blue-500 dark:bg-blue-950/50 dark:text-blue-100',
+  certification: 'bg-rose-100 text-rose-900 border-l-2 border-rose-500 dark:bg-rose-950/50 dark:text-rose-100',
   orientation: 'bg-violet-100 text-violet-900 border-l-2 border-violet-500 dark:bg-violet-950/50 dark:text-violet-100',
-  notified: 'bg-emerald-100 text-emerald-900 border-l-2 border-emerald-500 dark:bg-emerald-950/50 dark:text-emerald-100',
+  preonline: 'bg-teal-100 text-teal-900 border-l-2 border-teal-500 dark:bg-teal-950/50 dark:text-teal-100',
+  selfstudy: 'bg-slate-100 text-slate-900 border-l-2 border-slate-500 dark:bg-slate-900/50 dark:text-slate-100',
+  notified: 'bg-fuchsia-100 text-fuchsia-900 border-l-2 border-fuchsia-500 dark:bg-fuchsia-950/50 dark:text-fuchsia-100',
   decided: 'bg-amber-100 text-amber-900 border-l-2 border-amber-500 dark:bg-amber-950/50 dark:text-amber-100',
   recruit: 'bg-orange-100 text-orange-900 border-l-2 border-orange-500 dark:bg-orange-950/50 dark:text-orange-100'
 };
 const KIND_LABEL: Record<EventKind, string> = {
   session: '수업',
+  certification: '인증평가',
   orientation: 'OT',
+  preonline: '사전온라인',
+  selfstudy: '셀프스터디',
   notified: '통보',
   decided: '선발',
   recruit: '모집'
@@ -76,10 +91,13 @@ const KIND_LABEL: Record<EventKind, string> = {
 // "오늘 할 일 우선" — 같은 날 여러 이벤트가 있으면 임박한 종류(수업)를 위 lane에 배치.
 const KIND_ORDER: Record<EventKind, number> = {
   session: 0,
-  orientation: 1,
-  notified: 2,
-  decided: 3,
-  recruit: 4
+  certification: 1,
+  orientation: 2,
+  preonline: 3,
+  selfstudy: 4,
+  notified: 5,
+  decided: 6,
+  recruit: 7
 };
 
 const DOW = ['일', '월', '화', '수', '목', '금', '토'] as const;
@@ -287,6 +305,54 @@ export function Calendar({ year, month, cohorts, sessions, rounds }: Props) {
           cohortName: c.name,
           label: `OT · ${c.name}`,
           tooltip: `[OT] ${c.name}`,
+          href: cohortHref
+        });
+      }
+      // 사전 온라인 — 시작일만 있으면 그날 하루, 양쪽 있으면 기간으로 표시
+      if (c.pre_online_start_at || c.pre_online_end_at) {
+        const start = c.pre_online_start_at ?? c.pre_online_end_at!;
+        const end = c.pre_online_end_at ?? c.pre_online_start_at!;
+        pushInstance({
+          key: `preonline::${c.id}`,
+          start,
+          end,
+          kind: 'preonline',
+          cohortId: c.id,
+          cohortName: c.name,
+          label: `사전 · ${c.name}`,
+          tooltip: `[사전 온라인] ${c.name}`,
+          href: cohortHref
+        });
+      }
+      // 셀프스터디
+      if (c.self_study_start_at || c.self_study_end_at) {
+        const start = c.self_study_start_at ?? c.self_study_end_at!;
+        const end = c.self_study_end_at ?? c.self_study_start_at!;
+        pushInstance({
+          key: `selfstudy::${c.id}`,
+          start,
+          end,
+          kind: 'selfstudy',
+          cohortId: c.id,
+          cohortName: c.name,
+          label: `셀프 · ${c.name}`,
+          tooltip: `[셀프스터디] ${c.name}`,
+          href: cohortHref
+        });
+      }
+      // 인증평가
+      if (c.certification_start_at || c.certification_end_at) {
+        const start = c.certification_start_at ?? c.certification_end_at!;
+        const end = c.certification_end_at ?? c.certification_start_at!;
+        pushInstance({
+          key: `cert::${c.id}`,
+          start,
+          end,
+          kind: 'certification',
+          cohortId: c.id,
+          cohortName: c.name,
+          label: `인증 · ${c.name}`,
+          tooltip: `[인증평가] ${c.name}`,
           href: cohortHref
         });
       }

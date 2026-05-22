@@ -74,7 +74,7 @@ export default async function CohortOverviewPage({
     supabase
       .from('cohorts')
       .select(
-        'id, name, started_at, ended_at, application_start_at, application_end_at, decided_at, notified_at, orientation_date, delivery_method, recruiting_slug, max_capacity, recruitment_round_id'
+        'id, name, started_at, ended_at, application_start_at, application_end_at, decided_at, notified_at, orientation_date, pre_online_start_at, pre_online_end_at, certification_start_at, certification_end_at, self_study_start_at, self_study_end_at, delivery_method, recruiting_slug, max_capacity, recruitment_round_id'
       )
       .eq('id', cohortId)
       .limit(1),
@@ -202,6 +202,13 @@ export default async function CohortOverviewPage({
         notifiedAt={scheduleNotified}
         startedAt={cohort.started_at}
         endedAt={cohort.ended_at}
+        orientationDate={cohort.orientation_date}
+        preOnlineStart={cohort.pre_online_start_at}
+        preOnlineEnd={cohort.pre_online_end_at}
+        certificationStart={cohort.certification_start_at}
+        certificationEnd={cohort.certification_end_at}
+        selfStudyStart={cohort.self_study_start_at}
+        selfStudyEnd={cohort.self_study_end_at}
         deliveryMethod={cohort.delivery_method}
         maxCapacity={cohort.max_capacity}
         roundSelector={
@@ -224,6 +231,12 @@ export default async function CohortOverviewPage({
               started_at: cohort.started_at,
               ended_at: cohort.ended_at,
               orientation_date: cohort.orientation_date,
+              pre_online_start_at: cohort.pre_online_start_at,
+              pre_online_end_at: cohort.pre_online_end_at,
+              certification_start_at: cohort.certification_start_at,
+              certification_end_at: cohort.certification_end_at,
+              self_study_start_at: cohort.self_study_start_at,
+              self_study_end_at: cohort.self_study_end_at,
               delivery_method: cohort.delivery_method,
               max_capacity: cohort.max_capacity
             }}
@@ -432,6 +445,13 @@ function ScheduleInfoCard({
   notifiedAt,
   startedAt,
   endedAt,
+  orientationDate,
+  preOnlineStart,
+  preOnlineEnd,
+  certificationStart,
+  certificationEnd,
+  selfStudyStart,
+  selfStudyEnd,
   deliveryMethod,
   maxCapacity,
   roundSelector,
@@ -444,6 +464,13 @@ function ScheduleInfoCard({
   notifiedAt: string | null;
   startedAt: string | null;
   endedAt: string | null;
+  orientationDate: string | null;
+  preOnlineStart: string | null;
+  preOnlineEnd: string | null;
+  certificationStart: string | null;
+  certificationEnd: string | null;
+  selfStudyStart: string | null;
+  selfStudyEnd: string | null;
   deliveryMethod: string | null;
   maxCapacity: number | null;
   roundSelector?: React.ReactNode;
@@ -460,7 +487,11 @@ function ScheduleInfoCard({
     { label: '신청기간', value: fmtRange(applicationStartAt, applicationEndAt), fromRound: !!roundLabel },
     { label: '선발일', value: fmt(decidedAt), fromRound: !!roundLabel },
     { label: '선발통보', value: fmt(notifiedAt), fromRound: !!roundLabel },
+    { label: '사전 온라인', value: fmtRange(preOnlineStart, preOnlineEnd) },
+    { label: 'OT', value: fmt(orientationDate) },
     { label: '교육기간', value: fmtRange(startedAt, endedAt) },
+    { label: '셀프스터디', value: fmtRange(selfStudyStart, selfStudyEnd) },
+    { label: '인증평가', value: fmtRange(certificationStart, certificationEnd) },
     { label: '방법', value: deliveryMethod ?? '—' },
     { label: '인원', value: maxCapacity ? `${maxCapacity}명` : '—' }
   ];

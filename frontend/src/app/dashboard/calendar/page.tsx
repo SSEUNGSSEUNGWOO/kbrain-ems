@@ -20,7 +20,7 @@ export default async function CalendarPage({ searchParams }: Props) {
     supabase
       .from('cohorts')
       .select(
-        'id, name, application_start_at, application_end_at, decided_at, notified_at, orientation_date, started_at, ended_at, recruitment_round_id, delivery_method'
+        'id, name, application_start_at, application_end_at, decided_at, notified_at, orientation_date, pre_online_start_at, pre_online_end_at, certification_start_at, certification_end_at, self_study_start_at, self_study_end_at, started_at, ended_at, recruitment_round_id, delivery_method'
       ),
     supabase
       .from('sessions')
@@ -64,6 +64,12 @@ export default async function CalendarPage({ searchParams }: Props) {
           decided_at: c.decided_at,
           notified_at: c.notified_at,
           orientation_date: c.orientation_date,
+          pre_online_start_at: c.pre_online_start_at,
+          pre_online_end_at: c.pre_online_end_at,
+          certification_start_at: c.certification_start_at,
+          certification_end_at: c.certification_end_at,
+          self_study_start_at: c.self_study_start_at,
+          self_study_end_at: c.self_study_end_at,
           started_at: c.started_at,
           ended_at: c.ended_at,
           recruitment_round_id: c.recruitment_round_id

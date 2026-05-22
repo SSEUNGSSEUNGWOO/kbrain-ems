@@ -103,6 +103,12 @@ export type Database = {
           notified_at: string | null;
           delivery_method: string | null;
           orientation_date: string | null;
+          pre_online_start_at: string | null;
+          pre_online_end_at: string | null;
+          certification_start_at: string | null;
+          certification_end_at: string | null;
+          self_study_start_at: string | null;
+          self_study_end_at: string | null;
           recruiting_slug: string | null;
           max_capacity: number | null;
           recruitment_round_id: string | null;
@@ -121,6 +127,12 @@ export type Database = {
           notified_at?: string | null;
           delivery_method?: string | null;
           orientation_date?: string | null;
+          pre_online_start_at?: string | null;
+          pre_online_end_at?: string | null;
+          certification_start_at?: string | null;
+          certification_end_at?: string | null;
+          self_study_start_at?: string | null;
+          self_study_end_at?: string | null;
           recruiting_slug?: string | null;
           max_capacity?: number | null;
           recruitment_round_id?: string | null;
@@ -139,6 +151,12 @@ export type Database = {
           notified_at?: string | null;
           delivery_method?: string | null;
           orientation_date?: string | null;
+          pre_online_start_at?: string | null;
+          pre_online_end_at?: string | null;
+          certification_start_at?: string | null;
+          certification_end_at?: string | null;
+          self_study_start_at?: string | null;
+          self_study_end_at?: string | null;
           recruiting_slug?: string | null;
           max_capacity?: number | null;
           recruitment_round_id?: string | null;

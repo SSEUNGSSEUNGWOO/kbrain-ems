@@ -56,6 +56,12 @@ export async function updateCohortSchedule(
       started_at: nullableDate('started_at'),
       ended_at: nullableDate('ended_at'),
       orientation_date: nullableDate('orientation_date'),
+      pre_online_start_at: nullableDate('pre_online_start_at'),
+      pre_online_end_at: nullableDate('pre_online_end_at'),
+      certification_start_at: nullableDate('certification_start_at'),
+      certification_end_at: nullableDate('certification_end_at'),
+      self_study_start_at: nullableDate('self_study_start_at'),
+      self_study_end_at: nullableDate('self_study_end_at'),
       delivery_method: nullableText('delivery_method'),
       max_capacity: maxCapacity
     })
