@@ -133,6 +133,8 @@ export function Calendar({ year, month, cohorts, sessions, rounds }: Props) {
     }
     return cells;
   }, [year, month]);
+  const monthStart = `${year}-${String(month).padStart(2, '0')}-01`;
+  const monthEnd = ymd(new Date(Date.UTC(year, month, 0)));
 
   // 이벤트 instance 빌드 (cohortId+kind+optional sessionId가 같은 이벤트는 하나의 instance)
   type Instance = {
@@ -155,6 +157,9 @@ export function Calendar({ year, month, cohorts, sessions, rounds }: Props) {
   };
   const instances = useMemo<Instance[]>(() => {
     const out: Instance[] = [];
+    const pushInstance = (instance: Instance) => {
+      if (instance.start <= monthEnd && instance.end >= monthStart) out.push(instance);
+    };
     const sessionCountByCohort = new Map<string, number>();
     for (const s of sessions) {
       sessionCountByCohort.set(s.cohort_id, (sessionCountByCohort.get(s.cohort_id) ?? 0) + 1);
@@ -184,7 +189,7 @@ export function Calendar({ year, month, cohorts, sessions, rounds }: Props) {
 
       if (r.application_start_at && r.application_end_at) {
         const dateLabel = `${formatDateLabel(r.application_start_at)} ~ ${formatDateLabel(r.application_end_at)}`;
-        out.push({
+        pushInstance({
           key: `round-recruit::${r.id}`,
           start: r.application_start_at,
           end: r.application_end_at,
@@ -198,7 +203,7 @@ export function Calendar({ year, month, cohorts, sessions, rounds }: Props) {
         });
       }
       if (r.selection_at) {
-        out.push({
+        pushInstance({
           key: `round-decided::${r.id}`,
           start: r.selection_at,
           end: r.selection_at,
@@ -212,7 +217,7 @@ export function Calendar({ year, month, cohorts, sessions, rounds }: Props) {
         });
       }
       if (r.announce_at) {
-        out.push({
+        pushInstance({
           key: `round-notified::${r.id}`,
           start: r.announce_at,
           end: r.announce_at,
@@ -233,7 +238,7 @@ export function Calendar({ year, month, cohorts, sessions, rounds }: Props) {
       const hasRound = !!c.recruitment_round_id;
 
       if (!hasRound && c.application_start_at && c.application_end_at) {
-        out.push({
+        pushInstance({
           key: `recruit::${c.id}`,
           start: c.application_start_at,
           end: c.application_end_at,
@@ -246,7 +251,7 @@ export function Calendar({ year, month, cohorts, sessions, rounds }: Props) {
         });
       }
       if (!hasRound && c.decided_at) {
-        out.push({
+        pushInstance({
           key: `decided::${c.id}`,
           start: c.decided_at,
           end: c.decided_at,
@@ -259,7 +264,7 @@ export function Calendar({ year, month, cohorts, sessions, rounds }: Props) {
         });
       }
       if (!hasRound && c.notified_at) {
-        out.push({
+        pushInstance({
           key: `notified::${c.id}`,
           start: c.notified_at,
           end: c.notified_at,
@@ -273,7 +278,7 @@ export function Calendar({ year, month, cohorts, sessions, rounds }: Props) {
       }
       // OT는 cohort 단위라 라운드 매핑과 무관하게 항상 표시
       if (c.orientation_date) {
-        out.push({
+        pushInstance({
           key: `orient::${c.id}`,
           start: c.orientation_date,
           end: c.orientation_date,
@@ -293,7 +298,7 @@ export function Calendar({ year, month, cohorts, sessions, rounds }: Props) {
       const assistantLabel = s.assistant_needed
         ? `보조강사 ${s.assistant_time_range}`
         : '';
-      out.push({
+      pushInstance({
         key: `session::${s.id}`,
         start: s.session_date,
         end: s.session_end_date ?? s.session_date,
@@ -313,7 +318,7 @@ export function Calendar({ year, month, cohorts, sessions, rounds }: Props) {
       return a.cohortName.localeCompare(b.cohortName, 'ko');
     });
     return out;
-  }, [cohorts, sessions, rounds]);
+  }, [cohorts, sessions, rounds, monthEnd, monthStart]);
 
   // 주 단위 lane 할당: cell → lane[] (각 lane에 event 또는 null)
   type CellEvent = {
@@ -325,8 +330,6 @@ export function Calendar({ year, month, cohorts, sessions, rounds }: Props) {
     // grid를 7씩 6 주로 분할
     const weeks: string[][] = [];
     for (let w = 0; w < 6; w++) weeks.push(grid.slice(w * 7, w * 7 + 7));
-    const monthStart = `${year}-${String(month).padStart(2, '0')}-01`;
-    const monthEnd = ymd(new Date(Date.UTC(year, month, 0)));
 
     const cellLanes = new Map<string, (CellEvent | null)[]>();
     const perWeekMax: number[] = [];
@@ -384,7 +387,7 @@ export function Calendar({ year, month, cohorts, sessions, rounds }: Props) {
       }
     }
     return { laneGrid: cellLanes, maxLanesPerWeek: perWeekMax };
-  }, [grid, instances, month, year]);
+  }, [grid, instances, monthEnd, monthStart]);
 
   const today = ymd(new Date());
   const monthLabel = `${year}년 ${String(month).padStart(2, '0')}월`;
