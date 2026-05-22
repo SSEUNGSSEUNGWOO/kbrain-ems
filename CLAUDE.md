@@ -119,7 +119,7 @@ const { data, error } = await supabase.from('cohorts').select('*');
 | `session_instructors` | 세션×강사 (N:N, role) | unique `(session_id, instructor_id, role)` |
 | `instructor_fees` | 강사료 산정·승인·정산 | FK → `session_instructors`, `operators` |
 | `surveys` | 만족도 설문 마스터 | FK → `cohorts`, optional `sessions`, `share_code` (카톡 공유 short slug, unique partial) |
-| `survey_questions` | 설문 문항 | unique `(survey_id, question_no)`, `section_no`/`section_title` (UI 그룹), `instructor_id` (강사 만족도 매핑), type=`likert5`/`text`/`choice` |
+| `survey_questions` | 설문 문항 | unique `(survey_id, question_no)`, `section_no`/`section_title` (UI 그룹), `instructor_id` (강사 만족도 매핑), type=`likert10`/`text`/`choice` |
 | `survey_responses` | 설문 응답 (토큰) | unique `token`. **익명화**: `student_id` nullable — 제출 후 NULL 처리, 누가 냈는지는 `survey_completions`에만 |
 | `survey_completions` | 설문 응답 완료 학생 추적 | unique `(survey_id, student_id)` — 응답 내용과 학생 매칭을 분리 |
 | `diagnoses` | 사전·사후 진단 마스터 | type: pre / post / follow_up |
@@ -132,17 +132,15 @@ const { data, error } = await supabase.from('cohorts').select('*');
 | `risks` | 사업 리스크 등록부 | status: open / mitigated / closed |
 | `issues` | 이슈 라이프사이클 | status, priority, optional `related_cohort_id` |
 
-**마이그레이션**: `supabase/migrations/` 폴더의 raw SQL. Supabase Studio SQL Editor 또는 `bunx supabase db push`로 적용. 초기 통합본 이후 누적된 변경:
+**마이그레이션**: `supabase/migrations/` 폴더의 raw SQL. Supabase Studio SQL Editor 또는 `bunx supabase db push`로 적용. 초기 통합본 이후 누적된 변경 (토픽별 묶음):
 
-- `_initial_schema.sql` — 27개 코어 테이블
-- `_survey_extensions.sql` — `survey_questions`에 섹션·강사 매핑 컬럼
-- `_surveys_share_code.sql` — 카톡 공유용 `surveys.share_code`
-- `_locations.sql` — 수업 장소 테이블 + `sessions.location_id`
-- `_likert5_migration.sql` — 만족도 척도 1-10 → 1-5 일괄 변환 (응답 분석 코드는 5점 기준)
-- `_application_file.sql` — 신청 PDF 첨부 컬럼
-- `_operators_auth.sql` — `operators.auth_user_id` ↔ `auth.users` 매핑 (Supabase Auth 도입)
-- `_operator_cohort_order.sql` — 운영자별 사이드바 기수 정렬
-- `_survey_anonymous.sql` — 응답 익명화 (`survey_responses.student_id` nullable + 별도 `survey_completions`)
+- 스키마 기반: `_initial_schema.sql` (27개 코어 테이블) → `_survey_extensions.sql` (섹션·강사 매핑) → `_locations.sql` (수업 장소 + `sessions.location_id`) → `_surveys_share_code.sql` (카톡 공유 share_code)
+- 인증: `_operators_auth.sql` (`operators.auth_user_id` ↔ `auth.users`), `_operator_cohort_order.sql`, `_operators_head_role.sql`
+- 신청·모집: `_application_file.sql` (PDF 첨부), `_application_questions_answers.sql` (신청 문항/답변 정규화), `_recruitment_rounds.sql`, `_organizations_category.sql`, `_cohorts_category.sql`
+- 일정/세션/강사: `_cohorts_schedule_fields.sql`, `_sessions_end_date.sql`, `_cohorts_orientation_date.sql`, `_session_operators.sql`, `_assignments_session_id.sql`, `_instructors_kind.sql`
+- 설문: `_survey_anonymous.sql` (응답 익명화: `survey_responses.student_id` nullable + 별도 `survey_completions`), `_drop_response_token.sql`, `_surveys_respondent_total.sql`, `_likert5_migration.sql` (1-10 → 1-5) → `_likert10_migration.sql` (역전환: 다시 1-10, 응답 값 ×2). **현재 척도는 10점.** 응답 분석 코드는 10점 기준.
+- 알림 발송: `_notifications_dispatch.sql`, `_cohort_dispatch_config.sql`
+- 집계: `_aggregate_rpcs.sql` — 자주 쓰는 집계는 Postgres RPC로 제공됨 (Data fetching 섹션 참고)
 
 (legacy: 루트 `migrations/` 폴더는 Neon 시절 잔재, 사용 안 함)
 

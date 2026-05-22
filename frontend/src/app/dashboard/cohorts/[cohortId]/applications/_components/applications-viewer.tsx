@@ -24,8 +24,7 @@ const SECTION_ORDER = [
   'pre_learning',
   'self_diagnosis',
   'knowledge',
-  'usability',
-  'plan'
+  'usability'
 ] as const;
 
 const SECTION_LABEL: Record<string, string> = {
@@ -33,8 +32,7 @@ const SECTION_LABEL: Record<string, string> = {
   pre_learning: '사전학습',
   self_diagnosis: '자가진단',
   knowledge: '지식평가',
-  usability: '업무활용성',
-  plan: '적용계획'
+  usability: '업무활용성'
 };
 
 const SECTION_DESC: Record<string, string> = {
@@ -42,8 +40,7 @@ const SECTION_DESC: Record<string, string> = {
   pre_learning: '권장 사전학습(이러닝) 이수 여부',
   self_diagnosis: '응답자가 자기 수준을 1~5점으로 진단 (가중치 없음)',
   knowledge: '정답 채점 대상. 가중치: 초급 1점 · 중급 2점 · 고급 3점',
-  usability: '교육 후 업무에 적용할 영역 (다중선택)',
-  plan: '100자 내외 자유 서술'
+  usability: '교육 후 업무에 적용할 영역 (다중선택) + 100자 내외 적용 계획'
 };
 
 const TYPE_LABEL: Record<string, string> = {

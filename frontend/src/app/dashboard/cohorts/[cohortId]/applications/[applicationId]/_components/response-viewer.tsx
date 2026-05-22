@@ -30,8 +30,7 @@ const SECTION_ORDER = [
   'pre_learning',
   'self_diagnosis',
   'knowledge',
-  'usability',
-  'plan'
+  'usability'
 ] as const;
 
 const SECTION_LABEL: Record<string, string> = {
@@ -39,8 +38,7 @@ const SECTION_LABEL: Record<string, string> = {
   pre_learning: '사전학습',
   self_diagnosis: '자가진단',
   knowledge: '지식평가',
-  usability: '업무활용성',
-  plan: '적용계획'
+  usability: '업무활용성'
 };
 
 const TYPE_LABEL: Record<string, string> = {
