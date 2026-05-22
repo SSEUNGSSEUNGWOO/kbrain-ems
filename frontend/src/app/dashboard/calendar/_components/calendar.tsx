@@ -119,15 +119,6 @@ function formatDateLabel(iso: string): string {
   return `${m}.${d}.(${DOW[date.getDay()]})`;
 }
 
-function* daysInRange(start: string, end: string): Generator<string> {
-  const a = new Date(start + 'T00:00:00Z');
-  const b = new Date(end + 'T00:00:00Z');
-  while (a <= b) {
-    yield ymd(a);
-    a.setUTCDate(a.getUTCDate() + 1);
-  }
-}
-
 export function Calendar({ year, month, cohorts, sessions, rounds }: Props) {
   // 월 그리드 (일요일 시작, 6주)
   const grid = useMemo(() => {
@@ -164,11 +155,18 @@ export function Calendar({ year, month, cohorts, sessions, rounds }: Props) {
   };
   const instances = useMemo<Instance[]>(() => {
     const out: Instance[] = [];
+    const sessionCountByCohort = new Map<string, number>();
+    for (const s of sessions) {
+      sessionCountByCohort.set(s.cohort_id, (sessionCountByCohort.get(s.cohort_id) ?? 0) + 1);
+    }
+    const hasSchedule = (c: Cohort): boolean =>
+      !!(c.started_at || c.ended_at || c.orientation_date || sessionCountByCohort.get(c.id));
 
     // 라운드별로 매핑된 cohort 목록 미리 계산
     const cohortsByRound = new Map<string, Cohort[]>();
     for (const c of cohorts) {
       if (!c.recruitment_round_id) continue;
+      if (!hasSchedule(c)) continue;
       const list = cohortsByRound.get(c.recruitment_round_id) ?? [];
       list.push(c);
       cohortsByRound.set(c.recruitment_round_id, list);
@@ -337,7 +335,7 @@ export function Calendar({ year, month, cohorts, sessions, rounds }: Props) {
       // 이 주와 겹치는 instance만 — KIND_ORDER 우선, 같은 종류면 시작일 → 이름(라운드 라벨) → 긴 것.
       const inWeek = instances
         .filter((it) => it.start <= weekEnd && it.end >= weekStart)
-        .sort((a, b) => {
+        .toSorted((a, b) => {
           if (a.kind !== b.kind) return KIND_ORDER[a.kind] - KIND_ORDER[b.kind];
           if (a.start !== b.start) return a.start.localeCompare(b.start);
           if (a.cohortName !== b.cohortName)
@@ -362,7 +360,7 @@ export function Calendar({ year, month, cohorts, sessions, rounds }: Props) {
 
       // 각 cell의 lanes 채움
       for (const date of week) {
-        const lanes: (CellEvent | null)[] = new Array(laneEnd.length).fill(null);
+        const lanes: (CellEvent | null)[] = Array.from({ length: laneEnd.length }, () => null);
         for (const it of inWeek) {
           if (date < it.start || date > it.end) continue;
           const lane = laneOfInstance.get(it.key)!;
