@@ -2,7 +2,6 @@ import Providers from '@/components/layout/providers';
 import { Toaster } from '@/components/ui/sonner';
 import { fontVariables } from '@/components/themes/font.config';
 import { DEFAULT_THEME, THEMES } from '@/components/themes/theme.config';
-import ThemeProvider from '@/components/themes/theme-provider';
 import { cn } from '@/lib/utils';
 import type { Metadata, Viewport } from 'next';
 import { cookies } from 'next/headers';
@@ -10,18 +9,13 @@ import NextTopLoader from 'nextjs-toploader';
 import { NuqsAdapter } from 'nuqs/adapters/next/app';
 import '../styles/globals.css';
 
-const META_THEME_COLORS = {
-  light: '#ffffff',
-  dark: '#09090b'
-};
-
 export const metadata: Metadata = {
   title: 'K-Brain EMS',
   description: '교육과정 관리 시스템'
 };
 
 export const viewport: Viewport = {
-  themeColor: META_THEME_COLORS.light
+  themeColor: '#ffffff'
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
@@ -31,7 +25,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const themeToApply = isValidTheme ? activeThemeValue! : DEFAULT_THEME;
 
   return (
-    <html lang='ko' suppressHydrationWarning data-theme={themeToApply}>
+    <html lang='ko' className='light' style={{ colorScheme: 'light' }} data-theme={themeToApply}>
       <body
         className={cn(
           'bg-background overflow-x-hidden overscroll-none font-sans antialiased',
@@ -40,17 +34,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       >
         <NextTopLoader color='var(--primary)' showSpinner={false} />
         <NuqsAdapter>
-          <ThemeProvider
-            attribute='class'
-            forcedTheme='light'
-            disableTransitionOnChange
-            enableColorScheme
-          >
-            <Providers activeThemeValue={themeToApply}>
-              <Toaster />
-              {children}
-            </Providers>
-          </ThemeProvider>
+          <Providers activeThemeValue={themeToApply}>
+            <Toaster />
+            {children}
+          </Providers>
         </NuqsAdapter>
       </body>
     </html>
