@@ -325,6 +325,8 @@ export function Calendar({ year, month, cohorts, sessions, rounds }: Props) {
     // grid를 7씩 6 주로 분할
     const weeks: string[][] = [];
     for (let w = 0; w < 6; w++) weeks.push(grid.slice(w * 7, w * 7 + 7));
+    const monthStart = `${year}-${String(month).padStart(2, '0')}-01`;
+    const monthEnd = ymd(new Date(Date.UTC(year, month, 0)));
 
     const cellLanes = new Map<string, (CellEvent | null)[]>();
     const perWeekMax: number[] = [];
@@ -334,7 +336,13 @@ export function Calendar({ year, month, cohorts, sessions, rounds }: Props) {
       const weekEnd = week[6];
       // 이 주와 겹치는 instance만 — KIND_ORDER 우선, 같은 종류면 시작일 → 이름(라운드 라벨) → 긴 것.
       const inWeek = instances
-        .filter((it) => it.start <= weekEnd && it.end >= weekStart)
+        .filter(
+          (it) =>
+            it.start <= weekEnd &&
+            it.end >= weekStart &&
+            it.start <= monthEnd &&
+            it.end >= monthStart
+        )
         .toSorted((a, b) => {
           if (a.kind !== b.kind) return KIND_ORDER[a.kind] - KIND_ORDER[b.kind];
           if (a.start !== b.start) return a.start.localeCompare(b.start);
@@ -361,20 +369,22 @@ export function Calendar({ year, month, cohorts, sessions, rounds }: Props) {
       // 각 cell의 lanes 채움
       for (const date of week) {
         const lanes: (CellEvent | null)[] = Array.from({ length: laneEnd.length }, () => null);
-        for (const it of inWeek) {
-          if (date < it.start || date > it.end) continue;
-          const lane = laneOfInstance.get(it.key)!;
-          lanes[lane] = {
-            instance: it,
-            isStart: date === it.start,
-            isEnd: date === it.end
-          };
+        if (date >= monthStart && date <= monthEnd) {
+          for (const it of inWeek) {
+            if (date < it.start || date > it.end) continue;
+            const lane = laneOfInstance.get(it.key)!;
+            lanes[lane] = {
+              instance: it,
+              isStart: date === it.start,
+              isEnd: date === it.end
+            };
+          }
         }
         cellLanes.set(date, lanes);
       }
     }
     return { laneGrid: cellLanes, maxLanesPerWeek: perWeekMax };
-  }, [grid, instances]);
+  }, [grid, instances, month, year]);
 
   const today = ymd(new Date());
   const monthLabel = `${year}년 ${String(month).padStart(2, '0')}월`;
