@@ -98,9 +98,9 @@ export default async function SurveyResultsPage({ params }: Props) {
   );
   const recommendStat = emptyStat();
 
-  // 서술형 응답 모음 (sec6) + follow-up 사유
+  // 서술형 응답 모음 + follow-up 사유
   type TextEntry = { questionId: string; text: string; submittedAt: string | null };
-  const sec6Texts = new Map<string, TextEntry[]>(); // question_id → entries
+  const narrativeTexts = new Map<string, TextEntry[]>(); // question_id → entries
   const followUpTexts = new Map<string, { linked: string; entries: TextEntry[] }>(); // text q id → { linked likert id, entries }
 
   const followUpMap = computeFollowUpMap(questions);
@@ -138,9 +138,9 @@ export default async function SurveyResultsPage({ params }: Props) {
         if (recommendQ && q.id === recommendQ.id) pushScore(recommendStat, v);
       } else if (q.type === 'text' && typeof v === 'string' && v.trim().length > 0) {
         const entry: TextEntry = { questionId: q.id, text: v.trim(), submittedAt: r.submitted_at };
-        if (q.section_no === 6) {
-          if (!sec6Texts.has(q.id)) sec6Texts.set(q.id, []);
-          sec6Texts.get(q.id)!.push(entry);
+        if (q.section_title === '서술형') {
+          if (!narrativeTexts.has(q.id)) narrativeTexts.set(q.id, []);
+          narrativeTexts.get(q.id)!.push(entry);
         } else if (followUpMap.has(q.id)) {
           if (!followUpTexts.has(q.id)) {
             followUpTexts.set(q.id, { linked: followUpMap.get(q.id)!, entries: [] });
@@ -206,8 +206,10 @@ export default async function SurveyResultsPage({ params }: Props) {
     ).values()
   ).toSorted((a, b) => a.sectionNo - b.sectionNo);
 
-  // 서술형 sec6 정렬
-  const sec6Questions = questions.filter((q) => q.section_no === 6 && q.type === 'text');
+  // 서술형 정렬 — 강사 수에 따라 섹션 번호가 달라질 수 있으므로 제목 기준으로 찾는다.
+  const narrativeQuestions = questions.filter(
+    (q) => q.section_title === '서술형' && q.type === 'text'
+  );
 
   // follow-up 정렬
   const followUpQuestions = questions.filter((q) => followUpMap.has(q.id));
@@ -382,12 +384,12 @@ export default async function SurveyResultsPage({ params }: Props) {
         )}
 
         {/* 서술형 응답 */}
-        {sec6Questions.length > 0 && (
+        {narrativeQuestions.length > 0 && (
           <section className='rounded-xl border bg-card px-6 py-5 shadow-sm'>
             <h2 className='mb-4 text-sm font-bold'>서술형 응답</h2>
             <div className='space-y-5'>
-              {sec6Questions.map((q) => {
-                const entries = sec6Texts.get(q.id) ?? [];
+              {narrativeQuestions.map((q) => {
+                const entries = narrativeTexts.get(q.id) ?? [];
                 return (
                   <div key={q.id}>
                     <h3 className='mb-2 text-xs font-semibold text-muted-foreground'>
