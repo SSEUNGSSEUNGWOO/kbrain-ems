@@ -72,60 +72,62 @@ export default async function ReportsPage({ params }: Props) {
       ) : (
         <Card>
           <CardContent className='p-0'>
-            <table className='w-full text-sm'>
-              <thead className='bg-muted/50'>
-                <tr>
-                  <th className='border-b px-4 py-3 text-left font-medium'>회차</th>
-                  <th className='border-b px-4 py-3 text-left font-medium'>일자</th>
-                  <th className='border-b px-4 py-3 text-left font-medium'>주제</th>
-                  <th className='border-b px-4 py-3 text-left font-medium'>시간</th>
-                  <th className='border-b px-4 py-3 text-left font-medium'>보고서</th>
-                  <th className='border-b px-4 py-3 text-right font-medium'>액션</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((s) => (
-                  <tr key={s.id} className='even:bg-muted/10'>
-                    <td className='border-b px-4 py-3 font-medium tabular-nums'>{s.no}회차</td>
-                    <td className='text-muted-foreground border-b px-4 py-3 tabular-nums'>
-                      {s.session_date ?? '-'}
-                    </td>
-                    <td className='border-b px-4 py-3'>{s.title ?? '-'}</td>
-                    <td className='text-muted-foreground border-b px-4 py-3 tabular-nums'>
-                      {s.start_time && s.end_time ? `${s.start_time} ~ ${s.end_time}` : '-'}
-                    </td>
-                    <td className='border-b px-4 py-3'>
-                      {s.report ? (
-                        <Badge variant='outline' className='font-normal'>
-                          {s.report.status === 'draft' ? '초안' : s.report.status}
-                          {s.report.draft_at && (
-                            <span className='ml-1 opacity-60'>· {s.report.draft_at.slice(0, 10)}</span>
-                          )}
-                        </Badge>
-                      ) : (
-                        <span className='text-muted-foreground'>미생성</span>
-                      )}
-                    </td>
-                    <td className='border-b px-4 py-3 text-right'>
-                      <div className='flex items-center justify-end gap-2'>
-                        {s.report && (
-                          <Button variant='outline' size='sm' asChild>
-                            <Link href={`/dashboard/cohorts/${cohortId}/reports/${s.report.id}`}>
-                              보기
-                            </Link>
-                          </Button>
-                        )}
-                        <GenerateReportButton
-                          sessionId={s.id}
-                          cohortId={cohortId}
-                          label={s.report ? '재생성' : '보고서 생성'}
-                        />
-                      </div>
-                    </td>
+            <div className='overflow-x-auto'>
+              <table className='w-full min-w-[760px] text-sm'>
+                <thead className='bg-muted/50'>
+                  <tr>
+                    <th className='border-b px-4 py-3 text-left font-medium'>회차</th>
+                    <th className='border-b px-4 py-3 text-left font-medium'>일자</th>
+                    <th className='border-b px-4 py-3 text-left font-medium'>주제</th>
+                    <th className='border-b px-4 py-3 text-left font-medium'>시간</th>
+                    <th className='border-b px-4 py-3 text-left font-medium'>보고서</th>
+                    <th className='border-b px-4 py-3 text-right font-medium'>액션</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {rows.map((s) => (
+                    <tr key={s.id} className='even:bg-muted/10'>
+                      <td className='border-b px-4 py-3 font-medium tabular-nums'>{s.no}회차</td>
+                      <td className='text-muted-foreground border-b px-4 py-3 tabular-nums'>
+                        {s.session_date ?? '-'}
+                      </td>
+                      <td className='border-b px-4 py-3'>{s.title ?? '-'}</td>
+                      <td className='text-muted-foreground border-b px-4 py-3 tabular-nums'>
+                        {s.start_time && s.end_time ? `${s.start_time} ~ ${s.end_time}` : '-'}
+                      </td>
+                      <td className='border-b px-4 py-3'>
+                        {s.report ? (
+                          <Badge variant='outline' className='font-normal'>
+                            {s.report.status === 'draft' ? '초안' : s.report.status}
+                            {s.report.draft_at && (
+                              <span className='ml-1 opacity-60'>· {s.report.draft_at.slice(0, 10)}</span>
+                            )}
+                          </Badge>
+                        ) : (
+                          <span className='text-muted-foreground'>미생성</span>
+                        )}
+                      </td>
+                      <td className='border-b px-4 py-3 text-right'>
+                        <div className='flex items-center justify-end gap-2'>
+                          {s.report && (
+                            <Button variant='outline' size='sm' asChild>
+                              <Link href={`/dashboard/cohorts/${cohortId}/reports/${s.report.id}`}>
+                                보기
+                              </Link>
+                            </Button>
+                          )}
+                          <GenerateReportButton
+                            sessionId={s.id}
+                            cohortId={cohortId}
+                            label={s.report ? '재생성' : '보고서 생성'}
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </CardContent>
         </Card>
       )}
