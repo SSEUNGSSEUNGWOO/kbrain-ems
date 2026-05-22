@@ -13,4 +13,4 @@
 .claude/settings.local.json
 
 # Generated cohort reports (운영자가 검수 후 별도 배포)
-reports/
+/reports/
