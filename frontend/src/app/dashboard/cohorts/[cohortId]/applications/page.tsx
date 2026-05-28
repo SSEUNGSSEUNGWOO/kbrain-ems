@@ -86,7 +86,7 @@ export default async function CohortApplicationsPage({ params, searchParams }: P
       .returns<StatsRowQ[]>()
   ]);
   const questionCount = questions?.length ?? 0;
-  const finalQuestion = questions?.[questions.length - 1] ?? null;
+  const finalQuestion = questions?.find((q) => q.question_no === 'Plan') ?? null;
   const c2Question = questions?.find((q) => q.question_no === 'C2') ?? null;
   const allAppIds = (statsRows ?? []).map((r) => r.id);
 

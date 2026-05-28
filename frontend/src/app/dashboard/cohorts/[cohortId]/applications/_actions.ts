@@ -57,10 +57,12 @@ export async function loadSelectionPool(
         organizations: { name: string } | null;
       } | null;
     };
+    // 자동 선발 후보군은 심사 대상(applied/pending)만. 이미 확정·취하된 사람은 제외.
     const { data: apps, error: appErr } = await supabase
       .from('applications')
       .select('id, status, knowledge_score, applicant_id, applicants(id, name, organizations(name))')
       .eq('cohort_id', cohortId)
+      .in('status', ['applied', 'pending'])
       .returns<AppQ[]>();
     if (appErr) throw new Error(appErr.message);
 
@@ -72,7 +74,8 @@ export async function loadSelectionPool(
       .order('display_order', { ascending: true });
     if (qErr) throw new Error(qErr.message);
     const c2 = questions?.find((q) => q.question_no === 'C2');
-    const finalQ = questions?.[questions.length - 1];
+    // 활용계획은 question_no='Plan'으로 명시 식별 (마지막 문항 가정 회피)
+    const finalQ = questions?.find((q) => q.question_no === 'Plan');
     const knowledgeMax = (questions ?? [])
       .filter((q) => q.section === 'knowledge')
       .reduce((s, q) => s + Number(q.weight ?? 1), 0);
@@ -122,11 +125,12 @@ export async function resetSelections(
 ): Promise<{ error?: string; resetCount?: number }> {
   try {
     const supabase = createAdminClient();
+    // 취하(withdrawn)는 신청자의 명시적 철회이므로 자동 초기화에서 제외
     const { data, error } = await supabase
       .from('applications')
       .update({ status: 'applied', decided_at: null, rejected_stage: null })
       .eq('cohort_id', cohortId)
-      .in('status', ['selected', 'rejected', 'pending', 'withdrawn'])
+      .in('status', ['selected', 'rejected', 'pending'])
       .select('id');
     if (error) throw new Error(error.message);
     revalidatePath(`/dashboard/cohorts/${cohortId}/applications`);
@@ -145,34 +149,25 @@ export async function applySelections(
     const supabase = createAdminClient();
     const today = new Date().toISOString().slice(0, 10);
 
-    const { error: selErr } = await supabase
-      .from('applications')
-      .update({ status: 'selected', decided_at: today })
-      .eq('cohort_id', cohortId)
-      .in('id', selectedIds.length > 0 ? selectedIds : ['__none__']);
-    if (selErr) throw new Error(selErr.message);
+    // RPC `apply_selections` 한 번 호출 — 선발/탈락을 하나의 트랜잭션으로 처리.
+    // 중간 실패 시 자동 ROLLBACK 되어 중간 상태가 남지 않음.
+    // 함수 정의: supabase/migrations/20260528000001_apply_selections_rpc.sql
+    // @ts-expect-error supabase types.ts에 RPC 등록 안 됨 — 마이그레이션 적용 후 types regen 필요
+    const { data, error } = await supabase.rpc('apply_selections', {
+      p_cohort_id: cohortId,
+      p_selected_ids: selectedIds,
+      p_reject_others: rejectOthers,
+      p_decided_at: today
+    });
+    if (error) throw new Error(error.message);
 
-    let rejectedCount = 0;
-    if (rejectOthers) {
-      const { data: others, error: othersErr } = await supabase
-        .from('applications')
-        .select('id')
-        .eq('cohort_id', cohortId)
-        .not('id', 'in', `(${selectedIds.length > 0 ? selectedIds.join(',') : 'null'})`);
-      if (othersErr) throw new Error(othersErr.message);
-      const otherIds = (others ?? []).map((o) => o.id);
-      if (otherIds.length > 0) {
-        const { error: rejErr } = await supabase
-          .from('applications')
-          .update({ status: 'rejected', decided_at: today })
-          .in('id', otherIds);
-        if (rejErr) throw new Error(rejErr.message);
-        rejectedCount = otherIds.length;
-      }
-    }
+    const result = (data ?? {}) as { selected_count?: number; rejected_count?: number };
 
     revalidatePath(`/dashboard/cohorts/${cohortId}/applications`);
-    return { selectedCount: selectedIds.length, rejectedCount };
+    return {
+      selectedCount: result.selected_count ?? 0,
+      rejectedCount: result.rejected_count ?? 0
+    };
   } catch (e) {
     return { error: e instanceof Error ? e.message : '적용 실패' };
   }

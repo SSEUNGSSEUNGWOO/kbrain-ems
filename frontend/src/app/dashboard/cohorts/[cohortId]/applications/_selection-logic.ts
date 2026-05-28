@@ -90,20 +90,22 @@ export function scoreAll(
     const kPart = kNorm * weights.knowledge;
     const cPart = cNorm * weights.category;
     const pPart = pNorm * weights.plan;
+    // 반올림은 표시 시점에만 — 정렬은 원점수로 (인위적 동점 방지)
     const final = ((kPart + cPart + pPart) / wSum) * 100;
     return {
       ...c,
-      final_score: Math.round(final * 10) / 10,
-      parts: {
-        knowledge: Math.round(kPart * 10) / 10,
-        category: Math.round(cPart * 10) / 10,
-        plan: Math.round(pPart * 10) / 10
-      }
+      final_score: final,
+      parts: { knowledge: kPart, category: cPart, plan: pPart }
     };
   });
 }
 
-/** 가중 점수 단일 정렬 → 상위 N명 선발. 동점은 지식점수, 그 다음 글자수로 타이브레이크. */
+/**
+ * 가중 점수 단일 정렬 → 상위 N명 선발.
+ * 타이브레이커: 종합점수(원점수) → 지식점수 → 부처 우선순위 → 정성평가 글자수.
+ *  - 분류 우선순위는 운영 의도(중앙 > 광역 > ...)를 동점 처리에도 반영
+ *  - 글자수는 정성평가가 양적 지표이므로 최후 수단
+ */
 export function recommendByWeights(
   candidates: CandidateRow[],
   weights: ScoreWeights,
@@ -113,6 +115,9 @@ export function recommendByWeights(
   const scored = scoreAll(candidates, weights, knowledgeMax).toSorted((a, b) => {
     if (b.final_score !== a.final_score) return b.final_score - a.final_score;
     if (b.knowledge_score !== a.knowledge_score) return b.knowledge_score - a.knowledge_score;
+    const aCat = CATEGORY_PRIORITY_SCORE[a.category] ?? 0;
+    const bCat = CATEGORY_PRIORITY_SCORE[b.category] ?? 0;
+    if (bCat !== aCat) return bCat - aCat;
     return b.plan_char_count - a.plan_char_count;
   });
   const selectedIds = scored.slice(0, Math.max(0, totalCapacity)).map((c) => c.application_id);
