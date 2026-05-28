@@ -55,7 +55,9 @@ export async function createApplicant(
     job_title: formValue(formData, 'job_title'),
     job_role: formValue(formData, 'job_role'),
     birth_date: formValue(formData, 'birth_date'),
-    notes: formValue(formData, 'notes')
+    notes: formValue(formData, 'notes'),
+    // @ts-expect-error supabase types.ts에 applicants.category 미반영
+    category: formValue(formData, 'category')
   });
   if (error) return { error: error.message };
 
@@ -85,19 +87,22 @@ export async function updateApplicant(
     job_title: formValue(formData, 'job_title'),
     job_role: formValue(formData, 'job_role'),
     birth_date: formValue(formData, 'birth_date'),
-    notes: formValue(formData, 'notes')
+    notes: formValue(formData, 'notes'),
+    category: formValue(formData, 'category')
   };
 
   const { error: applicantError } = await supabase
     .from('applicants')
+    // @ts-expect-error supabase types.ts에 applicants.category 미반영
     .update(fields)
     .eq('id', id);
   if (applicantError) return { error: applicantError.message };
 
-  // 같은 id로 등록된 학생이 있으면 같이 갱신
+  // 같은 id로 등록된 학생이 있으면 같이 갱신 (students에는 category 없음 → 제외)
+  const { category: _unused, ...studentFields } = fields;
   const { error: studentError } = await supabase
     .from('students')
-    .update(fields)
+    .update(studentFields)
     .eq('id', id);
   if (studentError) return { error: studentError.message };
 

@@ -20,7 +20,7 @@ export type Applicant = {
   id: string;
   name: string;
   organizationName: string | null;
-  organizationCategory: string | null;
+  category: string | null;
   department: string | null;
   job_title: string | null;
   job_role: string | null;
@@ -80,6 +80,23 @@ export function ApplicantSheet({ applicant, trigger }: ApplicantSheetProps) {
               placeholder='예: 행정안전부'
               defaultValue={applicant?.organizationName ?? ''}
             />
+          </div>
+          <div className='grid gap-2'>
+            <Label htmlFor='category'>분류</Label>
+            <select
+              id='category'
+              name='category'
+              defaultValue={applicant?.category ?? ''}
+              className='border-input bg-background flex h-9 w-full rounded-md border px-3 py-1 text-sm shadow-xs outline-none focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:border-ring'
+            >
+              <option value=''>미분류</option>
+              <option value='중앙부처'>중앙부처</option>
+              <option value='광역지자체'>광역지자체</option>
+              <option value='기초지자체'>기초지자체</option>
+              <option value='공공기관'>공공기관</option>
+              <option value='교육행정기관'>교육행정기관</option>
+              <option value='기타'>기타</option>
+            </select>
           </div>
           <div className='grid gap-2'>
             <Label htmlFor='department'>부서</Label>

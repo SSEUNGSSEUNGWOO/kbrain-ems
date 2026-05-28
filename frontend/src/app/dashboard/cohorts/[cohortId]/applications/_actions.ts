@@ -39,6 +39,9 @@ export async function updateApplicationStatus(
 
 import { C2_TO_SELECTION, type CandidateRow } from './_selection-logic';
 
+// C2 응답 텍스트 정규화 (parser와 동일 규칙)
+const normC2 = (s: string) => s.replace(/\s+/g, '').replace(/[·、,「」『』""'']/g, '');
+
 export async function loadSelectionPool(
   cohortId: string
 ): Promise<{ error?: string; candidates?: CandidateRow[]; knowledgeMax?: number }> {
@@ -243,10 +246,22 @@ export async function importApplicationsXls(
     };
 
     const today = new Date().toISOString().slice(0, 10);
+    const qC2 = questions.find((q) => q.question_no === 'C2');
     const qC3 = questions.find((q) => q.question_no === 'C3');
     const qC5 = questions.find((q) => q.question_no === 'C5');
+    const c2Idx = qC2 ? questions.indexOf(qC2) : -1;
     const c3Idx = qC3 ? questions.indexOf(qC3) : -1;
     const c5Idx = qC5 ? questions.indexOf(qC5) : -1;
+
+    // C2 응답값 → 한글 분류 라벨
+    const c2LabelByChoice: Record<string, string> = {
+      '①': '중앙부처',
+      '②': '광역지자체',
+      '③': '기초지자체',
+      '④': '공공기관',
+      '⑤': '교육행정기관',
+      '⑥': '기타'
+    };
 
     for (const row of preRows) {
       if (!row.name) {
@@ -279,18 +294,42 @@ export async function importApplicationsXls(
       const jobRoleRaw = c5Idx >= 0 ? row.rawValues[c5Idx] || null : null;
       const jobRole = jobRoleRaw ? jobRoleRaw.replace(/^\d+\.\s*/, '').trim() : null;
 
+      // C2 응답 → category 라벨 (응답 없으면 NULL)
+      let category: string | null = null;
+      if (c2Idx >= 0 && qC2) {
+        const c2Raw = row.rawValues[c2Idx];
+        if (c2Raw) {
+          const m = c2Raw.match(/^\d+\.\s*([①②③④⑤⑥])/);
+          if (m && c2LabelByChoice[m[1]]) {
+            category = c2LabelByChoice[m[1]];
+          } else {
+            // text 매칭 fallback (mapSingleValue와 동일 로직 단순화)
+            const stripped = c2Raw.replace(/^\d+\.\s*/, '').trim();
+            const target = normC2(stripped);
+            for (const c of qC2.choices ?? []) {
+              if (normC2(c.text) === target && c2LabelByChoice[c.key]) {
+                category = c2LabelByChoice[c.key];
+                break;
+              }
+            }
+          }
+        }
+      }
+
       const applicantFields = {
         name: row.name,
         phone: row.phone || null,
         email: row.email || null,
         organization_id: orgId,
         department,
-        job_role: jobRole
+        job_role: jobRole,
+        category
       };
 
       if (applicantId) {
         const { error } = await supabase
           .from('applicants')
+          // @ts-expect-error supabase types.ts에 applicants.category 미반영
           .update(applicantFields)
           .eq('id', applicantId);
         if (error) throw new Error(error.message);
@@ -298,6 +337,7 @@ export async function importApplicationsXls(
       } else {
         const { data, error } = await supabase
           .from('applicants')
+          // @ts-expect-error supabase types.ts에 applicants.category 미반영
           .insert(applicantFields)
           .select('id')
           .single();

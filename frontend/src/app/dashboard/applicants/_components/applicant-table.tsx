@@ -10,11 +10,6 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import {
-  classifyOrganization,
-  ORGANIZATION_CATEGORY_LABEL,
-  type OrganizationCategory
-} from '@/lib/organization-category';
-import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -24,6 +19,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle
 } from '@/components/ui/alert-dialog';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Icons } from '@/components/icons';
 import { useDebouncedCallback } from '@/hooks/use-debounced-callback';
 import { deleteApplicant, deleteApplicants } from '../_actions';
@@ -32,9 +28,11 @@ import { ApplicantSheet, type Applicant } from './applicant-sheet';
 type ApplicantRow = Applicant & {
   applicationCount: number;
   selectedCount: number;
+  appliedCohorts: string[];
+  selectedCohorts: string[];
 };
 
-export type CategoryCounts = Partial<Record<OrganizationCategory, number>>;
+export type CategoryCounts = Record<string, number>;
 
 type Props = {
   applicants: ApplicantRow[];
@@ -43,33 +41,29 @@ type Props = {
   pageCount: number;
   totalCount: number;
   categoryCounts: CategoryCounts;
+  categoryKeys: string[];
   facetTotal: number;
 };
 
 const STATUS_BADGE_CLASS =
   'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300';
 
-const CATEGORY_CLASS: Record<OrganizationCategory, string> = {
-  central:
+// C2 응답 한글 라벨 → 색상 톤
+const CATEGORY_CLASS: Record<string, string> = {
+  중앙부처:
     'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-300',
-  basic_local:
-    'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300',
-  metro_local:
+  광역지자체:
     'border-cyan-200 bg-cyan-50 text-cyan-700 dark:border-cyan-900 dark:bg-cyan-950/40 dark:text-cyan-300',
-  public:
+  기초지자체:
+    'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300',
+  공공기관:
     'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300',
-  education:
+  교육행정기관:
     'border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-900 dark:bg-violet-950/40 dark:text-violet-300',
-  unknown: 'border-border bg-muted text-muted-foreground'
+  기타:
+    'border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-900 dark:bg-slate-950/40 dark:text-slate-300',
+  미분류: 'border-border bg-muted text-muted-foreground'
 };
-
-const CATEGORY_ORDER: OrganizationCategory[] = [
-  'central',
-  'metro_local',
-  'basic_local',
-  'education',
-  'public'
-];
 
 export function ApplicantTable({
   applicants,
@@ -78,6 +72,7 @@ export function ApplicantTable({
   pageCount,
   totalCount,
   categoryCounts,
+  categoryKeys,
   facetTotal
 }: Props) {
   const [{ q, category }, setParams] = useQueryStates(
@@ -207,9 +202,10 @@ export function ApplicantTable({
       </div>
 
       <CategoryFilter
-        current={(category || null) as OrganizationCategory | null}
+        current={category || null}
         onChange={onCategoryChange}
         counts={categoryCounts}
+        keys={categoryKeys}
         total={facetTotal}
       />
 
@@ -260,7 +256,8 @@ export function ApplicantTable({
             </thead>
             <tbody>
               {applicants.map((a) => {
-                const cat = classifyOrganization(a.organizationName);
+                const catLabel = a.category ?? '미분류';
+                const catTone = CATEGORY_CLASS[catLabel] ?? CATEGORY_CLASS['미분류'];
                 return (
                   <tr
                     key={a.id}
@@ -283,8 +280,8 @@ export function ApplicantTable({
                       </Link>
                     </td>
                     <td className='px-4 py-3'>
-                      <Badge variant='outline' className={`font-normal ${CATEGORY_CLASS[cat]}`}>
-                        {ORGANIZATION_CATEGORY_LABEL[cat]}
+                      <Badge variant='outline' className={`font-normal ${catTone}`}>
+                        {catLabel}
                       </Badge>
                     </td>
                     <td className='text-muted-foreground px-4 py-3'>{a.organizationName ?? '-'}</td>
@@ -293,16 +290,39 @@ export function ApplicantTable({
                     <td className='text-muted-foreground px-4 py-3'>{a.phone ?? a.email ?? '-'}</td>
                     <td className='px-4 py-3 text-center'>
                       {a.applicationCount > 0 ? (
-                        <span className='font-medium'>{a.applicationCount}</span>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className='cursor-default font-medium underline decoration-dotted'>
+                              {a.applicationCount}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side='top' className='max-w-72'>
+                            <p className='text-xs leading-relaxed'>
+                              {a.appliedCohorts.join(', ')}
+                            </p>
+                          </TooltipContent>
+                        </Tooltip>
                       ) : (
                         <span className='text-muted-foreground'>-</span>
                       )}
                     </td>
                     <td className='px-4 py-3 text-center'>
                       {a.selectedCount > 0 ? (
-                        <Badge variant='outline' className={STATUS_BADGE_CLASS}>
-                          {a.selectedCount}
-                        </Badge>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Badge
+                              variant='outline'
+                              className={`cursor-default ${STATUS_BADGE_CLASS}`}
+                            >
+                              {a.selectedCount}
+                            </Badge>
+                          </TooltipTrigger>
+                          <TooltipContent side='top' className='max-w-72'>
+                            <p className='text-xs leading-relaxed'>
+                              {a.selectedCohorts.join(', ')}
+                            </p>
+                          </TooltipContent>
+                        </Tooltip>
                       ) : (
                         <span className='text-muted-foreground'>-</span>
                       )}
@@ -456,18 +476,15 @@ function CategoryFilter({
   current,
   onChange,
   counts,
+  keys,
   total
 }: {
-  current: OrganizationCategory | null;
+  current: string | null;
   onChange: (cat: string | null) => void;
   counts: CategoryCounts;
+  keys: string[];
   total: number;
 }) {
-  const showUnknown = (counts.unknown ?? 0) > 0;
-  const entries: OrganizationCategory[] = showUnknown
-    ? [...CATEGORY_ORDER, 'unknown']
-    : CATEGORY_ORDER;
-
   return (
     <div className='mb-3 flex flex-wrap items-center gap-1.5'>
       <button
@@ -481,23 +498,21 @@ function CategoryFilter({
       >
         전체 <span className='tabular-nums'>{total}</span>
       </button>
-      {entries.map((cat) => {
+      {keys.map((cat) => {
         const count = counts[cat] ?? 0;
         if (count === 0 && cat !== current) return null;
         const active = current === cat;
+        const tone = CATEGORY_CLASS[cat] ?? CATEGORY_CLASS['미분류'];
         return (
           <button
             type='button'
             key={cat}
             onClick={() => onChange(active ? null : cat)}
             className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-              active
-                ? `${CATEGORY_CLASS[cat]} ring-2 ring-offset-1`
-                : `${CATEGORY_CLASS[cat]} opacity-70 hover:opacity-100`
+              active ? `${tone} ring-2 ring-offset-1` : `${tone} opacity-70 hover:opacity-100`
             }`}
           >
-            {ORGANIZATION_CATEGORY_LABEL[cat]}{' '}
-            <span className='tabular-nums opacity-70'>{count}</span>
+            {cat} <span className='tabular-nums opacity-70'>{count}</span>
           </button>
         );
       })}
