@@ -1,0 +1,471 @@
+'use client';
+
+import { useEffect, useMemo, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger
+} from '@/components/ui/sheet';
+import { Icons } from '@/components/icons';
+import { cn } from '@/lib/utils';
+import { loadSelectionPool, applySelections } from '../_actions';
+import {
+  type CandidateRow,
+  type ScoredCandidate,
+  type ScoreWeights,
+  type SelectionCategory,
+  DEFAULT_WEIGHTS,
+  SELECTION_CATEGORY_LABEL,
+  SELECTION_CATEGORY_ORDER,
+  distributeByCategory,
+  recommendByWeights
+} from '../_selection-logic';
+
+type Props = {
+  cohortId: string;
+  defaultCapacity: number;
+  trigger: React.ReactNode;
+};
+
+type Stage = 'idle' | 'loading' | 'editing' | 'applying' | 'done';
+
+export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [stage, setStage] = useState<Stage>('idle');
+  const [error, setError] = useState<string | null>(null);
+  const [candidates, setCandidates] = useState<CandidateRow[]>([]);
+  const [knowledgeMax, setKnowledgeMax] = useState(10);
+  const [weights, setWeights] = useState<ScoreWeights>(DEFAULT_WEIGHTS);
+  const [totalCapacity, setTotalCapacity] = useState(defaultCapacity);
+  const [manualToggles, setManualToggles] = useState<Map<string, boolean>>(new Map());
+  const [rejectOthers, setRejectOthers] = useState(true);
+  const [pending, startTransition] = useTransition();
+  const [result, setResult] = useState<{ selectedCount?: number; rejectedCount?: number } | null>(
+    null
+  );
+
+  // 시트 열림 → 풀 로드
+  useEffect(() => {
+    if (!open || stage !== 'idle') return;
+    setStage('loading');
+    setError(null);
+    (async () => {
+      const res = await loadSelectionPool(cohortId);
+      if (res.error || !res.candidates) {
+        setError(res.error ?? '풀 로드 실패');
+        setStage('idle');
+        return;
+      }
+      setCandidates(res.candidates);
+      if (res.knowledgeMax && res.knowledgeMax > 0) setKnowledgeMax(res.knowledgeMax);
+      setStage('editing');
+    })();
+  }, [open, stage, cohortId]);
+
+  // 가중치·정원 변하면 자동 추천 (수동 토글이 있는 사람은 그 결정을 유지)
+  const { scored, autoSelectedIds } = useMemo(() => {
+    if (candidates.length === 0) {
+      return { scored: [] as ScoredCandidate[], autoSelectedIds: new Set<string>() };
+    }
+    const { selectedIds, scored } = recommendByWeights(
+      candidates,
+      weights,
+      totalCapacity,
+      knowledgeMax
+    );
+    return { scored, autoSelectedIds: new Set(selectedIds) };
+  }, [candidates, weights, totalCapacity, knowledgeMax]);
+
+  // 최종 선택 = 자동추천 ⊕ 수동토글 오버라이드
+  const effectiveSelectedIds = useMemo(() => {
+    const next = new Set<string>(autoSelectedIds);
+    for (const [id, on] of manualToggles.entries()) {
+      if (on) next.add(id);
+      else next.delete(id);
+    }
+    return next;
+  }, [autoSelectedIds, manualToggles]);
+
+  const distribution = useMemo(
+    () => distributeByCategory(scored, [...effectiveSelectedIds]),
+    [scored, effectiveSelectedIds]
+  );
+
+  const poolByCategory = useMemo(() => {
+    const result: Record<SelectionCategory, number> = {
+      central: 0,
+      metro_local: 0,
+      basic_local: 0,
+      public_edu: 0,
+      other: 0
+    };
+    for (const c of candidates) result[c.category]++;
+    return result;
+  }, [candidates]);
+
+  const reset = () => {
+    setStage('idle');
+    setCandidates([]);
+    setManualToggles(new Map());
+    setResult(null);
+    setError(null);
+    setWeights(DEFAULT_WEIGHTS);
+    setTotalCapacity(defaultCapacity);
+  };
+
+  const onWeightChange = (key: keyof ScoreWeights, value: number) => {
+    setWeights((prev) => ({ ...prev, [key]: Math.max(0, Math.min(100, value)) }));
+    setManualToggles(new Map()); // 가중치 바꾸면 수동 토글 초기화
+  };
+
+  const toggle = (id: string) => {
+    setManualToggles((prev) => {
+      const next = new Map(prev);
+      const currentAuto = autoSelectedIds.has(id);
+      const currentEffective = effectiveSelectedIds.has(id);
+      // 다음 상태는 현재 effective의 반대
+      const desired = !currentEffective;
+      if (desired === currentAuto) {
+        next.delete(id); // 자동과 일치 → 오버라이드 해제
+      } else {
+        next.set(id, desired);
+      }
+      return next;
+    });
+  };
+
+  const onConfirm = () => {
+    setStage('applying');
+    setError(null);
+    startTransition(async () => {
+      const res = await applySelections(cohortId, [...effectiveSelectedIds], rejectOthers);
+      if (res.error) {
+        setError(res.error);
+        setStage('editing');
+        return;
+      }
+      setResult({ selectedCount: res.selectedCount, rejectedCount: res.rejectedCount });
+      setStage('done');
+      router.refresh();
+    });
+  };
+
+  return (
+    <Sheet
+      open={open}
+      onOpenChange={(o) => {
+        setOpen(o);
+        if (!o) reset();
+      }}
+    >
+      <SheetTrigger asChild>{trigger}</SheetTrigger>
+      <SheetContent className='flex w-full max-w-3xl flex-col gap-0 overflow-hidden sm:max-w-3xl'>
+        <SheetHeader className='border-b'>
+          <SheetTitle>자동 선발</SheetTitle>
+          <SheetDescription>
+            가중치를 입력하면 분류별 분포·명단이 실시간 계산됩니다. 확인 후 일괄 확정.
+          </SheetDescription>
+        </SheetHeader>
+
+        <div className='flex-1 overflow-y-auto'>
+          {stage === 'loading' && (
+            <div className='flex flex-col items-center gap-2 py-12'>
+              <Icons.spinner className='size-6 animate-spin' />
+              <div className='text-sm'>풀 로드 중...</div>
+            </div>
+          )}
+
+          {error && (
+            <div className='text-destructive border-destructive/30 bg-destructive/5 m-4 rounded border p-3 text-sm'>
+              {error}
+            </div>
+          )}
+
+          {(stage === 'editing' || stage === 'applying') && (
+            <div className='flex flex-col gap-4 p-4'>
+              <WeightPanel
+                weights={weights}
+                onChange={onWeightChange}
+                totalCapacity={totalCapacity}
+                onTotalChange={(v) => {
+                  setTotalCapacity(Math.max(0, v));
+                  setManualToggles(new Map());
+                }}
+                poolSize={candidates.length}
+                selectedCount={effectiveSelectedIds.size}
+              />
+
+              <DistributionRow
+                distribution={distribution}
+                poolByCategory={poolByCategory}
+                totalCapacity={totalCapacity}
+              />
+
+              <CandidateList
+                scored={scored}
+                autoSelectedIds={autoSelectedIds}
+                effectiveSelectedIds={effectiveSelectedIds}
+                onToggle={toggle}
+                totalCapacity={totalCapacity}
+              />
+            </div>
+          )}
+
+          {stage === 'done' && result && (
+            <div className='flex flex-col items-center gap-3 py-12'>
+              <div className='flex items-center gap-2 font-medium text-emerald-600'>
+                <Icons.check className='size-5' /> 확정 완료
+              </div>
+              <div className='text-sm'>
+                선발 {result.selectedCount ?? 0}명
+                {result.rejectedCount ? ` · 탈락 ${result.rejectedCount}명` : ''}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <SheetFooter className='border-t'>
+          {stage === 'editing' && (
+            <div className='flex w-full items-center justify-between gap-3'>
+              <div className='flex items-center gap-2 text-sm'>
+                <Checkbox
+                  id='reject-others'
+                  checked={rejectOthers}
+                  onCheckedChange={(v) => setRejectOthers(v === true)}
+                />
+                <label htmlFor='reject-others' className='cursor-pointer'>
+                  미선택자 자동 탈락
+                </label>
+              </div>
+              <div className='flex gap-2'>
+                <Button variant='outline' onClick={() => setOpen(false)} disabled={pending}>
+                  취소
+                </Button>
+                <Button onClick={onConfirm} disabled={pending || effectiveSelectedIds.size === 0}>
+                  {effectiveSelectedIds.size}명 선발 확정
+                </Button>
+              </div>
+            </div>
+          )}
+          {stage === 'done' && (
+            <Button
+              className='ml-auto'
+              onClick={() => {
+                setOpen(false);
+                router.refresh();
+              }}
+            >
+              완료
+            </Button>
+          )}
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function WeightPanel({
+  weights,
+  onChange,
+  totalCapacity,
+  onTotalChange,
+  poolSize,
+  selectedCount
+}: {
+  weights: ScoreWeights;
+  onChange: (key: keyof ScoreWeights, value: number) => void;
+  totalCapacity: number;
+  onTotalChange: (v: number) => void;
+  poolSize: number;
+  selectedCount: number;
+}) {
+  const wSum = weights.knowledge + weights.category + weights.plan;
+  return (
+    <div className='flex flex-col gap-3 rounded-md border bg-muted/30 p-3'>
+      <div className='flex items-center gap-3'>
+        <label htmlFor='total-capacity' className='text-sm font-medium'>
+          총 정원
+        </label>
+        <Input
+          id='total-capacity'
+          type='number'
+          value={totalCapacity}
+          onChange={(e) => onTotalChange(Number(e.target.value) || 0)}
+          className='h-8 w-20 tabular-nums'
+        />
+        <span className='text-muted-foreground text-xs'>지원자 {poolSize}명</span>
+        <span className='ml-auto text-sm'>
+          현재 선택 <span className='font-semibold tabular-nums'>{selectedCount}</span>명
+        </span>
+      </div>
+
+      <div className='grid grid-cols-3 gap-2'>
+        <WeightInput
+          id='w-knowledge'
+          label='시험 점수'
+          value={weights.knowledge}
+          onChange={(v) => onChange('knowledge', v)}
+        />
+        <WeightInput
+          id='w-category'
+          label='부처 우선순위'
+          value={weights.category}
+          onChange={(v) => onChange('category', v)}
+        />
+        <WeightInput
+          id='w-plan'
+          label='정성평가 (글자수)'
+          value={weights.plan}
+          onChange={(v) => onChange('plan', v)}
+        />
+      </div>
+      <div className='text-muted-foreground text-xs'>
+        가중치 합계 {wSum} · 합이 100이 아니어도 자동 정규화됩니다.
+      </div>
+    </div>
+  );
+}
+
+function WeightInput({
+  id,
+  label,
+  value,
+  onChange
+}: {
+  id: string;
+  label: string;
+  value: number;
+  onChange: (v: number) => void;
+}) {
+  return (
+    <div className='flex flex-col gap-1'>
+      <label htmlFor={id} className='text-muted-foreground text-xs'>
+        {label}
+      </label>
+      <Input
+        id={id}
+        type='number'
+        value={value}
+        min={0}
+        max={100}
+        onChange={(e) => onChange(Number(e.target.value) || 0)}
+        className='h-8 w-full tabular-nums'
+      />
+    </div>
+  );
+}
+
+function DistributionRow({
+  distribution,
+  poolByCategory,
+  totalCapacity
+}: {
+  distribution: Record<SelectionCategory, number>;
+  poolByCategory: Record<SelectionCategory, number>;
+  totalCapacity: number;
+}) {
+  const sum = SELECTION_CATEGORY_ORDER.reduce((s, k) => s + (distribution[k] ?? 0), 0);
+  return (
+    <div className='flex flex-col gap-2 rounded-md border p-3'>
+      <div className='text-xs font-medium'>분류별 선발 분포</div>
+      <div className='grid grid-cols-5 gap-2 text-xs'>
+        {SELECTION_CATEGORY_ORDER.map((cat) => {
+          const count = distribution[cat] ?? 0;
+          const pool = poolByCategory[cat] ?? 0;
+          const pct = sum > 0 ? Math.round((count / sum) * 100) : 0;
+          return (
+            <div key={cat} className='flex flex-col items-center gap-0.5 rounded border px-2 py-2'>
+              <span className='text-muted-foreground'>{SELECTION_CATEGORY_LABEL[cat]}</span>
+              <span className='text-base font-semibold tabular-nums'>
+                {count}
+                <span className='text-muted-foreground text-xs font-normal'>/{pool}</span>
+              </span>
+              <span className='text-muted-foreground tabular-nums'>{pct}%</span>
+            </div>
+          );
+        })}
+      </div>
+      {sum !== totalCapacity && (
+        <div className='text-amber-600 text-xs'>
+          선택 합계 {sum} · 정원 {totalCapacity} (수동 조정으로 차이 발생)
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CandidateList({
+  scored,
+  autoSelectedIds,
+  effectiveSelectedIds,
+  onToggle,
+  totalCapacity
+}: {
+  scored: ScoredCandidate[];
+  autoSelectedIds: Set<string>;
+  effectiveSelectedIds: Set<string>;
+  onToggle: (id: string) => void;
+  totalCapacity: number;
+}) {
+  return (
+    <div className='flex flex-col rounded-md border'>
+      <div className='bg-muted/40 flex items-center gap-3 border-b px-3 py-2 text-xs font-medium'>
+        <span className='w-6'>#</span>
+        <span className='w-6' />
+        <span className='w-20'>이름</span>
+        <span className='w-20'>분류</span>
+        <span className='flex-1'>소속</span>
+        <span className='w-12 text-right'>지식</span>
+        <span className='w-12 text-right'>글자</span>
+        <span className='w-14 text-right'>종합</span>
+      </div>
+      <div className='max-h-[40vh] divide-y overflow-y-auto'>
+        {scored.map((c, i) => {
+          const checked = effectiveSelectedIds.has(c.application_id);
+          const wasAuto = autoSelectedIds.has(c.application_id);
+          const isManual = checked !== wasAuto;
+          const inCapacity = i < totalCapacity;
+          return (
+            <label
+              key={c.application_id}
+              className={cn(
+                'hover:bg-muted/40 flex cursor-pointer items-center gap-3 px-3 py-2 text-sm',
+                checked && 'bg-emerald-50/60',
+                isManual && 'border-l-2 border-amber-400'
+              )}
+            >
+              <span className='text-muted-foreground w-6 text-xs tabular-nums'>{i + 1}</span>
+              <Checkbox checked={checked} onCheckedChange={() => onToggle(c.application_id)} />
+              <span className='w-20 truncate font-medium'>{c.name}</span>
+              <span className='text-muted-foreground w-20 truncate text-xs'>
+                {SELECTION_CATEGORY_LABEL[c.category]}
+              </span>
+              <span className='text-muted-foreground flex-1 truncate text-xs'>
+                {c.organization ?? '—'}
+              </span>
+              <span className='w-12 text-right tabular-nums text-xs'>{c.knowledge_score}</span>
+              <span className='w-12 text-right tabular-nums text-xs'>{c.plan_char_count}</span>
+              <span
+                className={cn(
+                  'w-14 text-right font-medium tabular-nums',
+                  inCapacity ? 'text-emerald-700' : 'text-muted-foreground'
+                )}
+              >
+                {c.final_score.toFixed(1)}
+              </span>
+            </label>
+          );
+        })}
+      </div>
+    </div>
+  );
+}

@@ -1,11 +1,19 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { parseAsInteger, parseAsString, useQueryStates } from 'nuqs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select';
 import {
   Table,
   TableBody,
@@ -16,23 +24,37 @@ import {
 } from '@/components/ui/table';
 import { Icons } from '@/components/icons';
 import { useDebouncedCallback } from '@/hooks/use-debounced-callback';
+import {
+  classifyOrganization,
+  ORGANIZATION_CATEGORY_LABEL,
+  type OrganizationCategory
+} from '@/lib/organization-category';
 import { cn } from '@/lib/utils';
+import { updateApplicationStatus } from '../_actions';
 
 export type ApplicationRow = {
   id: string;
   applicant_id: string;
   name: string;
   organization: string | null;
-  department: string | null;
-  job_role: string | null;
+  c2_choice: string | null;
   status: string;
   rejected_stage: string | null;
   knowledge_score: number | null;
   knowledge_correct_count: number | null;
   knowledge_total_count: number | null;
-  self_diagnosis_avg: number | null;
-  decided_at: string | null;
+  plan_char_count: number | null;
   applied_at: string | null;
+};
+
+// 설문항목 2 (C2) 응답 → 분류 라벨·톤
+const C2_CATEGORY: Record<string, { label: string; tone: string }> = {
+  '①': { label: '중앙부처', tone: 'bg-blue-50 text-blue-700 border-blue-200' },
+  '②': { label: '광역지자체', tone: 'bg-cyan-50 text-cyan-700 border-cyan-200' },
+  '③': { label: '기초지자체', tone: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  '④': { label: '공공기관', tone: 'bg-amber-50 text-amber-700 border-amber-200' },
+  '⑤': { label: '교육행정기관', tone: 'bg-violet-50 text-violet-700 border-violet-200' },
+  '⑥': { label: '기타', tone: 'bg-slate-50 text-slate-600 border-slate-200' }
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -51,6 +73,15 @@ const STATUS_TONE: Record<string, string> = {
   withdrawn: 'bg-slate-50 text-slate-500 border-slate-200'
 };
 
+const CATEGORY_TONE: Record<OrganizationCategory, string> = {
+  central: 'bg-blue-50 text-blue-700 border-blue-200',
+  metro_local: 'bg-cyan-50 text-cyan-700 border-cyan-200',
+  basic_local: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  education: 'bg-violet-50 text-violet-700 border-violet-200',
+  public: 'bg-amber-50 text-amber-700 border-amber-200',
+  unknown: 'bg-slate-50 text-slate-500 border-slate-200'
+};
+
 type Props = {
   rows: ApplicationRow[];
   cohortId: string;
@@ -58,16 +89,49 @@ type Props = {
   pageSize: number;
   pageCount: number;
   totalCount: number;
+  categoryCounts: Record<string, number>;
+  statusCounts: Record<string, number>;
 };
 
-export function ApplicantsTable({ rows, cohortId, page, pageSize, pageCount, totalCount }: Props) {
-  const [{ q }, setParams] = useQueryStates(
+const CATEGORY_KEYS = ['central', 'metro_local', 'basic_local', 'public', 'education', 'other'] as const;
+const STATUS_KEYS = ['applied', 'pending', 'selected', 'rejected', 'withdrawn'] as const;
+const SORTABLE_COLS = ['status', 'name', 'knowledge_score', 'applied_at'] as const;
+type SortableCol = (typeof SORTABLE_COLS)[number];
+
+export function ApplicantsTable({
+  rows,
+  cohortId,
+  page,
+  pageSize,
+  pageCount,
+  totalCount,
+  categoryCounts,
+  statusCounts
+}: Props) {
+  const [{ q, category, status, sort }, setParams] = useQueryStates(
     {
       q: parseAsString.withDefault(''),
+      category: parseAsString.withDefault(''),
+      status: parseAsString.withDefault(''),
+      sort: parseAsString.withDefault('applied_at:desc'),
       page: parseAsInteger.withDefault(1)
     },
     { shallow: false }
   );
+
+  const [sortColRaw = 'applied_at', sortDirRaw = 'desc'] = sort.split(':');
+  const sortCol = (SORTABLE_COLS as readonly string[]).includes(sortColRaw)
+    ? (sortColRaw as SortableCol)
+    : null;
+  const sortDir: 'asc' | 'desc' = sortDirRaw === 'asc' ? 'asc' : 'desc';
+
+  const onSort = (col: SortableCol) => {
+    const next =
+      sortCol === col
+        ? `${col}:${sortDir === 'asc' ? 'desc' : 'asc'}`
+        : `${col}:${col === 'knowledge_score' ? 'desc' : 'asc'}`;
+    void setParams({ sort: next, page: null });
+  };
 
   const [inputValue, setInputValue] = useState(q);
   useEffect(() => {
@@ -93,10 +157,17 @@ export function ApplicantsTable({ rows, cohortId, page, pageSize, pageCount, tot
     void setParams({ page: clamped === 1 ? null : clamped });
   };
 
+  const setCategory = (next: string | null) => {
+    void setParams({ category: next, page: null });
+  };
+  const setStatus = (next: string | null) => {
+    void setParams({ status: next, page: null });
+  };
+
   const isEmpty = rows.length === 0;
   const firstIndex = isEmpty ? 0 : (page - 1) * pageSize + 1;
   const lastIndex = isEmpty ? 0 : (page - 1) * pageSize + rows.length;
-  const hasSearch = Boolean(q);
+  const hasFilter = Boolean(q || category || status);
 
   return (
     <div className='flex flex-col gap-3'>
@@ -122,16 +193,39 @@ export function ApplicantsTable({ rows, cohortId, page, pageSize, pageCount, tot
         </div>
       </div>
 
+      <ChipFilter
+        label='분류'
+        current={category || null}
+        onChange={setCategory}
+        items={CATEGORY_KEYS.map((k) => ({
+          key: k,
+          label: CATEGORY_LABEL[k],
+          tone: CATEGORY_TONE_BY_KEY[k],
+          count: categoryCounts[k] ?? 0
+        }))}
+      />
+      <ChipFilter
+        label='상태'
+        current={status || null}
+        onChange={setStatus}
+        items={STATUS_KEYS.map((k) => ({
+          key: k,
+          label: STATUS_LABEL[k] ?? k,
+          tone: STATUS_TONE[k] ?? STATUS_TONE.applied,
+          count: statusCounts[k] ?? 0
+        }))}
+      />
+
       {isEmpty ? (
         <div className='flex flex-col items-center justify-center rounded-xl border border-dashed py-16'>
           <div className='bg-muted text-muted-foreground mb-4 flex h-14 w-14 items-center justify-center rounded-full'>
             <Icons.search className='h-6 w-6' />
           </div>
           <p className='text-foreground mb-1 font-medium'>
-            {hasSearch ? '검색 결과가 없습니다' : '신청자가 없습니다'}
+            {hasFilter ? '결과가 없습니다' : '신청자가 없습니다'}
           </p>
-          {hasSearch && (
-            <p className='text-muted-foreground text-sm'>다른 검색어를 시도해보세요.</p>
+          {hasFilter && (
+            <p className='text-muted-foreground text-sm'>검색어나 필터를 조정해보세요.</p>
           )}
         </div>
       ) : (
@@ -139,44 +233,87 @@ export function ApplicantsTable({ rows, cohortId, page, pageSize, pageCount, tot
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>이름</TableHead>
+                <SortableHead col='status' current={sortCol} dir={sortDir} onSort={onSort}>
+                  상태
+                </SortableHead>
+                <SortableHead col='name' current={sortCol} dir={sortDir} onSort={onSort}>
+                  이름
+                </SortableHead>
+                <TableHead>분류</TableHead>
                 <TableHead>소속</TableHead>
-                <TableHead>부서·직렬</TableHead>
-                <TableHead className='text-right'>지식평가</TableHead>
-                <TableHead className='text-right'>자가진단</TableHead>
-                <TableHead>상태</TableHead>
-                <TableHead>신청일</TableHead>
+                <SortableHead
+                  col='knowledge_score'
+                  current={sortCol}
+                  dir={sortDir}
+                  onSort={onSort}
+                  align='right'
+                >
+                  지식평가
+                </SortableHead>
+                <TableHead className='text-right'>활용 계획</TableHead>
+                <SortableHead col='applied_at' current={sortCol} dir={sortDir} onSort={onSort}>
+                  신청일
+                </SortableHead>
+                <TableHead className='w-12'></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map((r) => (
-                <TableRow key={r.id} className='hover:bg-muted/50'>
-                  <TableCell>
-                    <Link
-                      href={`/dashboard/cohorts/${cohortId}/applications/${r.id}`}
-                      className='font-medium hover:underline'
-                    >
-                      {r.name}
-                    </Link>
-                  </TableCell>
-                  <TableCell className='text-muted-foreground'>{r.organization ?? '—'}</TableCell>
-                  <TableCell className='text-muted-foreground text-sm'>
-                    {[r.department, r.job_role].filter(Boolean).join(' · ') || '—'}
-                  </TableCell>
-                  <TableCell className='text-right tabular-nums'>
-                    <KnowledgeCell row={r} />
-                  </TableCell>
-                  <TableCell className='text-right tabular-nums'>
-                    {r.self_diagnosis_avg !== null ? `${r.self_diagnosis_avg.toFixed(1)} / 5` : '—'}
-                  </TableCell>
-                  <TableCell>
-                    <StatusBadge status={r.status} rejectedStage={r.rejected_stage} />
-                  </TableCell>
-                  <TableCell className='text-muted-foreground text-sm'>
-                    {r.applied_at ?? '—'}
-                  </TableCell>
-                </TableRow>
-              ))}
+              {rows.map((r) => {
+                // C2 응답 우선, 없으면 organization 이름 기반 자동 분류 폴백
+                const c2 = r.c2_choice ? C2_CATEGORY[r.c2_choice] : null;
+                const fallbackCat = classifyOrganization(r.organization);
+                const catLabel = c2?.label ?? ORGANIZATION_CATEGORY_LABEL[fallbackCat];
+                const catTone = c2?.tone ?? CATEGORY_TONE[fallbackCat];
+                return (
+                  <TableRow key={r.id} className='group hover:bg-muted/50'>
+                    <TableCell>
+                      <StatusSelect
+                        applicationId={r.id}
+                        cohortId={cohortId}
+                        status={r.status}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Link
+                        href={`/dashboard/cohorts/${cohortId}/applications/${r.id}`}
+                        className='font-medium hover:underline'
+                      >
+                        {r.name}
+                      </Link>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant='outline' className={cn('font-normal', catTone)}>
+                        {catLabel}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className='text-muted-foreground'>
+                      {r.organization ?? '—'}
+                    </TableCell>
+                    <TableCell className='text-right tabular-nums'>
+                      <KnowledgeCell row={r} />
+                    </TableCell>
+                    <TableCell className='text-right tabular-nums text-sm'>
+                      {r.plan_char_count !== null ? `${r.plan_char_count}자` : '—'}
+                    </TableCell>
+                    <TableCell className='text-muted-foreground text-sm'>
+                      {r.applied_at ?? '—'}
+                    </TableCell>
+                    <TableCell className='text-right'>
+                      <Button
+                        asChild
+                        variant='ghost'
+                        size='icon'
+                        className='h-7 w-7 opacity-0 transition-opacity group-hover:opacity-100'
+                        aria-label='수정'
+                      >
+                        <Link href={`/dashboard/cohorts/${cohortId}/applications/${r.id}`}>
+                          <Icons.edit className='h-3.5 w-3.5' />
+                        </Link>
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </div>
@@ -234,15 +371,159 @@ function KnowledgeCell({ row }: { row: ApplicationRow }) {
   );
 }
 
-function StatusBadge({ status, rejectedStage }: { status: string; rejectedStage: string | null }) {
-  const label = STATUS_LABEL[status] ?? status;
-  const tone = STATUS_TONE[status] ?? STATUS_TONE.applied;
+const CATEGORY_LABEL: Record<(typeof CATEGORY_KEYS)[number], string> = {
+  central: '중앙부처',
+  metro_local: '광역지자체',
+  basic_local: '기초지자체',
+  public: '공공기관',
+  education: '교육행정기관',
+  other: '기타'
+};
+const CATEGORY_TONE_BY_KEY: Record<(typeof CATEGORY_KEYS)[number], string> = {
+  central: 'bg-blue-50 text-blue-700 border-blue-200',
+  metro_local: 'bg-cyan-50 text-cyan-700 border-cyan-200',
+  basic_local: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  public: 'bg-amber-50 text-amber-700 border-amber-200',
+  education: 'bg-violet-50 text-violet-700 border-violet-200',
+  other: 'bg-slate-50 text-slate-600 border-slate-200'
+};
+
+function SortableHead({
+  col,
+  current,
+  dir,
+  onSort,
+  align,
+  children
+}: {
+  col: SortableCol;
+  current: SortableCol | null;
+  dir: 'asc' | 'desc';
+  onSort: (c: SortableCol) => void;
+  align?: 'right';
+  children: React.ReactNode;
+}) {
+  const active = current === col;
   return (
-    <Badge variant='outline' className={cn('font-normal', tone)}>
-      {label}
-      {status === 'rejected' && rejectedStage && (
-        <span className='ml-1 opacity-70'>· {rejectedStage}</span>
-      )}
-    </Badge>
+    <TableHead className={align === 'right' ? 'text-right' : undefined}>
+      <button
+        type='button'
+        onClick={() => onSort(col)}
+        className={cn(
+          'inline-flex items-center gap-1 hover:text-foreground transition-colors',
+          align === 'right' && 'justify-end',
+          active ? 'text-foreground' : 'text-muted-foreground'
+        )}
+      >
+        {children}
+        {active ? (
+          dir === 'asc' ? (
+            <Icons.chevronUp className='size-3.5' />
+          ) : (
+            <Icons.chevronDown className='size-3.5' />
+          )
+        ) : (
+          <Icons.chevronsUpDown className='size-3.5 opacity-30' />
+        )}
+      </button>
+    </TableHead>
   );
 }
+
+function ChipFilter({
+  label,
+  current,
+  onChange,
+  items
+}: {
+  label: string;
+  current: string | null;
+  onChange: (next: string | null) => void;
+  items: { key: string; label: string; tone: string; count: number }[];
+}) {
+  return (
+    <div className='flex flex-wrap items-center gap-1.5'>
+      <span className='text-muted-foreground mr-1 text-xs font-medium'>{label}</span>
+      <button
+        type='button'
+        onClick={() => onChange(null)}
+        className={cn(
+          'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+          current === null
+            ? 'border-foreground bg-foreground text-background'
+            : 'border-input hover:bg-muted'
+        )}
+      >
+        전체
+      </button>
+      {items.map((it) => {
+        if (it.count === 0 && it.key !== current) return null;
+        const active = current === it.key;
+        return (
+          <button
+            type='button'
+            key={it.key}
+            onClick={() => onChange(active ? null : it.key)}
+            className={cn(
+              'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+              it.tone,
+              active ? 'ring-2 ring-offset-1' : 'opacity-70 hover:opacity-100'
+            )}
+          >
+            {it.label} <span className='tabular-nums opacity-70'>{it.count}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function StatusSelect({
+  applicationId,
+  cohortId,
+  status
+}: {
+  applicationId: string;
+  cohortId: string;
+  status: string;
+}) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [optimistic, setOptimistic] = useState(status);
+  const tone = STATUS_TONE[optimistic] ?? STATUS_TONE.applied;
+
+  const onChange = (next: string) => {
+    if (next === optimistic) return;
+    setOptimistic(next);
+    startTransition(async () => {
+      const result = await updateApplicationStatus(applicationId, next, cohortId);
+      if (result.error) {
+        setOptimistic(status);
+        // 간단한 피드백 — toast가 없으면 console로
+        // eslint-disable-next-line no-console
+        console.error('상태 변경 실패:', result.error);
+        return;
+      }
+      router.refresh();
+    });
+  };
+
+  return (
+    <Select value={optimistic} onValueChange={onChange} disabled={pending}>
+      <SelectTrigger
+        size='sm'
+        className={cn('w-24 border font-normal', tone, pending && 'opacity-60')}
+      >
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {STATUS_KEYS.map((s) => (
+          <SelectItem key={s} value={s}>
+            {STATUS_LABEL[s]}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
