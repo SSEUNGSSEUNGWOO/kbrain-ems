@@ -572,9 +572,20 @@ function CandidateList({
               <span className='text-muted-foreground w-20 truncate text-xs'>
                 {SELECTION_CATEGORY_LABEL[c.category]}
               </span>
-              <span className='text-muted-foreground flex-1 truncate text-xs'>
-                {c.organization ?? '—'}
-              </span>
+              {c.organization ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className='text-muted-foreground flex-1 truncate text-xs'>
+                      {c.organization}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side='top' className='max-w-md break-all'>
+                    {c.organization}
+                  </TooltipContent>
+                </Tooltip>
+              ) : (
+                <span className='text-muted-foreground flex-1 truncate text-xs'>—</span>
+              )}
               <span
                 className={cn(
                   'w-10 text-center text-xs font-medium tabular-nums',
