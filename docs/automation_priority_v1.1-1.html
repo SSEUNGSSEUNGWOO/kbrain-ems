@@ -631,6 +631,200 @@
     text-align: center;
   }
 
+  /* === 진행 상태 트래커 === */
+  .progress-section {
+    margin: -24px 0 56px;
+    padding: 18px 22px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+  .progress-head {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+  }
+  .progress-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--ink);
+    letter-spacing: -0.01em;
+  }
+  .progress-stats {
+    display: flex;
+    gap: 18px;
+    font-size: 12.5px;
+    color: var(--ink-soft);
+    flex: 1;
+    flex-wrap: wrap;
+  }
+  .progress-stats span strong {
+    color: var(--ink);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    margin-right: 4px;
+  }
+  .progress-stats .stat-doing strong { color: var(--a-app); }
+  .progress-stats .stat-done strong { color: #16a34a; }
+  .progress-stats .stat-percent strong { color: var(--a-doc); }
+  .progress-bar {
+    height: 8px;
+    background: var(--line-soft);
+    border-radius: 4px;
+    overflow: hidden;
+    display: flex;
+  }
+  .progress-bar .bar-done { background: #16a34a; transition: width 0.25s; }
+  .progress-bar .bar-doing { background: var(--a-app); transition: width 0.25s; }
+  .btn-reset {
+    font-size: 11.5px;
+    padding: 5px 11px;
+    background: transparent;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    color: var(--ink-mute);
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+  }
+  .btn-reset:hover {
+    background: var(--line-soft);
+    color: var(--ink);
+    border-color: var(--ink-mute);
+  }
+
+  /* === 항목 상태 (진행중/완료) 강조 === */
+  /* inline style의 border-left 보다 우선하려면 !important 필요 */
+  .item[data-status="doing"] {
+    border: 2px solid var(--a-app) !important;
+    background: linear-gradient(180deg, #dbeafe 0%, #eff6ff 60%, #ffffff 100%) !important;
+    box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.10), 0 6px 16px rgba(37, 99, 235, 0.14) !important;
+  }
+  .item[data-status="done"] {
+    border: 2px solid #16a34a !important;
+    background: linear-gradient(180deg, #dcfce7 0%, #f0fdf4 60%, #ffffff 100%) !important;
+    box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.10), 0 6px 16px rgba(22, 163, 74, 0.14) !important;
+  }
+  .item[data-status="doing"] .item-title,
+  .item[data-status="done"] .item-title {
+    color: var(--ink);
+    text-decoration: none;
+  }
+  /* 우상단 상태 라벨 (튀어나옴) */
+  .item[data-status="doing"]::before,
+  .item[data-status="done"]::before {
+    position: absolute;
+    top: -10px;
+    right: 14px;
+    font-size: 10.5px;
+    font-weight: 700;
+    padding: 3px 11px;
+    border-radius: 999px;
+    letter-spacing: 0.04em;
+    color: #ffffff;
+    z-index: 2;
+    white-space: nowrap;
+  }
+  .item[data-status="doing"]::before {
+    content: '● 진행중';
+    background: var(--a-app);
+    box-shadow: 0 2px 6px rgba(37, 99, 235, 0.35);
+  }
+  .item[data-status="done"]::before {
+    content: '✓ 완료';
+    background: #16a34a;
+    box-shadow: 0 2px 6px rgba(22, 163, 74, 0.35);
+  }
+
+  /* === 항목 컨트롤 (상태 + 메모) === */
+  .item-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid var(--line);
+    flex-wrap: wrap;
+  }
+  .status-btns {
+    display: inline-flex;
+    background: var(--line-soft);
+    border-radius: 6px;
+    padding: 2px;
+    gap: 1px;
+  }
+  .status-btn {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border: none;
+    background: transparent;
+    color: var(--ink-mute);
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.12s;
+    font-family: inherit;
+  }
+  .status-btn:hover { color: var(--ink); }
+  .status-btn[aria-pressed="true"] {
+    background: var(--surface);
+    color: var(--ink);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+  }
+  .status-btn[data-status="doing"][aria-pressed="true"] { color: var(--a-app); }
+  .status-btn[data-status="done"][aria-pressed="true"] { color: #16a34a; }
+  .memo-toggle {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border: 1px solid var(--line);
+    background: transparent;
+    color: var(--ink-mute);
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.12s;
+    font-family: inherit;
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .memo-toggle:hover { background: var(--line-soft); color: var(--ink); }
+  .memo-toggle.has-memo {
+    color: #b45309;
+    border-color: #fde68a;
+    background: #fffbeb;
+  }
+  .memo-toggle.has-memo::before {
+    content: '';
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: #d97706;
+  }
+  .item-memo {
+    margin-top: 8px;
+    padding: 10px 12px;
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+    border-radius: 6px;
+  }
+  .item-memo[hidden] { display: none; }
+  .item-memo textarea {
+    width: 100%;
+    min-height: 60px;
+    border: none;
+    background: transparent;
+    font-family: inherit;
+    font-size: 12.5px;
+    color: var(--ink);
+    line-height: 1.55;
+    resize: vertical;
+    outline: none;
+  }
+  .item-memo textarea::placeholder { color: var(--ink-mute); }
+
   /* === 반응형 (태블릿 이하) === */
   @media (max-width: 900px) {
     .layout { grid-template-columns: 1fr; }
@@ -709,6 +903,24 @@
         <div class="summary-card q1"><div class="num">14</div><div class="lbl">즉시 착수 (Q1)</div></div>
         <div class="summary-card q2"><div class="num">9</div><div class="lbl">예약 추진 (Q2)</div></div>
         <div class="summary-card q3"><div class="num">4</div><div class="lbl">경량 처리 (Q3)</div></div>
+      </div>
+
+      <!-- 진행 현황 트래커 -->
+      <div class="progress-section" id="progress-section">
+        <div class="progress-head">
+          <span class="progress-title">내 진행 현황</span>
+          <div class="progress-stats">
+            <span class="stat-todo"><strong id="stat-todo">0</strong>미시작</span>
+            <span class="stat-doing"><strong id="stat-doing">0</strong>진행중</span>
+            <span class="stat-done"><strong id="stat-done">0</strong>완료</span>
+            <span class="stat-percent"><strong id="stat-percent">0%</strong>완료율</span>
+          </div>
+          <button class="btn-reset" id="btn-reset" type="button">전체 초기화</button>
+        </div>
+        <div class="progress-bar">
+          <div class="bar-done" id="bar-done" style="width: 0%"></div>
+          <div class="bar-doing" id="bar-doing" style="width: 0%"></div>
+        </div>
       </div>
     </section>
 
@@ -1418,6 +1630,124 @@
       const target = document.getElementById('area-' + area);
       if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
+  });
+
+  // ===== 진행 상태 + 메모 트래커 =====
+  const STORAGE_KEY = 'automation_priority_v11_state';
+  let state = (() => {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; }
+    catch { return {}; }
+  })();
+  const persist = () => localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+
+  // 각 .item에 안정적인 key 부여 (area-index)
+  document.querySelectorAll('.area[data-area]').forEach(area => {
+    const ak = area.getAttribute('data-area');
+    area.querySelectorAll('.item').forEach((it, i) => {
+      it.setAttribute('data-key', ak + '-' + (i + 1));
+    });
+  });
+
+  const setStatus = (item, status) => {
+    item.setAttribute('data-status', status);
+    item.querySelectorAll('.status-btn').forEach(b => {
+      b.setAttribute('aria-pressed', b.dataset.status === status ? 'true' : 'false');
+    });
+  };
+
+  const refreshMemoToggle = (item) => {
+    const toggle = item.querySelector('.memo-toggle');
+    const ta = item.querySelector('.item-memo textarea');
+    if (!toggle || !ta) return;
+    const has = ta.value.trim().length > 0;
+    toggle.classList.toggle('has-memo', has);
+    toggle.textContent = has ? '메모 작성됨' : '메모';
+  };
+
+  const updateStats = () => {
+    const items = document.querySelectorAll('.item[data-key]');
+    const total = items.length;
+    let todo = 0, doing = 0, done = 0;
+    items.forEach(it => {
+      const s = it.getAttribute('data-status') || 'todo';
+      if (s === 'doing') doing++;
+      else if (s === 'done') done++;
+      else todo++;
+    });
+    document.getElementById('stat-todo').textContent = todo;
+    document.getElementById('stat-doing').textContent = doing;
+    document.getElementById('stat-done').textContent = done;
+    const pct = total ? Math.round((done / total) * 100) : 0;
+    document.getElementById('stat-percent').textContent = pct + '%';
+    document.getElementById('bar-done').style.width = (total ? (done / total * 100) : 0) + '%';
+    document.getElementById('bar-doing').style.width = (total ? (doing / total * 100) : 0) + '%';
+  };
+
+  // 각 .item에 컨트롤 + 메모 영역 삽입
+  document.querySelectorAll('.item[data-key]').forEach(item => {
+    const key = item.getAttribute('data-key');
+    const saved = state[key] || { status: 'todo', memo: '' };
+
+    const controls = document.createElement('div');
+    controls.className = 'item-controls';
+    controls.innerHTML =
+      '<div class="status-btns" role="group" aria-label="진행 상태">' +
+        '<button type="button" class="status-btn" data-status="todo">미시작</button>' +
+        '<button type="button" class="status-btn" data-status="doing">진행중</button>' +
+        '<button type="button" class="status-btn" data-status="done">완료</button>' +
+      '</div>' +
+      '<button type="button" class="memo-toggle">메모</button>';
+    item.appendChild(controls);
+
+    const memoWrap = document.createElement('div');
+    memoWrap.className = 'item-memo';
+    memoWrap.hidden = true;
+    memoWrap.innerHTML = '<textarea placeholder="메모를 입력하세요 (자동 저장)..."></textarea>';
+    item.appendChild(memoWrap);
+
+    setStatus(item, saved.status || 'todo');
+    const ta = memoWrap.querySelector('textarea');
+    ta.value = saved.memo || '';
+    refreshMemoToggle(item);
+    if (saved.memo && saved.memo.trim()) memoWrap.hidden = false;
+
+    controls.querySelectorAll('.status-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const ns = btn.dataset.status;
+        setStatus(item, ns);
+        state[key] = Object.assign({}, state[key], { status: ns });
+        persist();
+        updateStats();
+      });
+    });
+
+    controls.querySelector('.memo-toggle').addEventListener('click', () => {
+      memoWrap.hidden = !memoWrap.hidden;
+      if (!memoWrap.hidden) ta.focus();
+    });
+
+    ta.addEventListener('input', () => {
+      state[key] = Object.assign({}, state[key], { memo: ta.value });
+      persist();
+      refreshMemoToggle(item);
+    });
+  });
+
+  updateStats();
+
+  document.getElementById('btn-reset').addEventListener('click', () => {
+    if (!confirm('모든 진행 상태와 메모를 초기화합니다. 진행하시겠습니까?')) return;
+    state = {};
+    persist();
+    document.querySelectorAll('.item[data-key]').forEach(item => {
+      setStatus(item, 'todo');
+      const ta = item.querySelector('.item-memo textarea');
+      const wrap = item.querySelector('.item-memo');
+      if (ta) ta.value = '';
+      if (wrap) wrap.hidden = true;
+      refreshMemoToggle(item);
+    });
+    updateStats();
   });
 </script>
 
