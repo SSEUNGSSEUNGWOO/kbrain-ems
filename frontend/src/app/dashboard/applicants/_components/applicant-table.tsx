@@ -250,6 +250,7 @@ export function ApplicantTable({
                 <th className='px-4 py-3 text-left font-medium'>소속</th>
                 <th className='px-4 py-3 text-left font-medium'>부서</th>
                 <th className='px-4 py-3 text-left font-medium'>직책</th>
+                <th className='whitespace-nowrap px-4 py-3 text-left font-medium'>생년월일</th>
                 {!hidePersonal && <th className='px-4 py-3 text-left font-medium'>연락처</th>}
                 <th className='whitespace-nowrap px-4 py-3 text-center font-medium'>지원</th>
                 <th className='whitespace-nowrap px-4 py-3 text-center font-medium'>합격</th>
@@ -289,6 +290,9 @@ export function ApplicantTable({
                     <td className='text-muted-foreground px-4 py-3'>{a.organizationName ?? '-'}</td>
                     <td className='text-muted-foreground px-4 py-3'>{a.department ?? '-'}</td>
                     <td className='text-muted-foreground px-4 py-3'>{a.job_title ?? '-'}</td>
+                    <td className='text-muted-foreground whitespace-nowrap px-4 py-3 tabular-nums'>
+                      {a.birth_date ?? '-'}
+                    </td>
                     {!hidePersonal && (
                       <td className='text-muted-foreground px-4 py-3'>
                         {a.phone ?? a.email ?? '-'}

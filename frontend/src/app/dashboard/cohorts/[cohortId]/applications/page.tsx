@@ -264,34 +264,32 @@ export default async function CohortApplicationsPage({ params, searchParams }: P
           사전문항 미리보기
         </Link>
       </Button>
+      <ResetSelectionButton cohortId={cohortId} disabled={stats.total === 0} />
+      <SelectionSheet
+        cohortId={cohortId}
+        defaultCapacity={cohort?.max_capacity ?? 24}
+        trigger={
+          <Button
+            size='sm'
+            disabled={stats.total === 0}
+            className='bg-gradient-to-r from-violet-500 to-purple-600 text-white shadow-sm hover:from-violet-600 hover:to-purple-700 disabled:from-slate-300 disabled:to-slate-400'
+          >
+            <Icons.sparkles className='mr-1.5' />
+            자동 선발
+          </Button>
+        }
+      />
       {!hidePersonal && (
-        <>
-          <ResetSelectionButton cohortId={cohortId} disabled={stats.total === 0} />
-          <SelectionSheet
-            cohortId={cohortId}
-            defaultCapacity={cohort?.max_capacity ?? 24}
-            trigger={
-              <Button
-                size='sm'
-                disabled={stats.total === 0}
-                className='bg-gradient-to-r from-violet-500 to-purple-600 text-white shadow-sm hover:from-violet-600 hover:to-purple-700 disabled:from-slate-300 disabled:to-slate-400'
-              >
-                <Icons.sparkles className='mr-1.5' />
-                자동 선발
-              </Button>
-            }
-          />
-          <UploadDialog
-            cohortId={cohortId}
-            questions={questions ?? []}
-            trigger={
-              <Button size='sm' disabled={!hasQuestions}>
-                <Icons.upload className='mr-1.5' />
-                응답 엑셀 업로드
-              </Button>
-            }
-          />
-        </>
+        <UploadDialog
+          cohortId={cohortId}
+          questions={questions ?? []}
+          trigger={
+            <Button size='sm' disabled={!hasQuestions}>
+              <Icons.upload className='mr-1.5' />
+              응답 엑셀 업로드
+            </Button>
+          }
+        />
       )}
     </div>
   );
