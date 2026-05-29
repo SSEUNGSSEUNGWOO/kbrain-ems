@@ -347,6 +347,20 @@ export default function AppSidebar() {
               </SidebarMenuButton>
             </SidebarMenuItem>
 
+            {/* 사전학습 명단 — 글로벌 */}
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                tooltip='사전학습 명단'
+                isActive={pathname.startsWith('/dashboard/lms-completions')}
+              >
+                <Link href='/dashboard/lms-completions'>
+                  <Icons.checks className='text-teal-600 dark:text-teal-400' />
+                  <span>사전학습 명단</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+
             {/* 강사풀 — 글로벌 */}
             <SidebarMenuItem>
               <SidebarMenuButton

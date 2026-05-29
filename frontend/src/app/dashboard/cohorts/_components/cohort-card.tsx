@@ -53,6 +53,7 @@ type Cohort = {
   application_start_at: string | null;
   application_end_at: string | null;
   max_capacity: number | null;
+  prereq_course_codes: string[] | null;
   student_count: number;
   session_count: number;
 };
@@ -229,6 +230,19 @@ export function CohortCard({ cohort }: { cohort: Cohort }) {
                     min={1}
                     defaultValue={cohort.max_capacity ?? ''}
                   />
+                </div>
+                <div className='grid gap-2'>
+                  <Label htmlFor='edit-prereq'>필수 사전학습 (선택)</Label>
+                  <Input
+                    id='edit-prereq'
+                    name='prereq_course_codes'
+                    placeholder='예: ai_literacy, data_literacy'
+                    defaultValue={(cohort.prereq_course_codes ?? []).join(', ')}
+                    className='font-mono'
+                  />
+                  <p className='text-[11px] text-muted-foreground'>
+                    콤마로 구분. 사전학습 명단(LMS) course_code와 일치해야 함. 자동선발에서 등급 계산에 사용.
+                  </p>
                 </div>
               </div>
             </div>

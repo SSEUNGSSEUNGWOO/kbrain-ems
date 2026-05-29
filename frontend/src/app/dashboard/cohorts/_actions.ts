@@ -154,18 +154,29 @@ export async function updateCohort(id: string, formData: FormData): Promise<Acti
     if (dup) return { error: '이미 다른 기수에서 사용 중인 모집 코드(slug)입니다.' };
   }
 
+  // prereq_course_codes: 콤마 구분 문자열 → 배열
+  const prereqRaw = val(formData, 'prereq_course_codes');
+  const prereqCodes = prereqRaw
+    ? prereqRaw
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
+    : [];
+
+  const updateFields: Record<string, unknown> = {
+    name,
+    started_at: val(formData, 'started_at') || null,
+    ended_at: val(formData, 'ended_at') || null,
+    recruiting_slug: recruitingSlug || null,
+    application_start_at: val(formData, 'application_start_at') || null,
+    application_end_at: val(formData, 'application_end_at') || null,
+    max_capacity: nullableInt(val(formData, 'max_capacity')),
+    category: val(formData, 'category') || null,
+    prereq_course_codes: prereqCodes
+  };
   const { error } = await supabase
     .from('cohorts')
-    .update({
-      name,
-      started_at: val(formData, 'started_at') || null,
-      ended_at: val(formData, 'ended_at') || null,
-      recruiting_slug: recruitingSlug || null,
-      application_start_at: val(formData, 'application_start_at') || null,
-      application_end_at: val(formData, 'application_end_at') || null,
-      max_capacity: nullableInt(val(formData, 'max_capacity')),
-      category: val(formData, 'category') || null
-    })
+    .update(updateFields as never)
     .eq('id', id);
   if (error) return { error: error.message };
 

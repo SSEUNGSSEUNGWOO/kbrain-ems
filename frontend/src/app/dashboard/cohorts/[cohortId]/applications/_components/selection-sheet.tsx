@@ -46,6 +46,8 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
   const [knowledgeMax, setKnowledgeMax] = useState(10);
   const [weights, setWeights] = useState<ScoreWeights>(DEFAULT_WEIGHTS);
   const [totalCapacity, setTotalCapacity] = useState(defaultCapacity);
+  const [maxPerOrg, setMaxPerOrg] = useState(3);
+  const [excludeNoPrereq, setExcludeNoPrereq] = useState(false);
   const [manualToggles, setManualToggles] = useState<Map<string, boolean>>(new Map());
   const [rejectOthers, setRejectOthers] = useState(true);
   const [pending, startTransition] = useTransition();
@@ -80,10 +82,12 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
       candidates,
       weights,
       totalCapacity,
-      knowledgeMax
+      knowledgeMax,
+      maxPerOrg,
+      excludeNoPrereq
     );
     return { scored, autoSelectedIds: new Set(selectedIds) };
-  }, [candidates, weights, totalCapacity, knowledgeMax]);
+  }, [candidates, weights, totalCapacity, knowledgeMax, maxPerOrg, excludeNoPrereq]);
 
   // 최종 선택 = 자동추천 ⊕ 수동토글 오버라이드
   const effectiveSelectedIds = useMemo(() => {
@@ -120,6 +124,8 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
     setError(null);
     setWeights(DEFAULT_WEIGHTS);
     setTotalCapacity(defaultCapacity);
+    setMaxPerOrg(3);
+    setExcludeNoPrereq(false);
   };
 
   const onWeightChange = (key: keyof ScoreWeights, value: number) => {
@@ -200,6 +206,16 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
                   setTotalCapacity(Math.max(0, v));
                   setManualToggles(new Map());
                 }}
+                maxPerOrg={maxPerOrg}
+                onMaxPerOrgChange={(v) => {
+                  setMaxPerOrg(Math.max(0, v));
+                  setManualToggles(new Map());
+                }}
+                excludeNoPrereq={excludeNoPrereq}
+                onExcludeNoPrereqChange={(v) => {
+                  setExcludeNoPrereq(v);
+                  setManualToggles(new Map());
+                }}
                 poolSize={candidates.length}
                 selectedCount={effectiveSelectedIds.size}
               />
@@ -278,6 +294,10 @@ function WeightPanel({
   onChange,
   totalCapacity,
   onTotalChange,
+  maxPerOrg,
+  onMaxPerOrgChange,
+  excludeNoPrereq,
+  onExcludeNoPrereqChange,
   poolSize,
   selectedCount
 }: {
@@ -285,6 +305,10 @@ function WeightPanel({
   onChange: (key: keyof ScoreWeights, value: number) => void;
   totalCapacity: number;
   onTotalChange: (v: number) => void;
+  maxPerOrg: number;
+  onMaxPerOrgChange: (v: number) => void;
+  excludeNoPrereq: boolean;
+  onExcludeNoPrereqChange: (v: boolean) => void;
   poolSize: number;
   selectedCount: number;
 }) {
@@ -301,6 +325,18 @@ function WeightPanel({
           value={totalCapacity}
           onChange={(e) => onTotalChange(Number(e.target.value) || 0)}
           className='h-8 w-20 tabular-nums'
+        />
+        <label htmlFor='max-per-org' className='text-sm font-medium ml-3'>
+          기관당 최대
+        </label>
+        <Input
+          id='max-per-org'
+          type='number'
+          value={maxPerOrg}
+          min={0}
+          onChange={(e) => onMaxPerOrgChange(Number(e.target.value) || 0)}
+          className='h-8 w-16 tabular-nums'
+          title='0 = 무제한'
         />
         <span className='text-muted-foreground text-xs'>지원자 {poolSize}명</span>
         <span className='ml-auto text-sm'>
@@ -323,13 +359,25 @@ function WeightPanel({
         />
         <WeightInput
           id='w-plan'
-          label='정성평가 (글자수)'
+          label='정성평가 (체크, 글자수)'
           value={weights.plan}
           onChange={(v) => onChange('plan', v)}
         />
       </div>
-      <div className='text-muted-foreground text-xs'>
-        가중치 합계 {wSum} · 합이 100이 아니어도 자동 정규화됩니다.
+      <div className='flex items-center justify-between gap-3'>
+        <div className='text-muted-foreground text-xs'>
+          가중치 합계 {wSum} · 합이 100이 아니어도 자동 정규화됩니다.
+        </div>
+        <div className='flex items-center gap-2 text-sm'>
+          <Checkbox
+            id='exclude-no-prereq'
+            checked={excludeNoPrereq}
+            onCheckedChange={(v) => onExcludeNoPrereqChange(v === true)}
+          />
+          <label htmlFor='exclude-no-prereq' className='cursor-pointer'>
+            사전학습 미수료자 강제 제외
+          </label>
+        </div>
       </div>
     </div>
   );
@@ -424,7 +472,9 @@ function CandidateList({
         <span className='w-20'>이름</span>
         <span className='w-20'>분류</span>
         <span className='flex-1'>소속</span>
+        <span className='w-10 text-center'>사전</span>
         <span className='w-12 text-right'>지식</span>
+        <span className='w-12 text-right'>체크</span>
         <span className='w-12 text-right'>글자</span>
         <span className='w-14 text-right'>종합</span>
       </div>
@@ -452,7 +502,32 @@ function CandidateList({
               <span className='text-muted-foreground flex-1 truncate text-xs'>
                 {c.organization ?? '—'}
               </span>
+              <span
+                className={cn(
+                  'w-10 text-center text-xs font-medium tabular-nums',
+                  c.prereq_max === 0
+                    ? 'text-muted-foreground'
+                    : c.prereq_done_count === c.prereq_max
+                      ? 'text-emerald-600'
+                      : c.prereq_done_count > 0
+                        ? 'text-amber-600'
+                        : 'text-muted-foreground'
+                )}
+                title={
+                  c.prereq_max === 0
+                    ? 'cohort에 사전학습 요구 없음'
+                    : `사전학습 ${c.prereq_done_count}/${c.prereq_max} 수료`
+                }
+              >
+                {c.prereq_max === 0 ? '—' : `${c.prereq_done_count}/${c.prereq_max}`}
+              </span>
               <span className='w-12 text-right tabular-nums text-xs'>{c.knowledge_score}</span>
+              <span className='w-12 text-right tabular-nums text-xs'>
+                {c.multi_selected_count}
+                {c.multi_choices_max > 0 && (
+                  <span className='text-muted-foreground'>/{c.multi_choices_max}</span>
+                )}
+              </span>
               <span className='w-12 text-right tabular-nums text-xs'>{c.plan_char_count}</span>
               <span
                 className={cn(

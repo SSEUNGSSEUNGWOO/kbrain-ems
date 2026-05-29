@@ -37,6 +37,10 @@ export type CandidateRow = {
   knowledge_score: number;
   plan_char_count: number;
   plan_text: string;
+  multi_selected_count: number; // 다수체크 문항(U1) 선택 개수
+  multi_choices_max: number; // 그 문항의 보기 총 개수
+  prereq_done_count: number; // cohort prereq 과목 중 수료한 개수
+  prereq_max: number; // cohort prereq 과목 총 개수 (0이면 prereq 요구 없음)
   current_status: string;
 };
 
@@ -86,7 +90,11 @@ export function scoreAll(
   return candidates.map((c) => {
     const kNorm = Math.min(Math.max(c.knowledge_score / kMax, 0), 1);
     const cNorm = (CATEGORY_PRIORITY_SCORE[c.category] ?? 0) / 10;
-    const pNorm = Math.min(c.plan_char_count / PLAN_CHARS_FULL, 1);
+    // 정성평가 = (글자수 정규화 + 다수체크 개수 정규화) / 2 — 50:50 합산
+    const charNorm = Math.min(c.plan_char_count / PLAN_CHARS_FULL, 1);
+    const multiNorm =
+      c.multi_choices_max > 0 ? Math.min(c.multi_selected_count / c.multi_choices_max, 1) : 0;
+    const pNorm = (charNorm + multiNorm) / 2;
     const kPart = kNorm * weights.knowledge;
     const cPart = cNorm * weights.category;
     const pPart = pNorm * weights.plan;
@@ -101,18 +109,36 @@ export function scoreAll(
 }
 
 /**
- * 가중 점수 단일 정렬 → 상위 N명 선발.
- * 타이브레이커: 종합점수(원점수) → 지식점수 → 부처 우선순위 → 정성평가 글자수.
- *  - 분류 우선순위는 운영 의도(중앙 > 광역 > ...)를 동점 처리에도 반영
- *  - 글자수는 정성평가가 양적 지표이므로 최후 수단
+ * 가중 점수 정렬 → 상위 N명 선발 + 기관별 cap + 사전학습 등급 우선.
+ *
+ * 정렬 우선순위 (cohort에 prereq 과목이 정의된 경우):
+ *  1) prereq_done_count desc (수료 개수 많은 사람부터)
+ *  2) 종합점수(원점수) desc
+ *  3) 지식점수 desc
+ *  4) 부처 우선순위 desc
+ *  5) 정성평가 글자수 desc
+ *
+ * cohort prereq_max = 0이면 prereq 정렬·제외 비활성화 (모든 candidate 동일 취급).
+ *
+ * @param maxPerOrg 기관당 최대 선발 인원 (0 이하 = 무제한)
+ * @param excludeNoPrereq true이고 cohort prereq가 있으면 prereq_done_count=0(미수료)을 강제 제외
  */
 export function recommendByWeights(
   candidates: CandidateRow[],
   weights: ScoreWeights,
   totalCapacity: number,
-  knowledgeMax: number
+  knowledgeMax: number,
+  maxPerOrg: number = 0,
+  excludeNoPrereq: boolean = false
 ): { selectedIds: string[]; scored: ScoredCandidate[] } {
-  const scored = scoreAll(candidates, weights, knowledgeMax).toSorted((a, b) => {
+  const hasPrereq = candidates.some((c) => c.prereq_max > 0);
+  const filtered = excludeNoPrereq && hasPrereq
+    ? candidates.filter((c) => c.prereq_done_count > 0)
+    : candidates;
+  const scored = scoreAll(filtered, weights, knowledgeMax).toSorted((a, b) => {
+    if (hasPrereq && b.prereq_done_count !== a.prereq_done_count) {
+      return b.prereq_done_count - a.prereq_done_count;
+    }
     if (b.final_score !== a.final_score) return b.final_score - a.final_score;
     if (b.knowledge_score !== a.knowledge_score) return b.knowledge_score - a.knowledge_score;
     const aCat = CATEGORY_PRIORITY_SCORE[a.category] ?? 0;
@@ -120,7 +146,21 @@ export function recommendByWeights(
     if (bCat !== aCat) return bCat - aCat;
     return b.plan_char_count - a.plan_char_count;
   });
-  const selectedIds = scored.slice(0, Math.max(0, totalCapacity)).map((c) => c.application_id);
+
+  const cap = maxPerOrg > 0 ? maxPerOrg : Number.POSITIVE_INFINITY;
+  const orgCount = new Map<string, number>();
+  const selectedIds: string[] = [];
+  const limit = Math.max(0, totalCapacity);
+  for (const c of scored) {
+    if (selectedIds.length >= limit) break;
+    const orgKey = c.organization ?? '';
+    if (orgKey) {
+      const used = orgCount.get(orgKey) ?? 0;
+      if (used >= cap) continue;
+      orgCount.set(orgKey, used + 1);
+    }
+    selectedIds.push(c.application_id);
+  }
   return { selectedIds, scored };
 }
 

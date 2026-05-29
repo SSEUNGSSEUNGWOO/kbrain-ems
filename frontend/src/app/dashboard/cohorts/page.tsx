@@ -11,12 +11,28 @@ export default async function CohortsPage() {
     const supabase = createAdminClient();
     const operator = await getOperator();
 
-    const { data: cohortRows, error: cohortError } = await supabase
+    const cohortQuery = supabase
       .from('cohorts')
       .select(
-        'id, name, category, started_at, ended_at, recruiting_slug, application_start_at, application_end_at, max_capacity, created_at'
+        'id, name, category, started_at, ended_at, recruiting_slug, application_start_at, application_end_at, max_capacity, prereq_course_codes, created_at' as never
       )
       .order('created_at', { ascending: true });
+    const { data: cohortRows, error: cohortError } = await cohortQuery as unknown as {
+      data: {
+        id: string;
+        name: string;
+        category: string | null;
+        started_at: string | null;
+        ended_at: string | null;
+        recruiting_slug: string | null;
+        application_start_at: string | null;
+        application_end_at: string | null;
+        max_capacity: number | null;
+        prereq_course_codes: string[] | null;
+        created_at: string;
+      }[] | null;
+      error: { message: string } | null;
+    };
     if (cohortError) throw new Error(cohortError.message);
 
     const cohorts = sortCohortsByPreference(cohortRows ?? [], operator?.cohort_order ?? []);
@@ -42,6 +58,7 @@ export default async function CohortsPage() {
       application_start_at: c.application_start_at,
       application_end_at: c.application_end_at,
       max_capacity: c.max_capacity,
+      prereq_course_codes: c.prereq_course_codes,
       created_at: c.created_at,
       student_count: studentCountMap.get(c.id) ?? 0,
       session_count: sessionCountMap.get(c.id) ?? 0

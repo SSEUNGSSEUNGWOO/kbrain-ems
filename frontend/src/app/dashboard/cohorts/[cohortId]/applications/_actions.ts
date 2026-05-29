@@ -41,6 +41,8 @@ import { C2_TO_SELECTION, type CandidateRow } from './_selection-logic';
 
 // C2 응답 텍스트 정규화 (parser와 동일 규칙)
 const normC2 = (s: string) => s.replace(/\s+/g, '').replace(/[·、,「」『』""'']/g, '');
+const normPhone = (s: string | null | undefined) => (s ?? '').replace(/[^\d]/g, '');
+const normEmail = (s: string | null | undefined) => (s ?? '').trim().toLowerCase();
 
 export async function loadSelectionPool(
   cohortId: string
@@ -57,53 +59,133 @@ export async function loadSelectionPool(
       applicants: {
         id: string;
         name: string;
+        phone: string | null;
+        email: string | null;
         organizations: { name: string } | null;
       } | null;
     };
     // 자동 선발 후보군은 심사 대상(applied/pending)만. 이미 확정·취하된 사람은 제외.
     const { data: apps, error: appErr } = await supabase
       .from('applications')
-      .select('id, status, knowledge_score, applicant_id, applicants(id, name, organizations(name))')
+      .select(
+        'id, status, knowledge_score, applicant_id, applicants(id, name, phone, email, organizations(name))'
+      )
       .eq('cohort_id', cohortId)
       .in('status', ['applied', 'pending'])
       .returns<AppQ[]>();
     if (appErr) throw new Error(appErr.message);
 
-    // questions: C2/Plan id + knowledge 가중치 합
+    // 1) cohort.prereq_course_codes — 이 cohort에서 필수로 요구하는 과목 list
+    const { data: cohortMeta } = await supabase
+      .from('cohorts')
+      .select('prereq_course_codes')
+      .eq('id', cohortId)
+      .maybeSingle();
+    const prereqCodes: string[] =
+      ((cohortMeta as { prereq_course_codes: string[] | null } | null)?.prereq_course_codes ?? []);
+    const prereqMax = prereqCodes.length;
+
+    // 2) lms_completions에서 prereq 과목만 fetch (필수 없으면 skip)
+    const phonesByCourse = new Map<string, Set<string>>();
+    const emailsByCourse = new Map<string, Set<string>>();
+    type LmsRow = { course_code: string; phone: string | null; email: string | null };
+    if (prereqMax > 0) {
+      // PostgREST max-rows=1000 우회: range로 chunked fetch
+      const lmsRowsAll: LmsRow[] = [];
+      const chunk = 1000;
+      for (let from = 0; from < 1_000_000; from += chunk) {
+        const res = (await supabase
+          // @ts-expect-error supabase types.ts에 lms_completions 미반영
+          .from('lms_completions')
+          .select('course_code, phone, email')
+          .in('course_code', prereqCodes)
+          .range(from, from + chunk - 1)) as unknown as {
+          data: LmsRow[] | null;
+          error: { message: string } | null;
+        };
+        const batch = res.data ?? [];
+        lmsRowsAll.push(...batch);
+        if (batch.length < chunk) break;
+      }
+      for (const r of lmsRowsAll) {
+        if (!phonesByCourse.has(r.course_code)) {
+          phonesByCourse.set(r.course_code, new Set());
+          emailsByCourse.set(r.course_code, new Set());
+        }
+        if (r.phone) phonesByCourse.get(r.course_code)!.add(r.phone);
+        if (r.email) emailsByCourse.get(r.course_code)!.add(r.email.trim().toLowerCase());
+      }
+    }
+
+    const computePrereqDone = (phone: string | null, email: string | null): number => {
+      if (prereqMax === 0) return 0;
+      const p = normPhone(phone);
+      const e = normEmail(email);
+      let done = 0;
+      for (const code of prereqCodes) {
+        const ps = phonesByCourse.get(code);
+        const es = emailsByCourse.get(code);
+        const hit = (p && ps?.has(p)) || (e && es?.has(e));
+        if (hit) done++;
+      }
+      return done;
+    };
+
+    // questions: C2/Plan/U1 id + knowledge 가중치 합 + U1 보기 개수
+    type QuestionMeta = {
+      id: string;
+      question_no: string;
+      section: string;
+      question_type: string;
+      weight: number | null;
+      choices: { key: string; text: string }[] | null;
+      display_order: number;
+    };
     const { data: questions, error: qErr } = await supabase
       .from('application_questions')
-      .select('id, question_no, section, weight, display_order')
+      .select('id, question_no, section, question_type, weight, choices, display_order')
       .eq('cohort_id', cohortId)
-      .order('display_order', { ascending: true });
+      .order('display_order', { ascending: true })
+      .returns<QuestionMeta[]>();
     if (qErr) throw new Error(qErr.message);
     const c2 = questions?.find((q) => q.question_no === 'C2');
-    // 활용계획은 question_no='Plan'으로 명시 식별 (마지막 문항 가정 회피)
+    // 활용계획(Plan)·다수체크(U1)는 question_no로 명시 식별
     const finalQ = questions?.find((q) => q.question_no === 'Plan');
+    const multiQ = questions?.find((q) => q.question_no === 'U1');
+    const multiChoicesMax = multiQ?.choices?.length ?? 0;
     const knowledgeMax = (questions ?? [])
       .filter((q) => q.section === 'knowledge')
       .reduce((s, q) => s + Number(q.weight ?? 1), 0);
 
-    // 응답 조회
+    // 응답 조회: C2(분류) + Plan(활용계획 글자수) + U1(다수체크 개수)
     const appIds = (apps ?? []).map((a) => a.id);
     const c2Map = new Map<string, string>();
     const planMap = new Map<string, string>();
-    if (appIds.length > 0 && (c2 || finalQ)) {
-      const targetIds = [c2?.id, finalQ?.id].filter((x): x is string => Boolean(x));
+    const multiCountMap = new Map<string, number>();
+    if (appIds.length > 0 && (c2 || finalQ || multiQ)) {
+      const targetIds = [c2?.id, finalQ?.id, multiQ?.id].filter((x): x is string => Boolean(x));
       const { data: answers } = await supabase
         .from('application_answers')
         .select('application_id, question_id, answer_value')
         .in('application_id', appIds)
         .in('question_id', targetIds);
       for (const a of answers ?? []) {
-        const v = typeof a.answer_value === 'string' ? a.answer_value : '';
-        if (a.question_id === c2?.id) c2Map.set(a.application_id, v);
-        else if (a.question_id === finalQ?.id) planMap.set(a.application_id, v);
+        if (a.question_id === c2?.id) {
+          c2Map.set(a.application_id, typeof a.answer_value === 'string' ? a.answer_value : '');
+        } else if (a.question_id === finalQ?.id) {
+          planMap.set(a.application_id, typeof a.answer_value === 'string' ? a.answer_value : '');
+        } else if (a.question_id === multiQ?.id) {
+          // multi answer_value는 배열 형태 ["①","②","③"]
+          const arr = Array.isArray(a.answer_value) ? a.answer_value : [];
+          multiCountMap.set(a.application_id, arr.length);
+        }
       }
     }
 
     const candidates: CandidateRow[] = (apps ?? []).map((a) => {
       const c2Key = c2Map.get(a.id) ?? '';
       const planText = planMap.get(a.id) ?? '';
+      const multiCount = multiCountMap.get(a.id) ?? 0;
       return {
         application_id: a.id,
         applicant_id: a.applicants?.id ?? '',
@@ -113,6 +195,10 @@ export async function loadSelectionPool(
         knowledge_score: a.knowledge_score ?? 0,
         plan_char_count: planText.replace(/\s+/g, '').length,
         plan_text: planText,
+        multi_selected_count: multiCount,
+        multi_choices_max: multiChoicesMax,
+        prereq_done_count: computePrereqDone(a.applicants?.phone ?? null, a.applicants?.email ?? null),
+        prereq_max: prereqMax,
         current_status: a.status
       };
     });
