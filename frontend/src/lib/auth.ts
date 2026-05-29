@@ -1,6 +1,6 @@
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 
-export type OperatorRole = 'developer' | 'operator' | 'head';
+export type OperatorRole = 'developer' | 'operator' | 'head' | 'viewer';
 
 export type Operator = {
   id: string;
@@ -46,4 +46,13 @@ export async function getOperator(): Promise<Operator | null> {
 export async function isDeveloper(): Promise<boolean> {
   const op = await getOperator();
   return op !== null;
+}
+
+/**
+ * viewer 권한 여부. 개인정보(휴대폰·이메일)를 UI에서 가리는 데 사용.
+ * 본인 화면에서는 '운영자'로 표시되어 구분되지 않는다.
+ */
+export async function isViewer(): Promise<boolean> {
+  const op = await getOperator();
+  return op?.role === 'viewer';
 }

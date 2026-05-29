@@ -23,7 +23,9 @@ export function UserNav() {
 
   if (!name) return null;
 
-  const roleLabel = role === 'developer' ? '개발자' : role === 'head' ? '총괄' : '운영자';
+  // viewer도 본인 화면에서는 일반 운영자와 동일하게 '운영자'로 표시 (구분 안 됨)
+  const roleLabel =
+    role === 'developer' ? '개발자' : role === 'head' ? '총괄' : '운영자';
   const displayTitle = authTitle || roleLabel;
 
   return (

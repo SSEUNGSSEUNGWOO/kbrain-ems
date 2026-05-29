@@ -43,13 +43,15 @@ type Operator = {
 const ROLE_LABEL: Record<string, string> = {
   developer: '개발자',
   operator: '운영자',
-  head: '총괄'
+  head: '총괄',
+  viewer: '운영자(외부)'
 };
 
 const ROLE_CLASS: Record<string, string> = {
   developer: 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-300',
   operator: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300',
-  head: 'border-purple-200 bg-purple-50 text-purple-700 dark:border-purple-900 dark:bg-purple-950/40 dark:text-purple-300'
+  head: 'border-purple-200 bg-purple-50 text-purple-700 dark:border-purple-900 dark:bg-purple-950/40 dark:text-purple-300',
+  viewer: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300'
 };
 
 export function OperatorTable() {
@@ -227,6 +229,7 @@ export function OperatorTable() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value='operator'>운영자</SelectItem>
+                  <SelectItem value='viewer'>운영자(외부) — 개인정보 마스킹</SelectItem>
                   <SelectItem value='head'>총괄</SelectItem>
                   <SelectItem value='developer'>개발자</SelectItem>
                 </SelectContent>
@@ -271,6 +274,7 @@ export function OperatorTable() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value='operator'>운영자</SelectItem>
+                  <SelectItem value='viewer'>운영자(외부) — 개인정보 마스킹</SelectItem>
                   <SelectItem value='head'>총괄</SelectItem>
                   <SelectItem value='developer'>개발자</SelectItem>
                 </SelectContent>
