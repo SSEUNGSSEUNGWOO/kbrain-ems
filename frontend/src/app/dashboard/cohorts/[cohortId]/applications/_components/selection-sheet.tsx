@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   Sheet,
   SheetContent,
@@ -486,6 +487,14 @@ function DistributionRow({
   );
 }
 
+const STATUS_LABEL: Record<string, string> = {
+  applied: '신청',
+  pending: '검토중',
+  selected: '선발',
+  rejected: '탈락',
+  withdrawn: '취하'
+};
+
 function CandidateList({
   scored,
   autoSelectedIds,
@@ -534,14 +543,28 @@ function CandidateList({
               <span className='w-20 truncate font-medium'>{c.name}</span>
               <span className='w-12 text-center text-xs'>
                 {c.other_applications.length > 0 ? (
-                  <span
-                    className='inline-flex items-center justify-center rounded bg-amber-100 px-1.5 py-0.5 font-medium text-amber-700'
-                    title={c.other_applications
-                      .map((o) => `${o.cohort_name} (${o.status})`)
-                      .join('\n')}
-                  >
-                    +{c.other_applications.length}
-                  </span>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type='button'
+                        onClick={(e) => e.preventDefault()}
+                        className='inline-flex cursor-default items-center justify-center rounded bg-amber-100 px-1.5 py-0.5 font-medium text-amber-700'
+                      >
+                        +{c.other_applications.length}
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side='top' className='max-w-xs'>
+                      <div className='flex flex-col gap-0.5 text-xs'>
+                        <div className='mb-0.5 font-semibold opacity-90'>다른 기수 지원</div>
+                        {c.other_applications.map((o) => (
+                          <div key={o.cohort_id}>
+                            {o.cohort_name}
+                            <span className='ml-1 opacity-70'>· {STATUS_LABEL[o.status] ?? o.status}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
                 ) : (
                   <span className='text-muted-foreground'>—</span>
                 )}
