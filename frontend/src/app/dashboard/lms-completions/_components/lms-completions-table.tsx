@@ -13,9 +13,16 @@ type Row = {
   name: string;
   phone: string | null;
   email: string | null;
-  courses: { code: string; name: string; completed_at: string | null }[];
-  lastCompletedAt: string | null;
-  isApplicant: boolean;
+  courseCode: string;
+  courseName: string;
+  completedAt: string | null;
+  certificateNo: string | null;
+};
+
+type CourseOption = {
+  code: string;
+  name: string;
+  count: number;
 };
 
 type Props = {
@@ -25,6 +32,8 @@ type Props = {
   pageCount: number;
   totalCount: number;
   search: string;
+  courseFilter: string;
+  courseOptions: CourseOption[];
 };
 
 export function LmsCompletionsTable({
@@ -33,11 +42,14 @@ export function LmsCompletionsTable({
   pageSize,
   pageCount,
   totalCount,
-  search
+  search,
+  courseFilter,
+  courseOptions
 }: Props) {
-  const [{ q }, setParams] = useQueryStates(
+  const [{ q, course }, setParams] = useQueryStates(
     {
       q: parseAsString.withDefault(''),
+      course: parseAsString.withDefault(''),
       page: parseAsInteger.withDefault(1)
     },
     { shallow: false }
@@ -62,6 +74,10 @@ export function LmsCompletionsTable({
     void setParams({ q: null, page: null });
   };
 
+  const onCourseChange = (code: string) => {
+    void setParams({ course: code || null, page: null });
+  };
+
   const goToPage = (next: number) => {
     const clamped = Math.min(Math.max(1, next), Math.max(1, pageCount));
     void setParams({ page: clamped === 1 ? null : clamped });
@@ -70,7 +86,8 @@ export function LmsCompletionsTable({
   const isEmpty = rows.length === 0;
   const firstIndex = isEmpty ? 0 : (page - 1) * pageSize + 1;
   const lastIndex = isEmpty ? 0 : (page - 1) * pageSize + rows.length;
-  const hasSearch = Boolean(search);
+  const hasFilter = Boolean(search) || Boolean(courseFilter);
+  const activeCourse = course || courseFilter;
 
   return (
     <div className='flex flex-col gap-3'>
@@ -94,15 +111,32 @@ export function LmsCompletionsTable({
             </button>
           )}
         </div>
+        <div className='flex flex-wrap items-center gap-1.5'>
+          <FilterChip
+            active={!activeCourse}
+            onClick={() => onCourseChange('')}
+            label='전체'
+            count={courseOptions.reduce((s, c) => s + c.count, 0)}
+          />
+          {courseOptions.map((c) => (
+            <FilterChip
+              key={c.code}
+              active={activeCourse === c.code}
+              onClick={() => onCourseChange(c.code)}
+              label={c.name}
+              count={c.count}
+            />
+          ))}
+        </div>
       </div>
 
       {isEmpty ? (
         <div className='flex flex-col items-center justify-center rounded-xl border border-dashed py-16'>
           <p className='text-foreground font-medium'>
-            {hasSearch ? '검색 결과가 없습니다' : '아직 LMS 명단이 없습니다'}
+            {hasFilter ? '검색 결과가 없습니다' : '아직 LMS 명단이 없습니다'}
           </p>
           <p className='text-muted-foreground mt-1 text-sm'>
-            {hasSearch ? '다른 검색어를 시도해보세요.' : '우상단 "명단 업로드"로 시작하세요.'}
+            {hasFilter ? '필터·검색어를 조정해보세요.' : '우상단 "명단 업로드"로 시작하세요.'}
           </p>
         </div>
       ) : (
@@ -113,9 +147,9 @@ export function LmsCompletionsTable({
                 <th className='px-4 py-2 text-left font-medium'>이름</th>
                 <th className='px-4 py-2 text-left font-medium'>휴대폰</th>
                 <th className='px-4 py-2 text-left font-medium'>이메일</th>
-                <th className='px-4 py-2 text-left font-medium'>수료 과목</th>
-                <th className='px-4 py-2 text-left font-medium'>최종 이수일</th>
-                <th className='px-4 py-2 text-center font-medium'>신청자</th>
+                <th className='px-4 py-2 text-left font-medium'>과목</th>
+                <th className='px-4 py-2 text-left font-medium'>수료일</th>
+                <th className='px-4 py-2 text-left font-medium'>수료번호</th>
               </tr>
             </thead>
             <tbody>
@@ -127,32 +161,18 @@ export function LmsCompletionsTable({
                   </td>
                   <td className='text-muted-foreground px-4 py-2 text-xs'>{r.email ?? '—'}</td>
                   <td className='px-4 py-2'>
-                    <div className='flex flex-wrap gap-1'>
-                      {r.courses.map((c) => (
-                        <Badge
-                          key={c.code}
-                          variant='outline'
-                          className='border-emerald-200 bg-emerald-50 text-emerald-700 font-normal'
-                        >
-                          {c.name}
-                        </Badge>
-                      ))}
-                    </div>
+                    <Badge
+                      variant='outline'
+                      className='border-emerald-200 bg-emerald-50 text-emerald-700 font-normal'
+                    >
+                      {r.courseName}
+                    </Badge>
                   </td>
                   <td className='text-muted-foreground px-4 py-2 text-xs tabular-nums'>
-                    {r.lastCompletedAt ?? '—'}
+                    {r.completedAt ?? '—'}
                   </td>
-                  <td className='px-4 py-2 text-center'>
-                    {r.isApplicant ? (
-                      <Badge
-                        variant='outline'
-                        className='border-blue-200 bg-blue-50 text-blue-700'
-                      >
-                        ✓
-                      </Badge>
-                    ) : (
-                      <span className='text-muted-foreground'>—</span>
-                    )}
+                  <td className='text-muted-foreground px-4 py-2 text-xs tabular-nums'>
+                    {r.certificateNo ?? '—'}
                   </td>
                 </tr>
               ))}
@@ -165,7 +185,7 @@ export function LmsCompletionsTable({
         <div className='grid grid-cols-3 items-center gap-2'>
           <div className='text-muted-foreground text-xs tabular-nums'>
             {firstIndex.toLocaleString()}–{lastIndex.toLocaleString()} /{' '}
-            {totalCount.toLocaleString()}명
+            {totalCount.toLocaleString()}건
           </div>
           <div className='flex items-center justify-center gap-1'>
             <Button
@@ -194,5 +214,34 @@ export function LmsCompletionsTable({
         </div>
       )}
     </div>
+  );
+}
+
+function FilterChip({
+  active,
+  onClick,
+  label,
+  count
+}: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+  count: number;
+}) {
+  return (
+    <button
+      type='button'
+      onClick={onClick}
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+        active
+          ? 'border-foreground bg-foreground text-background'
+          : 'border-input bg-background text-foreground hover:bg-muted/60'
+      }`}
+    >
+      <span>{label}</span>
+      <span className={`tabular-nums ${active ? 'opacity-80' : 'text-muted-foreground'}`}>
+        {count.toLocaleString()}
+      </span>
+    </button>
   );
 }
