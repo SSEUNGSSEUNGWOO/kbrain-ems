@@ -46,8 +46,15 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
   const [knowledgeMax, setKnowledgeMax] = useState(10);
   const [weights, setWeights] = useState<ScoreWeights>(DEFAULT_WEIGHTS);
   const [totalCapacity, setTotalCapacity] = useState(defaultCapacity);
+  const [withReserve, setWithReserve] = useState(false);
   const [maxPerOrg, setMaxPerOrg] = useState(3);
   const [excludeNoPrereq, setExcludeNoPrereq] = useState(false);
+
+  // 110% 선발 시 실제 사용되는 정원 (예: 100 → 110). 미체크면 입력값 그대로.
+  const effectiveCapacity = useMemo(
+    () => (withReserve ? Math.ceil(totalCapacity * 1.1) : totalCapacity),
+    [totalCapacity, withReserve]
+  );
   const [manualToggles, setManualToggles] = useState<Map<string, boolean>>(new Map());
   const [rejectOthers, setRejectOthers] = useState(true);
   const [pending, startTransition] = useTransition();
@@ -81,13 +88,13 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
     const { selectedIds, scored } = recommendByWeights(
       candidates,
       weights,
-      totalCapacity,
+      effectiveCapacity,
       knowledgeMax,
       maxPerOrg,
       excludeNoPrereq
     );
     return { scored, autoSelectedIds: new Set(selectedIds) };
-  }, [candidates, weights, totalCapacity, knowledgeMax, maxPerOrg, excludeNoPrereq]);
+  }, [candidates, weights, effectiveCapacity, knowledgeMax, maxPerOrg, excludeNoPrereq]);
 
   // 최종 선택 = 자동추천 ⊕ 수동토글 오버라이드
   const effectiveSelectedIds = useMemo(() => {
@@ -124,6 +131,7 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
     setError(null);
     setWeights(DEFAULT_WEIGHTS);
     setTotalCapacity(defaultCapacity);
+    setWithReserve(false);
     setMaxPerOrg(3);
     setExcludeNoPrereq(false);
   };
@@ -206,6 +214,12 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
                   setTotalCapacity(Math.max(0, v));
                   setManualToggles(new Map());
                 }}
+                withReserve={withReserve}
+                onWithReserveChange={(v) => {
+                  setWithReserve(v);
+                  setManualToggles(new Map());
+                }}
+                effectiveCapacity={effectiveCapacity}
                 maxPerOrg={maxPerOrg}
                 onMaxPerOrgChange={(v) => {
                   setMaxPerOrg(Math.max(0, v));
@@ -223,7 +237,7 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
               <DistributionRow
                 distribution={distribution}
                 poolByCategory={poolByCategory}
-                totalCapacity={totalCapacity}
+                totalCapacity={effectiveCapacity}
               />
 
               <CandidateList
@@ -231,7 +245,7 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
                 autoSelectedIds={autoSelectedIds}
                 effectiveSelectedIds={effectiveSelectedIds}
                 onToggle={toggle}
-                totalCapacity={totalCapacity}
+                totalCapacity={effectiveCapacity}
               />
             </div>
           )}
@@ -294,6 +308,9 @@ function WeightPanel({
   onChange,
   totalCapacity,
   onTotalChange,
+  withReserve,
+  onWithReserveChange,
+  effectiveCapacity,
   maxPerOrg,
   onMaxPerOrgChange,
   excludeNoPrereq,
@@ -305,6 +322,9 @@ function WeightPanel({
   onChange: (key: keyof ScoreWeights, value: number) => void;
   totalCapacity: number;
   onTotalChange: (v: number) => void;
+  withReserve: boolean;
+  onWithReserveChange: (v: boolean) => void;
+  effectiveCapacity: number;
   maxPerOrg: number;
   onMaxPerOrgChange: (v: number) => void;
   excludeNoPrereq: boolean;
@@ -326,6 +346,21 @@ function WeightPanel({
           onChange={(e) => onTotalChange(Number(e.target.value) || 0)}
           className='h-8 w-20 tabular-nums'
         />
+        <label
+          htmlFor='with-reserve'
+          className='flex cursor-pointer items-center gap-1.5 text-xs'
+          title='정원의 110%를 선발 (예비합격자 포함)'
+        >
+          <Checkbox
+            id='with-reserve'
+            checked={withReserve}
+            onCheckedChange={(v) => onWithReserveChange(v === true)}
+          />
+          <span>110% 선발</span>
+          {withReserve && effectiveCapacity !== totalCapacity && (
+            <span className='text-muted-foreground tabular-nums'>({effectiveCapacity}명)</span>
+          )}
+        </label>
         <label htmlFor='max-per-org' className='text-sm font-medium ml-3'>
           기관당 최대
         </label>
