@@ -255,7 +255,7 @@ export default async function CohortApplicationsPage({ params, searchParams }: P
   const pageCount = Math.max(1, Math.ceil(filteredTotal / pageSize));
 
   const headerAction = (
-    <div className='flex items-center gap-2'>
+    <div className='flex flex-wrap items-center justify-end gap-2'>
       <Button variant='outline' size='sm' asChild disabled={!hasQuestions}>
         <Link href={`/dashboard/cohorts/${cohortId}/applications/questions`}>
           <Icons.forms className='mr-1.5' />
