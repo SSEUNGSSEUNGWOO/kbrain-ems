@@ -1,28 +1,27 @@
 // 선발 추천 로직 (universal — 서버/클라이언트 양쪽에서 호출)
 // 'use server' 파일에 두면 async 강제 + import 시 RSC 경계 문제 → 별도 파일 분리
 
-export type SelectionCategory = 'central' | 'metro_local' | 'basic_local' | 'public_edu' | 'other';
+export type SelectionCategory = 'central' | 'local' | 'public_edu' | 'other';
 
 export const SELECTION_CATEGORY_LABEL: Record<SelectionCategory, string> = {
   central: '중앙부처',
-  metro_local: '광역지자체',
-  basic_local: '기초지자체',
+  local: '지자체',
   public_edu: '공공·교육',
   other: '기타'
 };
 
+// 우선순위 = 흘러내림 방향: 중앙 → 지자체 → 공공 → 기타.
 export const SELECTION_CATEGORY_ORDER: SelectionCategory[] = [
   'central',
-  'metro_local',
-  'basic_local',
+  'local',
   'public_edu',
   'other'
 ];
 
 export const C2_TO_SELECTION: Record<string, SelectionCategory> = {
   '①': 'central',
-  '②': 'metro_local',
-  '③': 'basic_local',
+  '②': 'local', // 광역지자체
+  '③': 'local', // 기초지자체
   '④': 'public_edu',
   '⑤': 'public_edu',
   '⑥': 'other'
@@ -46,123 +45,188 @@ export type CandidateRow = {
   other_applications: { cohort_id: string; cohort_name: string; status: string }[];
 };
 
-// 분류 우선순위 점수 (0~10 스케일). 운영자 의도: 중앙 > 광역 > 기초 > 공공·교육 > 기타
-export const CATEGORY_PRIORITY_SCORE: Record<SelectionCategory, number> = {
-  central: 10,
-  metro_local: 8,
-  basic_local: 6,
-  public_edu: 4,
-  other: 2
-};
-
 // 정성평가 만점 기준 (글자수). 설문 안내 "100자 내외"에 맞춤.
 export const PLAN_CHARS_FULL = 100;
 
+// 점수 가중치 — 시험(지식) : 정성평가 두 축만. 부처는 쿼터로 빠짐.
 export type ScoreWeights = {
   knowledge: number; // 0~100
-  category: number; // 0~100
   plan: number; // 0~100
 };
 
 export const DEFAULT_WEIGHTS: ScoreWeights = {
   knowledge: 50,
-  category: 30,
-  plan: 20
+  plan: 50
+};
+
+// 부처 정원 비율 (기본 5:3:2). other는 쿼터 없음 — 흘러내림 최후 단계에서만 흡수.
+export type QuotaRatio = {
+  central: number;
+  local: number;
+  public_edu: number;
+};
+
+export const DEFAULT_QUOTA_RATIO: QuotaRatio = {
+  central: 5,
+  local: 3,
+  public_edu: 2
 };
 
 export type ScoredCandidate = CandidateRow & {
   final_score: number; // 0~100 정규화
-  parts: { knowledge: number; category: number; plan: number };
+  parts: { knowledge: number; plan: number };
 };
 
 /**
- * 세 요소의 가중치(0~100)를 정규화 합산해 최종점수 계산.
- *  - 지식점수: knowledge_score / knowledgeMax (clamp 0~1) — knowledgeMax는 cohort의 weight 합
- *  - 분류: CATEGORY_PRIORITY_SCORE / 10
- *  - 정성평가: plan_char_count / PLAN_CHARS_FULL (clamp 0~1)
- * 최종점수 = 정규화된 부분 × 가중치 합.
+ * 두 부분의 가중합 — 부처는 점수에 포함하지 않고 쿼터로만 처리.
+ *  - 지식점수: knowledge_score / knowledgeMax (clamp 0~1)
+ *  - 정성평가: (글자수 정규화 + 다수체크 개수 정규화) / 2
+ * 최종점수 = (kPart + pPart) / (w.k + w.p) * 100
  */
 export function scoreAll(
   candidates: CandidateRow[],
   weights: ScoreWeights,
   knowledgeMax: number
 ): ScoredCandidate[] {
-  const wSum = Math.max(weights.knowledge + weights.category + weights.plan, 1);
+  const wSum = Math.max(weights.knowledge + weights.plan, 1);
   const kMax = Math.max(knowledgeMax, 1);
   return candidates.map((c) => {
     const kNorm = Math.min(Math.max(c.knowledge_score / kMax, 0), 1);
-    const cNorm = (CATEGORY_PRIORITY_SCORE[c.category] ?? 0) / 10;
-    // 정성평가 = (글자수 정규화 + 다수체크 개수 정규화) / 2 — 50:50 합산
     const charNorm = Math.min(c.plan_char_count / PLAN_CHARS_FULL, 1);
     const multiNorm =
       c.multi_choices_max > 0 ? Math.min(c.multi_selected_count / c.multi_choices_max, 1) : 0;
     const pNorm = (charNorm + multiNorm) / 2;
     const kPart = kNorm * weights.knowledge;
-    const cPart = cNorm * weights.category;
     const pPart = pNorm * weights.plan;
-    // 반올림은 표시 시점에만 — 정렬은 원점수로 (인위적 동점 방지)
-    const final = ((kPart + cPart + pPart) / wSum) * 100;
+    const final = ((kPart + pPart) / wSum) * 100;
     return {
       ...c,
       final_score: final,
-      parts: { knowledge: kPart, category: cPart, plan: pPart }
+      parts: { knowledge: kPart, plan: pPart }
     };
   });
 }
 
 /**
- * 가중 점수 정렬 → 상위 N명 선발 + 기관별 cap + 사전학습 등급 우선.
+ * 정원과 비율로 카테고리별 쿼터 계산 (largest-remainder method).
+ * 예: total=100, ratio={5,3,2} → {central:50, local:30, public_edu:20, other:0}
+ *     total=30,  ratio={5,3,2} → {central:15, local:9,  public_edu:6,  other:0}
+ */
+export function computeQuotas(
+  totalCapacity: number,
+  ratio: QuotaRatio
+): Record<SelectionCategory, number> {
+  const sum = ratio.central + ratio.local + ratio.public_edu;
+  if (sum <= 0 || totalCapacity <= 0) {
+    return { central: 0, local: 0, public_edu: 0, other: 0 };
+  }
+  const rawC = (totalCapacity * ratio.central) / sum;
+  const rawL = (totalCapacity * ratio.local) / sum;
+  const rawP = (totalCapacity * ratio.public_edu) / sum;
+  let cC = Math.floor(rawC);
+  let cL = Math.floor(rawL);
+  let cP = Math.floor(rawP);
+  let remainder = totalCapacity - (cC + cL + cP);
+  const rems: [keyof QuotaRatio, number][] = [
+    ['central', rawC - cC],
+    ['local', rawL - cL],
+    ['public_edu', rawP - cP]
+  ];
+  rems.sort((a, b) => b[1] - a[1]);
+  for (const [key] of rems) {
+    if (remainder <= 0) break;
+    if (key === 'central') cC++;
+    else if (key === 'local') cL++;
+    else cP++;
+    remainder--;
+  }
+  return { central: cC, local: cL, public_edu: cP, other: 0 };
+}
+
+/**
+ * 카테고리별 쿼터 + 사전학습 단계 + 단방향 흘러내림.
  *
- * 정렬 우선순위 (cohort에 prereq 과목이 정의된 경우):
- *  1) prereq_done_count desc (수료 개수 많은 사람부터)
+ * 정렬 키 (cohort에 prereq가 있는 경우):
+ *  1) prereq_done_count desc (2개수료 > 1개 > 0)
  *  2) 종합점수(원점수) desc
  *  3) 지식점수 desc
- *  4) 부처 우선순위 desc
- *  5) 정성평가 글자수 desc
+ *  4) 정성평가 글자수 desc
+ * cohort prereq_max=0이면 prereq 정렬·제외 비활성.
  *
- * cohort prereq_max = 0이면 prereq 정렬·제외 비활성화 (모든 candidate 동일 취급).
+ * Phase 1: 각 카테고리 풀에서 쿼터까지 점수순으로 채움.
+ * Phase 2: 미달 쿼터는 우선순위 아래 카테고리들 통합 풀에서 보충 (단방향).
+ *   중앙 미달 → (지자체+공공+기타) / 지자체 미달 → (공공+기타) / 공공 미달 → (기타).
  *
- * @param maxPerOrg 기관당 최대 선발 인원 (0 이하 = 무제한)
- * @param excludeNoPrereq true이고 cohort prereq가 있으면 prereq_done_count=0(미수료)을 강제 제외
+ * @param maxPerOrg 기관당 최대 (0 = 무제한)
+ * @param excludeNoPrereq cohort prereq가 있고 true면 부분 수료(1/2 등)·미수료(0) 모두 강제 제외
+ *                        — 전체 수료(prereq_done_count >= prereq_max)만 통과
  */
-export function recommendByWeights(
+export function recommendByQuotas(
   candidates: CandidateRow[],
   weights: ScoreWeights,
   totalCapacity: number,
   knowledgeMax: number,
+  ratio: QuotaRatio,
   maxPerOrg: number = 0,
   excludeNoPrereq: boolean = false
 ): { selectedIds: string[]; scored: ScoredCandidate[] } {
   const hasPrereq = candidates.some((c) => c.prereq_max > 0);
-  const filtered = excludeNoPrereq && hasPrereq
-    ? candidates.filter((c) => c.prereq_done_count > 0)
-    : candidates;
+  const filtered =
+    excludeNoPrereq && hasPrereq
+      ? candidates.filter((c) => c.prereq_done_count >= c.prereq_max)
+      : candidates;
+
   const scored = scoreAll(filtered, weights, knowledgeMax).toSorted((a, b) => {
     if (hasPrereq && b.prereq_done_count !== a.prereq_done_count) {
       return b.prereq_done_count - a.prereq_done_count;
     }
     if (b.final_score !== a.final_score) return b.final_score - a.final_score;
     if (b.knowledge_score !== a.knowledge_score) return b.knowledge_score - a.knowledge_score;
-    const aCat = CATEGORY_PRIORITY_SCORE[a.category] ?? 0;
-    const bCat = CATEGORY_PRIORITY_SCORE[b.category] ?? 0;
-    if (bCat !== aCat) return bCat - aCat;
     return b.plan_char_count - a.plan_char_count;
   });
 
+  const quotas = computeQuotas(Math.max(0, totalCapacity), ratio);
   const cap = maxPerOrg > 0 ? maxPerOrg : Number.POSITIVE_INFINITY;
   const orgCount = new Map<string, number>();
+  const selectedSet = new Set<string>();
   const selectedIds: string[] = [];
-  const limit = Math.max(0, totalCapacity);
-  for (const c of scored) {
-    if (selectedIds.length >= limit) break;
+
+  const tryAdd = (c: ScoredCandidate): boolean => {
+    if (selectedSet.has(c.application_id)) return false;
     const orgKey = c.organization ?? '';
     if (orgKey) {
       const used = orgCount.get(orgKey) ?? 0;
-      if (used >= cap) continue;
+      if (used >= cap) return false;
       orgCount.set(orgKey, used + 1);
     }
+    selectedSet.add(c.application_id);
     selectedIds.push(c.application_id);
+    return true;
+  };
+
+  // Phase 1: 카테고리별 쿼터 채우기
+  for (const cat of SELECTION_CATEGORY_ORDER) {
+    if (quotas[cat] === 0) continue;
+    for (const c of scored) {
+      if (quotas[cat] === 0) break;
+      if (c.category !== cat) continue;
+      if (tryAdd(c)) quotas[cat]--;
+    }
   }
+
+  // Phase 2: 단방향 흘러내림 — sourceCat의 남은 쿼터를 아래 카테고리들에서 보충
+  for (let i = 0; i < SELECTION_CATEGORY_ORDER.length; i++) {
+    const sourceCat = SELECTION_CATEGORY_ORDER[i];
+    if (quotas[sourceCat] === 0) continue;
+    const downstream = new Set(SELECTION_CATEGORY_ORDER.slice(i + 1));
+    if (downstream.size === 0) continue;
+    for (const c of scored) {
+      if (quotas[sourceCat] === 0) break;
+      if (!downstream.has(c.category)) continue;
+      if (tryAdd(c)) quotas[sourceCat]--;
+    }
+  }
+
   return { selectedIds, scored };
 }
 
@@ -174,8 +238,7 @@ export function distributeByCategory(
   const set = new Set(selectedIds);
   const result: Record<SelectionCategory, number> = {
     central: 0,
-    metro_local: 0,
-    basic_local: 0,
+    local: 0,
     public_edu: 0,
     other: 0
   };

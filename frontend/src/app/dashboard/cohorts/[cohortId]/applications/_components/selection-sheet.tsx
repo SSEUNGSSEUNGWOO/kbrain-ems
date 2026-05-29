@@ -20,14 +20,17 @@ import { cn } from '@/lib/utils';
 import { loadSelectionPool, applySelections } from '../_actions';
 import {
   type CandidateRow,
+  type QuotaRatio,
   type ScoredCandidate,
   type ScoreWeights,
   type SelectionCategory,
+  DEFAULT_QUOTA_RATIO,
   DEFAULT_WEIGHTS,
   SELECTION_CATEGORY_LABEL,
   SELECTION_CATEGORY_ORDER,
+  computeQuotas,
   distributeByCategory,
-  recommendByWeights
+  recommendByQuotas
 } from '../_selection-logic';
 
 type Props = {
@@ -46,10 +49,12 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
   const [candidates, setCandidates] = useState<CandidateRow[]>([]);
   const [knowledgeMax, setKnowledgeMax] = useState(10);
   const [weights, setWeights] = useState<ScoreWeights>(DEFAULT_WEIGHTS);
+  const [quotaRatio, setQuotaRatio] = useState<QuotaRatio>(DEFAULT_QUOTA_RATIO);
   const [totalCapacity, setTotalCapacity] = useState(defaultCapacity);
   const [withReserve, setWithReserve] = useState(false);
   const [maxPerOrg, setMaxPerOrg] = useState(3);
   const [excludeNoPrereq, setExcludeNoPrereq] = useState(false);
+  const [filterCategory, setFilterCategory] = useState<SelectionCategory | null>(null);
 
   // 110% 선발 시 실제 사용되는 정원 (예: 100 → 110). 미체크면 입력값 그대로.
   const effectiveCapacity = useMemo(
@@ -81,21 +86,22 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
     })();
   }, [open, stage, cohortId]);
 
-  // 가중치·정원 변하면 자동 추천 (수동 토글이 있는 사람은 그 결정을 유지)
+  // 가중치·정원·쿼터 변하면 자동 추천 (수동 토글이 있는 사람은 그 결정을 유지)
   const { scored, autoSelectedIds } = useMemo(() => {
     if (candidates.length === 0) {
       return { scored: [] as ScoredCandidate[], autoSelectedIds: new Set<string>() };
     }
-    const { selectedIds, scored } = recommendByWeights(
+    const { selectedIds, scored } = recommendByQuotas(
       candidates,
       weights,
       effectiveCapacity,
       knowledgeMax,
+      quotaRatio,
       maxPerOrg,
       excludeNoPrereq
     );
     return { scored, autoSelectedIds: new Set(selectedIds) };
-  }, [candidates, weights, effectiveCapacity, knowledgeMax, maxPerOrg, excludeNoPrereq]);
+  }, [candidates, weights, effectiveCapacity, knowledgeMax, quotaRatio, maxPerOrg, excludeNoPrereq]);
 
   // 최종 선택 = 자동추천 ⊕ 수동토글 오버라이드
   const effectiveSelectedIds = useMemo(() => {
@@ -112,11 +118,15 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
     [scored, effectiveSelectedIds]
   );
 
+  const quotas = useMemo(
+    () => computeQuotas(effectiveCapacity, quotaRatio),
+    [effectiveCapacity, quotaRatio]
+  );
+
   const poolByCategory = useMemo(() => {
     const result: Record<SelectionCategory, number> = {
       central: 0,
-      metro_local: 0,
-      basic_local: 0,
+      local: 0,
       public_edu: 0,
       other: 0
     };
@@ -131,15 +141,22 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
     setResult(null);
     setError(null);
     setWeights(DEFAULT_WEIGHTS);
+    setQuotaRatio(DEFAULT_QUOTA_RATIO);
     setTotalCapacity(defaultCapacity);
     setWithReserve(false);
     setMaxPerOrg(3);
     setExcludeNoPrereq(false);
+    setFilterCategory(null);
   };
 
   const onWeightChange = (key: keyof ScoreWeights, value: number) => {
     setWeights((prev) => ({ ...prev, [key]: Math.max(0, Math.min(100, value)) }));
     setManualToggles(new Map()); // 가중치 바꾸면 수동 토글 초기화
+  };
+
+  const onQuotaChange = (key: keyof QuotaRatio, value: number) => {
+    setQuotaRatio((prev) => ({ ...prev, [key]: Math.max(0, value) }));
+    setManualToggles(new Map());
   };
 
   const toggle = (id: string) => {
@@ -187,7 +204,7 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
         <SheetHeader className='border-b'>
           <SheetTitle>자동 선발</SheetTitle>
           <SheetDescription>
-            가중치를 입력하면 분류별 분포·명단이 실시간 계산됩니다. 확인 후 일괄 확정.
+            사전학습 수료 단계 → 부처 쿼터 → 점수순으로 채웁니다. 쿼터 미달 시 아래 카테고리로 흘러내림.
           </SheetDescription>
         </SheetHeader>
 
@@ -210,6 +227,8 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
               <WeightPanel
                 weights={weights}
                 onChange={onWeightChange}
+                quotaRatio={quotaRatio}
+                onQuotaChange={onQuotaChange}
                 totalCapacity={totalCapacity}
                 onTotalChange={(v) => {
                   setTotalCapacity(Math.max(0, v));
@@ -238,7 +257,12 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
               <DistributionRow
                 distribution={distribution}
                 poolByCategory={poolByCategory}
+                quotas={quotas}
                 totalCapacity={effectiveCapacity}
+                activeCategory={filterCategory}
+                onCategoryClick={(cat) =>
+                  setFilterCategory((prev) => (prev === cat ? null : cat))
+                }
               />
 
               <CandidateList
@@ -247,6 +271,7 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
                 effectiveSelectedIds={effectiveSelectedIds}
                 onToggle={toggle}
                 totalCapacity={effectiveCapacity}
+                filterCategory={filterCategory}
               />
             </div>
           )}
@@ -307,6 +332,8 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
 function WeightPanel({
   weights,
   onChange,
+  quotaRatio,
+  onQuotaChange,
   totalCapacity,
   onTotalChange,
   withReserve,
@@ -321,6 +348,8 @@ function WeightPanel({
 }: {
   weights: ScoreWeights;
   onChange: (key: keyof ScoreWeights, value: number) => void;
+  quotaRatio: QuotaRatio;
+  onQuotaChange: (key: keyof QuotaRatio, value: number) => void;
   totalCapacity: number;
   onTotalChange: (v: number) => void;
   withReserve: boolean;
@@ -333,7 +362,8 @@ function WeightPanel({
   poolSize: number;
   selectedCount: number;
 }) {
-  const wSum = weights.knowledge + weights.category + weights.plan;
+  const wSum = weights.knowledge + weights.plan;
+  const rSum = quotaRatio.central + quotaRatio.local + quotaRatio.public_edu;
   return (
     <div className='flex flex-col gap-3 rounded-md border bg-muted/30 p-3'>
       <div className='flex items-center gap-3'>
@@ -380,40 +410,63 @@ function WeightPanel({
         </span>
       </div>
 
-      <div className='grid grid-cols-3 gap-2'>
-        <WeightInput
-          id='w-knowledge'
-          label='시험 점수'
-          value={weights.knowledge}
-          onChange={(v) => onChange('knowledge', v)}
-        />
-        <WeightInput
-          id='w-category'
-          label='부처 우선순위'
-          value={weights.category}
-          onChange={(v) => onChange('category', v)}
-        />
-        <WeightInput
-          id='w-plan'
-          label='정성평가 (체크, 글자수)'
-          value={weights.plan}
-          onChange={(v) => onChange('plan', v)}
-        />
-      </div>
-      <div className='flex items-center justify-between gap-3'>
-        <div className='text-muted-foreground text-xs'>
-          가중치 합계 {wSum} · 합이 100이 아니어도 자동 정규화됩니다.
-        </div>
-        <div className='flex items-center gap-2 text-sm'>
-          <Checkbox
-            id='exclude-no-prereq'
-            checked={excludeNoPrereq}
-            onCheckedChange={(v) => onExcludeNoPrereqChange(v === true)}
+      <div className='flex flex-col gap-1.5'>
+        <div className='text-muted-foreground text-xs font-medium'>점수 가중치</div>
+        <div className='grid grid-cols-2 gap-2'>
+          <WeightInput
+            id='w-knowledge'
+            label='시험 점수 (지식)'
+            value={weights.knowledge}
+            onChange={(v) => onChange('knowledge', v)}
           />
-          <label htmlFor='exclude-no-prereq' className='cursor-pointer'>
-            사전학습 미수료자 강제 제외
-          </label>
+          <WeightInput
+            id='w-plan'
+            label='정성평가 (체크, 글자수)'
+            value={weights.plan}
+            onChange={(v) => onChange('plan', v)}
+          />
         </div>
+        <div className='text-muted-foreground text-xs'>
+          합계 {wSum} · 합이 100이 아니어도 자동 정규화됩니다.
+        </div>
+      </div>
+
+      <div className='flex flex-col gap-1.5'>
+        <div className='text-muted-foreground text-xs font-medium'>부처 정원 비율</div>
+        <div className='grid grid-cols-3 gap-2'>
+          <WeightInput
+            id='r-central'
+            label='중앙부처'
+            value={quotaRatio.central}
+            onChange={(v) => onQuotaChange('central', v)}
+          />
+          <WeightInput
+            id='r-local'
+            label='지자체 (광역+기초)'
+            value={quotaRatio.local}
+            onChange={(v) => onQuotaChange('local', v)}
+          />
+          <WeightInput
+            id='r-public'
+            label='공공·교육'
+            value={quotaRatio.public_edu}
+            onChange={(v) => onQuotaChange('public_edu', v)}
+          />
+        </div>
+        <div className='text-muted-foreground text-xs'>
+          합계 {rSum} · 비율 기준으로 쿼터 분배 (기본 5:3:2)
+        </div>
+      </div>
+
+      <div className='flex items-center justify-end gap-2 text-sm'>
+        <Checkbox
+          id='exclude-no-prereq'
+          checked={excludeNoPrereq}
+          onCheckedChange={(v) => onExcludeNoPrereqChange(v === true)}
+        />
+        <label htmlFor='exclude-no-prereq' className='cursor-pointer'>
+          사전학습 미수료자 강제 제외 (부분 수료 포함)
+        </label>
       </div>
     </div>
   );
@@ -448,39 +501,73 @@ function WeightInput({
   );
 }
 
+// 분포 박스에 표시할 카테고리 — 'other'(기타)는 흘러내림에만 쓰고 UI에서 숨김
+const DISPLAY_CATEGORIES: SelectionCategory[] = ['central', 'local', 'public_edu'];
+
 function DistributionRow({
   distribution,
   poolByCategory,
-  totalCapacity
+  quotas,
+  totalCapacity,
+  activeCategory,
+  onCategoryClick
 }: {
   distribution: Record<SelectionCategory, number>;
   poolByCategory: Record<SelectionCategory, number>;
+  quotas: Record<SelectionCategory, number>;
   totalCapacity: number;
+  activeCategory: SelectionCategory | null;
+  onCategoryClick: (cat: SelectionCategory) => void;
 }) {
   const sum = SELECTION_CATEGORY_ORDER.reduce((s, k) => s + (distribution[k] ?? 0), 0);
   return (
     <div className='flex flex-col gap-2 rounded-md border p-3'>
-      <div className='text-xs font-medium'>분류별 선발 분포</div>
-      <div className='grid grid-cols-5 gap-2 text-xs'>
-        {SELECTION_CATEGORY_ORDER.map((cat) => {
+      <div className='flex items-center justify-between'>
+        <div className='text-xs font-medium'>분류별 선발 분포 (합격/지원 · 배정)</div>
+        {activeCategory && (
+          <button
+            type='button'
+            onClick={() => onCategoryClick(activeCategory)}
+            className='text-muted-foreground hover:text-foreground text-xs underline-offset-2 hover:underline'
+          >
+            필터 해제
+          </button>
+        )}
+      </div>
+      <div className='grid grid-cols-3 gap-2 text-xs'>
+        {DISPLAY_CATEGORIES.map((cat) => {
           const count = distribution[cat] ?? 0;
           const pool = poolByCategory[cat] ?? 0;
+          const quota = quotas[cat] ?? 0;
           const pct = sum > 0 ? Math.round((count / sum) * 100) : 0;
+          const isActive = activeCategory === cat;
           return (
-            <div key={cat} className='flex flex-col items-center gap-0.5 rounded border px-2 py-2'>
+            <button
+              type='button'
+              key={cat}
+              onClick={() => onCategoryClick(cat)}
+              className={cn(
+                'flex flex-col items-center gap-0.5 rounded border px-2 py-2 transition-colors',
+                'hover:bg-muted/60',
+                isActive && 'border-emerald-500 bg-emerald-50/60 ring-1 ring-emerald-300'
+              )}
+            >
               <span className='text-muted-foreground'>{SELECTION_CATEGORY_LABEL[cat]}</span>
               <span className='text-base font-semibold tabular-nums'>
                 {count}
                 <span className='text-muted-foreground text-xs font-normal'>/{pool}</span>
+                <span className='ml-1 text-emerald-700 text-xs font-medium'>{pct}%</span>
               </span>
-              <span className='text-muted-foreground tabular-nums'>{pct}%</span>
-            </div>
+              <span className='text-muted-foreground tabular-nums'>
+                배정 {quota > 0 ? `${quota}명` : '—'}
+              </span>
+            </button>
           );
         })}
       </div>
       {sum !== totalCapacity && (
         <div className='text-amber-600 text-xs'>
-          선택 합계 {sum} · 정원 {totalCapacity} (수동 조정으로 차이 발생)
+          선택 합계 {sum} · 정원 {totalCapacity} (수동 조정 또는 풀 부족으로 차이 발생)
         </div>
       )}
     </div>
@@ -500,14 +587,21 @@ function CandidateList({
   autoSelectedIds,
   effectiveSelectedIds,
   onToggle,
-  totalCapacity
+  totalCapacity,
+  filterCategory
 }: {
   scored: ScoredCandidate[];
   autoSelectedIds: Set<string>;
   effectiveSelectedIds: Set<string>;
   onToggle: (id: string) => void;
   totalCapacity: number;
+  filterCategory: SelectionCategory | null;
 }) {
+  const visible = filterCategory
+    ? scored
+        .map((c, i) => ({ c, i }))
+        .filter(({ c }) => c.category === filterCategory)
+    : scored.map((c, i) => ({ c, i }));
   return (
     <div className='flex flex-col rounded-md border'>
       <div className='bg-muted/40 flex items-center gap-3 border-b px-3 py-2 text-xs font-medium'>
@@ -524,7 +618,7 @@ function CandidateList({
         <span className='w-14 text-right'>종합</span>
       </div>
       <div className='max-h-[40vh] divide-y overflow-y-auto'>
-        {scored.map((c, i) => {
+        {visible.map(({ c, i }) => {
           const checked = effectiveSelectedIds.has(c.application_id);
           const wasAuto = autoSelectedIds.has(c.application_id);
           const isManual = checked !== wasAuto;
