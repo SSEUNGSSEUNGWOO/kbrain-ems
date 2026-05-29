@@ -12,7 +12,7 @@ type AuthContextType = {
 
 const AuthContext = createContext<AuthContextType>({
   name: '',
-  role: 'operator',
+  role: 'viewer',
   title: '',
   isDeveloper: false
 });

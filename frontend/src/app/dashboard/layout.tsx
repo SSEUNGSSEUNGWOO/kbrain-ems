@@ -24,7 +24,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const operator = await getOperator();
 
   return (
-    <AuthProvider name={operator?.name ?? ''} role={operator?.role ?? 'operator'} title={operator?.title ?? ''}>
+    <AuthProvider name={operator?.name ?? ''} role={operator?.role ?? 'viewer'} title={operator?.title ?? ''}>
       <KBar>
         <SidebarProvider defaultOpen={defaultOpen}>
           <AppSidebar />

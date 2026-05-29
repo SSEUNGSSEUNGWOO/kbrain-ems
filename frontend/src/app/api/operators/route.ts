@@ -69,7 +69,7 @@ export async function POST(req: Request) {
     .from('operators')
     .insert({
       name: name.trim(),
-      role: role || 'operator',
+      role: role || 'viewer',
       title: title || null,
       auth_user_id: created.user.id
     })
@@ -104,7 +104,7 @@ export async function PUT(req: Request) {
     .from('operators')
     .update({
       name: name.trim(),
-      role: role || 'operator',
+      role: role || 'viewer',
       title: title || null
     })
     .eq('id', id)
