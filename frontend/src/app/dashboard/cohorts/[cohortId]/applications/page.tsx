@@ -272,7 +272,7 @@ export default async function CohortApplicationsPage({ params, searchParams }: P
           <Button
             size='sm'
             disabled={stats.total === 0}
-            className='bg-gradient-to-r from-violet-500 to-purple-600 text-white shadow-sm hover:from-violet-600 hover:to-purple-700 disabled:from-slate-300 disabled:to-slate-400'
+            className='bg-gradient-to-r from-indigo-700 to-blue-900 text-white shadow-sm hover:from-indigo-800 hover:to-blue-950 disabled:from-slate-300 disabled:to-slate-400'
           >
             <Icons.sparkles className='mr-1.5' />
             자동 선발
