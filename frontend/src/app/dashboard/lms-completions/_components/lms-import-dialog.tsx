@@ -39,9 +39,17 @@ function excelSerialToDate(v: unknown): string | null {
     return new Date(ms).toISOString().slice(0, 10);
   }
   const s = String(v).trim();
-  // 'YYYY-MM-DD' or 'YYYY.MM.DD' or 'YYYYMMDD'
+  // 'YYYY-MM-DD' / 'YYYY.MM.DD' / 'YYYY/MM/DD'
   const m1 = s.match(/^(\d{4})[-./](\d{1,2})[-./](\d{1,2})/);
   if (m1) return `${m1[1]}-${m1[2].padStart(2, '0')}-${m1[3].padStart(2, '0')}`;
+  // 'M/D/YY' / 'M/D/YYYY' — LMS export 포맷 (예: "5/29/26 7:57"). 2자리 연도는 20YY로 해석.
+  const mYY = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+  if (mYY) {
+    const yy = mYY[3];
+    const yyyy = yy.length === 2 ? `20${yy.padStart(2, '0')}` : yy;
+    return `${yyyy}-${mYY[1].padStart(2, '0')}-${mYY[2].padStart(2, '0')}`;
+  }
+  // 'YYYYMMDD'
   const m2 = s.match(/^(\d{4})(\d{2})(\d{2})/);
   if (m2) return `${m2[1]}-${m2[2]}-${m2[3]}`;
   return null;
