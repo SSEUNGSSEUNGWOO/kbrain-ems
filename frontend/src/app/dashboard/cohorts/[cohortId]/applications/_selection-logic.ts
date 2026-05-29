@@ -65,9 +65,9 @@ export type ScoreWeights = {
 };
 
 export const DEFAULT_WEIGHTS: ScoreWeights = {
-  knowledge: 60,
+  knowledge: 50,
   category: 30,
-  plan: 10
+  plan: 20
 };
 
 export type ScoredCandidate = CandidateRow & {
