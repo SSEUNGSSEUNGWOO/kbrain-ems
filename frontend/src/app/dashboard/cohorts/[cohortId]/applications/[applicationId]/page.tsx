@@ -3,6 +3,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { createAdminClient } from '@/lib/supabase/server';
+import { isViewer } from '@/lib/auth';
 import type { Json } from '@/lib/supabase/types';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
@@ -54,8 +55,8 @@ type AppQuery = {
   applicants: {
     id: string;
     name: string;
-    email: string | null;
-    phone: string | null;
+    email?: string | null;
+    phone?: string | null;
     department: string | null;
     job_title: string | null;
     job_role: string | null;
@@ -66,11 +67,15 @@ type AppQuery = {
 export default async function ApplicationDetailPage({ params }: Props) {
   const { cohortId, applicationId } = await params;
   const supabase = createAdminClient();
+  const hidePersonal = await isViewer();
 
+  const applicantCols = hidePersonal
+    ? 'id, name, department, job_title, job_role, organizations(name)'
+    : 'id, name, email, phone, department, job_title, job_role, organizations(name)';
   const { data: application } = await supabase
     .from('applications')
     .select(
-      'id, cohort_id, status, rejected_stage, applied_at, decided_at, note, knowledge_score, knowledge_correct_count, knowledge_total_count, self_diagnosis_avg, applicants(id, name, email, phone, department, job_title, job_role, organizations(name))'
+      `id, cohort_id, status, rejected_stage, applied_at, decided_at, note, knowledge_score, knowledge_correct_count, knowledge_total_count, self_diagnosis_avg, applicants(${applicantCols})`
     )
     .eq('id', applicationId)
     .eq('cohort_id', cohortId)

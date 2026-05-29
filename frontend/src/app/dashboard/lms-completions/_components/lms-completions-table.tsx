@@ -34,6 +34,7 @@ type Props = {
   search: string;
   courseFilter: string;
   courseOptions: CourseOption[];
+  hidePersonal?: boolean;
 };
 
 export function LmsCompletionsTable({
@@ -44,7 +45,8 @@ export function LmsCompletionsTable({
   totalCount,
   search,
   courseFilter,
-  courseOptions
+  courseOptions,
+  hidePersonal = false
 }: Props) {
   const [{ q, course }, setParams] = useQueryStates(
     {
@@ -97,7 +99,7 @@ export function LmsCompletionsTable({
           <Input
             value={inputValue}
             onChange={(e) => onSearchChange(e.target.value)}
-            placeholder='이름·휴대폰·이메일 검색'
+            placeholder={hidePersonal ? '이름 검색' : '이름·휴대폰·이메일 검색'}
             className='pl-8 pr-8'
           />
           {inputValue && (
@@ -145,8 +147,8 @@ export function LmsCompletionsTable({
             <thead className='bg-muted/50 border-b'>
               <tr>
                 <th className='px-4 py-2 text-left font-medium'>이름</th>
-                <th className='px-4 py-2 text-left font-medium'>휴대폰</th>
-                <th className='px-4 py-2 text-left font-medium'>이메일</th>
+                {!hidePersonal && <th className='px-4 py-2 text-left font-medium'>휴대폰</th>}
+                {!hidePersonal && <th className='px-4 py-2 text-left font-medium'>이메일</th>}
                 <th className='px-4 py-2 text-left font-medium'>과목</th>
                 <th className='px-4 py-2 text-left font-medium'>수료일</th>
                 <th className='px-4 py-2 text-left font-medium'>수료번호</th>
@@ -156,10 +158,14 @@ export function LmsCompletionsTable({
               {rows.map((r) => (
                 <tr key={r.key} className='hover:bg-muted/30 border-b last:border-0'>
                   <td className='px-4 py-2 font-medium'>{r.name}</td>
-                  <td className='text-muted-foreground px-4 py-2 tabular-nums'>
-                    {r.phone ?? '—'}
-                  </td>
-                  <td className='text-muted-foreground px-4 py-2 text-xs'>{r.email ?? '—'}</td>
+                  {!hidePersonal && (
+                    <td className='text-muted-foreground px-4 py-2 tabular-nums'>
+                      {r.phone ?? '—'}
+                    </td>
+                  )}
+                  {!hidePersonal && (
+                    <td className='text-muted-foreground px-4 py-2 text-xs'>{r.email ?? '—'}</td>
+                  )}
                   <td className='px-4 py-2'>
                     <Badge
                       variant='outline'

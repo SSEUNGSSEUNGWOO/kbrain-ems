@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Icons } from '@/components/icons';
 import { createAdminClient } from '@/lib/supabase/server';
+import { isViewer } from '@/lib/auth';
 import Link from 'next/link';
 import { ApplicantsTable, type ApplicationRow } from './_components/applicants-table';
 import { ResetSelectionButton } from './_components/reset-selection-button';
@@ -22,6 +23,7 @@ export default async function CohortApplicationsPage({ params, searchParams }: P
     await searchParams
   );
   const supabase = createAdminClient();
+  const hidePersonal = await isViewer();
   const pageSize = APPLICATIONS_PAGE_SIZE;
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
@@ -107,10 +109,10 @@ export default async function CohortApplicationsPage({ params, searchParams }: P
   // 검색·필터 적용해 application_id 집합 좁힘
   let applicantIdFilter: string[] | null = null;
   if (search) {
-    const { data: matchedApplicants } = await supabase
-      .from('applicants')
-      .select('id')
-      .or(`name.ilike.%${search}%,phone.ilike.%${search}%`);
+    const q = supabase.from('applicants').select('id');
+    const { data: matchedApplicants } = hidePersonal
+      ? await q.ilike('name', `%${search}%`)
+      : await q.or(`name.ilike.%${search}%,phone.ilike.%${search}%`);
     applicantIdFilter = (matchedApplicants ?? []).map((a) => a.id);
   }
 
@@ -262,31 +264,35 @@ export default async function CohortApplicationsPage({ params, searchParams }: P
           사전문항 미리보기
         </Link>
       </Button>
-      <ResetSelectionButton cohortId={cohortId} disabled={stats.total === 0} />
-      <SelectionSheet
-        cohortId={cohortId}
-        defaultCapacity={cohort?.max_capacity ?? 24}
-        trigger={
-          <Button
-            size='sm'
-            disabled={stats.total === 0}
-            className='bg-gradient-to-r from-violet-500 to-purple-600 text-white shadow-sm hover:from-violet-600 hover:to-purple-700 disabled:from-slate-300 disabled:to-slate-400'
-          >
-            <Icons.sparkles className='mr-1.5' />
-            자동 선발
-          </Button>
-        }
-      />
-      <UploadDialog
-        cohortId={cohortId}
-        questions={questions ?? []}
-        trigger={
-          <Button size='sm' disabled={!hasQuestions}>
-            <Icons.upload className='mr-1.5' />
-            응답 엑셀 업로드
-          </Button>
-        }
-      />
+      {!hidePersonal && (
+        <>
+          <ResetSelectionButton cohortId={cohortId} disabled={stats.total === 0} />
+          <SelectionSheet
+            cohortId={cohortId}
+            defaultCapacity={cohort?.max_capacity ?? 24}
+            trigger={
+              <Button
+                size='sm'
+                disabled={stats.total === 0}
+                className='bg-gradient-to-r from-violet-500 to-purple-600 text-white shadow-sm hover:from-violet-600 hover:to-purple-700 disabled:from-slate-300 disabled:to-slate-400'
+              >
+                <Icons.sparkles className='mr-1.5' />
+                자동 선발
+              </Button>
+            }
+          />
+          <UploadDialog
+            cohortId={cohortId}
+            questions={questions ?? []}
+            trigger={
+              <Button size='sm' disabled={!hasQuestions}>
+                <Icons.upload className='mr-1.5' />
+                응답 엑셀 업로드
+              </Button>
+            }
+          />
+        </>
+      )}
     </div>
   );
 

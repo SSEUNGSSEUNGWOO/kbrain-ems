@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import PageContainer from '@/components/layout/page-container';
 import { createAdminClient } from '@/lib/supabase/server';
+import { isViewer } from '@/lib/auth';
 import { computeCohortStage, STAGE_LABEL } from '@/lib/cohort-stage';
 import { Button } from '@/components/ui/button';
 import { StudentSheet } from './_components/student-sheet';
@@ -14,6 +15,7 @@ export default async function StudentsPage({
 }) {
   const { cohortId } = await params;
   const supabase = createAdminClient();
+  const hidePersonal = await isViewer();
 
   const { data: cohortRows, error: cohortError } = await supabase
     .from('cohorts')
@@ -45,16 +47,19 @@ export default async function StudentsPage({
       motivation: string | null;
       applicants: {
         name: string;
-        email: string | null;
-        phone: string | null;
+        email?: string | null;
+        phone?: string | null;
         organizations: { name: string } | null;
       } | null;
     };
 
+    const applicantsCols = hidePersonal
+      ? 'name, organizations(name)'
+      : 'name, email, phone, organizations(name)';
     const { data: appRows, error: appErr } = await supabase
       .from('applications')
       .select(
-        'id, applicant_id, status, applied_at, motivation, applicants(name, email, phone, organizations(name))'
+        `id, applicant_id, status, applied_at, motivation, applicants(${applicantsCols})`
       )
       .eq('cohort_id', cohortId)
       .order('created_at', { ascending: false })
@@ -84,7 +89,7 @@ export default async function StudentsPage({
         pageTitle='인원 관리'
         pageDescription={`${cohort.name} · ${STAGE_LABEL[stage]} · 신청 ${rows.length}건`}
       >
-        <ApplicantsTable cohortId={cohortId} rows={rows} />
+        <ApplicantsTable cohortId={cohortId} rows={rows} hidePersonal={hidePersonal} />
       </PageContainer>
     );
   }
@@ -97,17 +102,18 @@ export default async function StudentsPage({
       job_title: string | null;
       job_role: string | null;
       birth_date: string | null;
-      email: string | null;
-      phone: string | null;
+      email?: string | null;
+      phone?: string | null;
       notes: string | null;
       organizations: { name: string } | null;
     };
 
+    const studentCols = hidePersonal
+      ? 'id, name, department, job_title, job_role, birth_date, notes, organizations(name)'
+      : 'id, name, department, job_title, job_role, birth_date, email, phone, notes, organizations(name)';
     const { data: studentRows, error: studentError } = await supabase
       .from('students')
-      .select(
-        'id, name, department, job_title, job_role, birth_date, email, phone, notes, organizations(name)'
-      )
+      .select(studentCols)
       .eq('cohort_id', cohortId)
       .order('name', { ascending: true })
       .returns<StudentRow[]>();
@@ -139,8 +145,8 @@ export default async function StudentsPage({
       job_title: r.job_title,
       job_role: r.job_role,
       birth_date: r.birth_date,
-      email: r.email,
-      phone: r.phone,
+      email: r.email ?? null,
+      phone: r.phone ?? null,
       notes: r.notes,
       attendedSessions: attendanceMap.get(r.id) ?? 0,
       totalSessions: totalSessions ?? 0
@@ -151,13 +157,15 @@ export default async function StudentsPage({
         pageTitle='인원 관리'
         pageDescription={`${cohort.name} · 총 ${mapped.length}명`}
         pageHeaderAction={
-          <StudentSheet
-            cohortId={cohortId}
-            trigger={<Button>+ 인원 추가</Button>}
-          />
+          hidePersonal ? null : (
+            <StudentSheet
+              cohortId={cohortId}
+              trigger={<Button>+ 인원 추가</Button>}
+            />
+          )
         }
       >
-        <StudentTable cohortId={cohortId} students={mapped} />
+        <StudentTable cohortId={cohortId} students={mapped} hidePersonal={hidePersonal} />
       </PageContainer>
     );
   } catch (e) {

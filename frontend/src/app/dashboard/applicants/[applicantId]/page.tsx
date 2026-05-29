@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import PageContainer from '@/components/layout/page-container';
 import { createAdminClient } from '@/lib/supabase/server';
+import { isViewer } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Icons } from '@/components/icons';
 import { ApplicantSheet } from '../_components/applicant-sheet';
@@ -15,6 +16,7 @@ export default async function ApplicantDetailPage({
 }) {
   const { applicantId } = await params;
   const supabase = createAdminClient();
+  const hidePersonal = await isViewer();
 
   type ApplicantRow = {
     id: string;
@@ -24,17 +26,18 @@ export default async function ApplicantDetailPage({
     job_title: string | null;
     job_role: string | null;
     birth_date: string | null;
-    email: string | null;
-    phone: string | null;
+    email?: string | null;
+    phone?: string | null;
     notes: string | null;
     organizations: { name: string } | null;
   };
 
+  const selectCols = hidePersonal
+    ? 'id, name, category, department, job_title, job_role, birth_date, notes, organizations(name)'
+    : 'id, name, category, department, job_title, job_role, birth_date, email, phone, notes, organizations(name)';
   const { data: applicantRows, error: applicantError } = await supabase
     .from('applicants')
-    .select(
-      'id, name, category, department, job_title, job_role, birth_date, email, phone, notes, organizations(name)'
-    )
+    .select(selectCols)
     .eq('id', applicantId)
     .limit(1)
     .returns<ApplicantRow[]>();
@@ -52,8 +55,8 @@ export default async function ApplicantDetailPage({
     job_title: row.job_title,
     job_role: row.job_role,
     birth_date: row.birth_date,
-    email: row.email,
-    phone: row.phone,
+    email: row.email ?? null,
+    phone: row.phone ?? null,
     notes: row.notes
   };
 
@@ -107,10 +110,12 @@ export default async function ApplicantDetailPage({
               목록
             </Link>
           </Button>
-          <ApplicantSheet
-            applicant={applicant}
-            trigger={<Button variant='outline'>정보 수정</Button>}
-          />
+          {!hidePersonal && (
+            <ApplicantSheet
+              applicant={applicant}
+              trigger={<Button variant='outline'>정보 수정</Button>}
+            />
+          )}
         </div>
       }
     >
@@ -123,8 +128,8 @@ export default async function ApplicantDetailPage({
             <Field label='직책' value={applicant.job_title} />
             <Field label='직렬' value={applicant.job_role} />
             <Field label='생년월일' value={applicant.birth_date} />
-            <Field label='연락처' value={applicant.phone} />
-            <Field label='이메일' value={applicant.email} />
+            {!hidePersonal && <Field label='연락처' value={applicant.phone} />}
+            {!hidePersonal && <Field label='이메일' value={applicant.email} />}
             {applicant.notes && (
               <div className='col-span-full'>
                 <Field label='비고' value={applicant.notes} />
@@ -141,11 +146,13 @@ export default async function ApplicantDetailPage({
                 ({applicationRows.length})
               </span>
             </h2>
-            <ApplicationSheet
-              applicantId={applicantId}
-              cohorts={cohortRows ?? []}
-              trigger={<Button size='sm'>+ 이력 추가</Button>}
-            />
+            {!hidePersonal && (
+              <ApplicationSheet
+                applicantId={applicantId}
+                cohorts={cohortRows ?? []}
+                trigger={<Button size='sm'>+ 이력 추가</Button>}
+              />
+            )}
           </div>
           <ApplicationTable
             applicantId={applicantId}

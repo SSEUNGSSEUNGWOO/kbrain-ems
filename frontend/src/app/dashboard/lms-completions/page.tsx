@@ -2,6 +2,7 @@ import PageContainer from '@/components/layout/page-container';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { createAdminClient } from '@/lib/supabase/server';
+import { isViewer } from '@/lib/auth';
 import { Icons } from '@/components/icons';
 import { LmsImportDialog } from './_components/lms-import-dialog';
 import { LmsCompletionsTable } from './_components/lms-completions-table';
@@ -19,13 +20,14 @@ export default async function LmsCompletionsPage({ searchParams }: Props) {
   const courseFilter = (typeof sp.course === 'string' ? sp.course : '').trim();
 
   const supabase = createAdminClient();
+  const hidePersonal = await isViewer();
 
   type LmsRow = {
     course_code: string;
     course_name: string;
     name: string;
-    phone: string | null;
-    email: string | null;
+    phone?: string | null;
+    email?: string | null;
     completed_at: string | null;
     certificate_no: string | null;
     updated_at: string;
@@ -34,13 +36,14 @@ export default async function LmsCompletionsPage({ searchParams }: Props) {
   // 전체 fetch (PostgREST max-rows=1000 우회: range chunked)
   const lmsAll: LmsRow[] = [];
   const chunk = 1000;
+  const selectCols = hidePersonal
+    ? 'course_code, course_name, name, completed_at, certificate_no, updated_at'
+    : 'course_code, course_name, name, phone, email, completed_at, certificate_no, updated_at';
   for (let from = 0; from < 1_000_000; from += chunk) {
     const res = (await supabase
       // @ts-expect-error lms_completions type 미반영
       .from('lms_completions')
-      .select(
-        'course_code, course_name, name, phone, email, completed_at, certificate_no, updated_at'
-      )
+      .select(selectCols)
       .range(from, from + chunk - 1)) as unknown as { data: LmsRow[] | null };
     const batch = res.data ?? [];
     lmsAll.push(...batch);
@@ -68,12 +71,13 @@ export default async function LmsCompletionsPage({ searchParams }: Props) {
   if (search) {
     const q = search.toLowerCase();
     const qDigits = q.replace(/[^\d]/g, '');
-    filtered = filtered.filter(
-      (r) =>
-        r.name.toLowerCase().includes(q) ||
-        (qDigits && (r.phone ?? '').replace(/[^\d]/g, '').includes(qDigits)) ||
-        (r.email ?? '').toLowerCase().includes(q)
-    );
+    filtered = filtered.filter((r) => {
+      if (r.name.toLowerCase().includes(q)) return true;
+      if (hidePersonal) return false;
+      if (qDigits && (r.phone ?? '').replace(/[^\d]/g, '').includes(qDigits)) return true;
+      if ((r.email ?? '').toLowerCase().includes(q)) return true;
+      return false;
+    });
   }
 
   // 정렬 — 최근 수료일순
@@ -88,8 +92,8 @@ export default async function LmsCompletionsPage({ searchParams }: Props) {
   const rows = slice.map((r, idx) => ({
     key: `${r.course_code}::${r.certificate_no ?? `${(safePage - 1) * PAGE_SIZE + idx}`}`,
     name: r.name,
-    phone: r.phone,
-    email: r.email,
+    phone: r.phone ?? null,
+    email: r.email ?? null,
     courseCode: r.course_code,
     courseName: r.course_name,
     completedAt: r.completed_at,
@@ -101,14 +105,16 @@ export default async function LmsCompletionsPage({ searchParams }: Props) {
       pageTitle='사전학습 명단'
       pageDescription='LMS 수료자 명단'
       pageHeaderAction={
-        <LmsImportDialog
-          trigger={
-            <Button>
-              <Icons.upload className='mr-1.5' />
-              명단 업로드
-            </Button>
-          }
-        />
+        hidePersonal ? null : (
+          <LmsImportDialog
+            trigger={
+              <Button>
+                <Icons.upload className='mr-1.5' />
+                명단 업로드
+              </Button>
+            }
+          />
+        )
       }
     >
       <div className='flex flex-col gap-6'>
@@ -135,6 +141,7 @@ export default async function LmsCompletionsPage({ searchParams }: Props) {
           search={search}
           courseFilter={courseFilter}
           courseOptions={courseOptions}
+          hidePersonal={hidePersonal}
         />
       </div>
     </PageContainer>

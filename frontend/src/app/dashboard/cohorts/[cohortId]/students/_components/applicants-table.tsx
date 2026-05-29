@@ -29,6 +29,7 @@ type Row = {
 type Props = {
   cohortId: string;
   rows: Row[];
+  hidePersonal?: boolean;
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -39,7 +40,7 @@ const STATUS_LABEL: Record<string, string> = {
   withdrew: '철회'
 };
 
-export function ApplicantsTable({ cohortId, rows }: Props) {
+export function ApplicantsTable({ cohortId, rows, hidePersonal = false }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
@@ -93,7 +94,7 @@ export function ApplicantsTable({ cohortId, rows }: Props) {
             <TableRow>
               <TableHead>이름</TableHead>
               <TableHead>소속 기관</TableHead>
-              <TableHead>연락처</TableHead>
+              {!hidePersonal && <TableHead>연락처</TableHead>}
               <TableHead className='w-28'>신청일</TableHead>
               <TableHead className='w-20'>상태</TableHead>
               <TableHead className='w-28 text-right'>관리</TableHead>
@@ -104,11 +105,13 @@ export function ApplicantsTable({ cohortId, rows }: Props) {
               <TableRow key={r.applicationId}>
                 <TableCell className='font-medium'>{r.name}</TableCell>
                 <TableCell className='text-sm'>{r.organizationName ?? '—'}</TableCell>
-                <TableCell className='text-xs text-muted-foreground'>
-                  {r.email && <div>{r.email}</div>}
-                  {r.phone && <div>{r.phone}</div>}
-                  {!r.email && !r.phone && '—'}
-                </TableCell>
+                {!hidePersonal && (
+                  <TableCell className='text-xs text-muted-foreground'>
+                    {r.email && <div>{r.email}</div>}
+                    {r.phone && <div>{r.phone}</div>}
+                    {!r.email && !r.phone && '—'}
+                  </TableCell>
+                )}
                 <TableCell className='font-mono text-xs'>{r.appliedAt ?? '—'}</TableCell>
                 <TableCell>
                   <Badge

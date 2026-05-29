@@ -43,6 +43,7 @@ type Props = {
   categoryCounts: CategoryCounts;
   categoryKeys: string[];
   facetTotal: number;
+  hidePersonal?: boolean;
 };
 
 const STATUS_BADGE_CLASS =
@@ -73,7 +74,8 @@ export function ApplicantTable({
   totalCount,
   categoryCounts,
   categoryKeys,
-  facetTotal
+  facetTotal,
+  hidePersonal = false
 }: Props) {
   const [{ q, category }, setParams] = useQueryStates(
     {
@@ -185,7 +187,7 @@ export function ApplicantTable({
           <Input
             value={inputValue}
             onChange={(e) => onSearchChange(e.target.value)}
-            placeholder='이름 또는 연락처 검색'
+            placeholder={hidePersonal ? '이름 검색' : '이름 또는 연락처 검색'}
             className='pl-8 pr-8'
           />
           {inputValue && (
@@ -248,7 +250,7 @@ export function ApplicantTable({
                 <th className='px-4 py-3 text-left font-medium'>소속</th>
                 <th className='px-4 py-3 text-left font-medium'>부서</th>
                 <th className='px-4 py-3 text-left font-medium'>직책</th>
-                <th className='px-4 py-3 text-left font-medium'>연락처</th>
+                {!hidePersonal && <th className='px-4 py-3 text-left font-medium'>연락처</th>}
                 <th className='whitespace-nowrap px-4 py-3 text-center font-medium'>지원</th>
                 <th className='whitespace-nowrap px-4 py-3 text-center font-medium'>합격</th>
                 <th className='w-20 px-4 py-3'></th>
@@ -287,7 +289,11 @@ export function ApplicantTable({
                     <td className='text-muted-foreground px-4 py-3'>{a.organizationName ?? '-'}</td>
                     <td className='text-muted-foreground px-4 py-3'>{a.department ?? '-'}</td>
                     <td className='text-muted-foreground px-4 py-3'>{a.job_title ?? '-'}</td>
-                    <td className='text-muted-foreground px-4 py-3'>{a.phone ?? a.email ?? '-'}</td>
+                    {!hidePersonal && (
+                      <td className='text-muted-foreground px-4 py-3'>
+                        {a.phone ?? a.email ?? '-'}
+                      </td>
+                    )}
                     <td className='px-4 py-3 text-center'>
                       {a.applicationCount > 0 ? (
                         <Tooltip>
@@ -329,14 +335,16 @@ export function ApplicantTable({
                     </td>
                     <td className='px-4 py-3'>
                       <div className='flex justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100'>
-                        <ApplicantSheet
-                          applicant={a}
-                          trigger={
-                            <Button variant='ghost' size='icon' className='h-7 w-7'>
-                              <Icons.edit className='h-3.5 w-3.5' />
-                            </Button>
-                          }
-                        />
+                        {isDeveloper && (
+                          <ApplicantSheet
+                            applicant={a}
+                            trigger={
+                              <Button variant='ghost' size='icon' className='h-7 w-7'>
+                                <Icons.edit className='h-3.5 w-3.5' />
+                              </Button>
+                            }
+                          />
+                        )}
                         {isDeveloper && (
                           <Button
                             variant='ghost'

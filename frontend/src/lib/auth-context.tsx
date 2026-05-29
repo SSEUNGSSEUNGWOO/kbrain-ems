@@ -29,7 +29,7 @@ export function AuthProvider({
   children: React.ReactNode;
 }) {
   return (
-    <AuthContext.Provider value={{ name, role, title, isDeveloper: !!name }}>
+    <AuthContext.Provider value={{ name, role, title, isDeveloper: !!name && role !== 'viewer' }}>
       {children}
     </AuthContext.Provider>
   );

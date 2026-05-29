@@ -33,8 +33,8 @@ type Student = {
   job_title: string | null;
   job_role: string | null;
   birth_date: string | null;
-  email: string | null;
-  phone: string | null;
+  email?: string | null;
+  phone?: string | null;
   notes: string | null;
   attendedSessions: number;
   totalSessions: number;
@@ -55,7 +55,15 @@ const CATEGORY_CLASS: Record<OrganizationCategory, string> = {
   unknown: 'border-border bg-muted text-muted-foreground'
 };
 
-export function StudentTable({ cohortId, students }: { cohortId: string; students: Student[] }) {
+export function StudentTable({
+  cohortId,
+  students,
+  hidePersonal = false
+}: {
+  cohortId: string;
+  students: Student[];
+  hidePersonal?: boolean;
+}) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [categoryFilter, setCategoryFilter] = useState<OrganizationCategory | 'all'>('all');
   const [deleteTarget, setDeleteTarget] = useState<Student | null>(null);
@@ -192,8 +200,8 @@ export function StudentTable({ cohortId, students }: { cohortId: string; student
               <th className='px-4 py-3 text-left font-medium'>이름</th>
               <th className='px-4 py-3 text-left font-medium'>소속</th>
               <th className='whitespace-nowrap px-4 py-3 text-left font-medium'>생년월일</th>
-              <th className='px-4 py-3 text-left font-medium'>전화번호</th>
-              <th className='px-4 py-3 text-left font-medium'>이메일</th>
+              {!hidePersonal && <th className='px-4 py-3 text-left font-medium'>전화번호</th>}
+              {!hidePersonal && <th className='px-4 py-3 text-left font-medium'>이메일</th>}
               <th className='w-28 px-4 py-3 text-left font-medium'>출석률</th>
               <th className='w-20 px-4 py-3'></th>
             </tr>
@@ -227,8 +235,12 @@ export function StudentTable({ cohortId, students }: { cohortId: string; student
                     </div>
                   </td>
                   <td className='text-muted-foreground whitespace-nowrap px-4 py-3'>{s.birth_date ?? '-'}</td>
-                  <td className='text-muted-foreground px-4 py-3'>{s.phone ?? '-'}</td>
-                  <td className='text-muted-foreground px-4 py-3'>{s.email ?? '-'}</td>
+                  {!hidePersonal && (
+                    <td className='text-muted-foreground px-4 py-3'>{s.phone ?? '-'}</td>
+                  )}
+                  {!hidePersonal && (
+                    <td className='text-muted-foreground px-4 py-3'>{s.email ?? '-'}</td>
+                  )}
                   <td className='px-4 py-3'>
                     {s.totalSessions > 0 ? (() => {
                       const pct = Math.round((s.attendedSessions / s.totalSessions) * 100);
@@ -251,15 +263,17 @@ export function StudentTable({ cohortId, students }: { cohortId: string; student
                   </td>
                   <td className='px-4 py-3'>
                     <div className='flex justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100'>
-                      <StudentSheet
-                        cohortId={cohortId}
-                        student={s}
-                        trigger={
-                          <Button variant='ghost' size='icon' className='h-7 w-7'>
-                            <Icons.edit className='h-3.5 w-3.5' />
-                          </Button>
-                        }
-                      />
+                      {isDeveloper && (
+                        <StudentSheet
+                          cohortId={cohortId}
+                          student={{ ...s, email: s.email ?? null, phone: s.phone ?? null }}
+                          trigger={
+                            <Button variant='ghost' size='icon' className='h-7 w-7'>
+                              <Icons.edit className='h-3.5 w-3.5' />
+                            </Button>
+                          }
+                        />
+                      )}
                       {isDeveloper && (
                         <Button
                           variant='ghost'

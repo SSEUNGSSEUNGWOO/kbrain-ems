@@ -1,5 +1,6 @@
 import PageContainer from '@/components/layout/page-container';
 import { createAdminClient } from '@/lib/supabase/server';
+import { isViewer } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { ApplicantSheet } from './_components/applicant-sheet';
 import { ApplicantTable, type CategoryCounts } from './_components/applicant-table';
@@ -24,6 +25,7 @@ export default async function ApplicantsPage({ searchParams }: Props) {
   try {
     const { page, q, category } = applicantsSearchParamsCache.parse(await searchParams);
     const supabase = createAdminClient();
+    const hidePersonal = await isViewer();
     const pageSize = APPLICANTS_PAGE_SIZE;
     const from = (page - 1) * pageSize;
     const to = from + pageSize - 1;
@@ -41,23 +43,28 @@ export default async function ApplicantsPage({ searchParams }: Props) {
       job_title: string | null;
       job_role: string | null;
       birth_date: string | null;
-      email: string | null;
-      phone: string | null;
+      email?: string | null;
+      phone?: string | null;
       notes: string | null;
       organizations: { name: string } | null;
     };
 
+    // viewer는 phone/email 네트워크 응답에서도 제외 (서버 select 단계에서 빼기)
+    const selectCols = hidePersonal
+      ? 'id, name, category, department, job_title, job_role, birth_date, notes, organizations(name)'
+      : 'id, name, category, department, job_title, job_role, birth_date, email, phone, notes, organizations(name)';
+
     let rowsQuery = supabase
       .from('applicants')
-      .select(
-        'id, name, category, department, job_title, job_role, birth_date, email, phone, notes, organizations(name)',
-        { count: 'exact' }
-      )
+      .select(selectCols, { count: 'exact' })
       .order('name', { ascending: true })
       .range(from, to);
 
     if (search) {
-      rowsQuery = rowsQuery.or(`name.ilike.%${search}%,phone.ilike.%${search}%`);
+      // viewer는 phone 검색 불가, 이름만
+      rowsQuery = hidePersonal
+        ? rowsQuery.ilike('name', `%${search}%`)
+        : rowsQuery.or(`name.ilike.%${search}%,phone.ilike.%${search}%`);
     }
     if (categoryFilter) {
       if (categoryFilter === '미분류') {
@@ -84,15 +91,17 @@ export default async function ApplicantsPage({ searchParams }: Props) {
       job_title: r.job_title,
       job_role: r.job_role,
       birth_date: r.birth_date,
-      email: r.email,
-      phone: r.phone,
+      email: r.email ?? null,
+      phone: r.phone ?? null,
       notes: r.notes
     }));
 
     // facet count: 검색만 적용, 카테고리 미적용. applicants.category 직접 그룹화
     let facetQuery = supabase.from('applicants').select('category');
     if (search) {
-      facetQuery = facetQuery.or(`name.ilike.%${search}%,phone.ilike.%${search}%`);
+      facetQuery = hidePersonal
+        ? facetQuery.ilike('name', `%${search}%`)
+        : facetQuery.or(`name.ilike.%${search}%,phone.ilike.%${search}%`);
     }
     const { data: facetRows, error: facetError } =
       await facetQuery.returns<{ category: string | null }[]>();
@@ -149,7 +158,9 @@ export default async function ApplicantsPage({ searchParams }: Props) {
       <PageContainer
         pageTitle='지원자 관리'
         pageDescription={hasFilter ? `필터 결과 ${total}명` : `총 ${total}명`}
-        pageHeaderAction={<ApplicantSheet trigger={<Button>+ 지원자 추가</Button>} />}
+        pageHeaderAction={
+          hidePersonal ? null : <ApplicantSheet trigger={<Button>+ 지원자 추가</Button>} />
+        }
       >
         <ApplicantTable
           applicants={mapped}
@@ -160,6 +171,7 @@ export default async function ApplicantsPage({ searchParams }: Props) {
           categoryCounts={categoryCounts}
           categoryKeys={[...CATEGORY_KEYS, '미분류']}
           facetTotal={facetTotal}
+          hidePersonal={hidePersonal}
         />
       </PageContainer>
     );
