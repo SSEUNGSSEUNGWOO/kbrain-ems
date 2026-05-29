@@ -42,6 +42,8 @@ export type CandidateRow = {
   prereq_done_count: number; // cohort prereq 과목 중 수료한 개수
   prereq_max: number; // cohort prereq 과목 총 개수 (0이면 prereq 요구 없음)
   current_status: string;
+  // 같은 applicant가 다른 cohort에 지원한 active 이력 (applied/pending/selected만)
+  other_applications: { cohort_id: string; cohort_name: string; status: string }[];
 };
 
 // 분류 우선순위 점수 (0~10 스케일). 운영자 의도: 중앙 > 광역 > 기초 > 공공·교육 > 기타

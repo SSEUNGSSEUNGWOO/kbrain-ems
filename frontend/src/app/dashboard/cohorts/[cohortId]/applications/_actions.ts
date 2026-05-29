@@ -182,13 +182,47 @@ export async function loadSelectionPool(
       }
     }
 
+    // 같은 applicant가 다른 cohort에 active(applied/pending/selected) 지원한 이력 매핑
+    const applicantIds = (apps ?? [])
+      .map((a) => a.applicants?.id)
+      .filter((x): x is string => Boolean(x));
+    const otherByApplicant = new Map<
+      string,
+      { cohort_id: string; cohort_name: string; status: string }[]
+    >();
+    if (applicantIds.length > 0) {
+      type OtherApp = {
+        applicant_id: string;
+        cohort_id: string;
+        status: string;
+        cohorts: { name: string } | null;
+      };
+      const { data: otherApps } = await supabase
+        .from('applications')
+        .select('applicant_id, cohort_id, status, cohorts(name)')
+        .in('applicant_id', applicantIds)
+        .neq('cohort_id', cohortId)
+        .in('status', ['applied', 'pending', 'selected'])
+        .returns<OtherApp[]>();
+      for (const oa of otherApps ?? []) {
+        const arr = otherByApplicant.get(oa.applicant_id) ?? [];
+        arr.push({
+          cohort_id: oa.cohort_id,
+          cohort_name: oa.cohorts?.name ?? '?',
+          status: oa.status
+        });
+        otherByApplicant.set(oa.applicant_id, arr);
+      }
+    }
+
     const candidates: CandidateRow[] = (apps ?? []).map((a) => {
       const c2Key = c2Map.get(a.id) ?? '';
       const planText = planMap.get(a.id) ?? '';
       const multiCount = multiCountMap.get(a.id) ?? 0;
+      const applicantId = a.applicants?.id ?? '';
       return {
         application_id: a.id,
-        applicant_id: a.applicants?.id ?? '',
+        applicant_id: applicantId,
         name: a.applicants?.name ?? '(이름 없음)',
         organization: a.applicants?.organizations?.name ?? null,
         category: C2_TO_SELECTION[c2Key] ?? 'other',
@@ -199,7 +233,8 @@ export async function loadSelectionPool(
         multi_choices_max: multiChoicesMax,
         prereq_done_count: computePrereqDone(a.applicants?.phone ?? null, a.applicants?.email ?? null),
         prereq_max: prereqMax,
-        current_status: a.status
+        current_status: a.status,
+        other_applications: otherByApplicant.get(applicantId) ?? []
       };
     });
 

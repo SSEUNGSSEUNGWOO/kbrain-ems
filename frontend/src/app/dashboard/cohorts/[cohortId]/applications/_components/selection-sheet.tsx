@@ -505,6 +505,7 @@ function CandidateList({
         <span className='w-6'>#</span>
         <span className='w-6' />
         <span className='w-20'>이름</span>
+        <span className='w-12 text-center'>타과정</span>
         <span className='w-20'>분류</span>
         <span className='flex-1'>소속</span>
         <span className='w-10 text-center'>사전</span>
@@ -531,6 +532,20 @@ function CandidateList({
               <span className='text-muted-foreground w-6 text-xs tabular-nums'>{i + 1}</span>
               <Checkbox checked={checked} onCheckedChange={() => onToggle(c.application_id)} />
               <span className='w-20 truncate font-medium'>{c.name}</span>
+              <span className='w-12 text-center text-xs'>
+                {c.other_applications.length > 0 ? (
+                  <span
+                    className='inline-flex items-center justify-center rounded bg-amber-100 px-1.5 py-0.5 font-medium text-amber-700'
+                    title={c.other_applications
+                      .map((o) => `${o.cohort_name} (${o.status})`)
+                      .join('\n')}
+                  >
+                    +{c.other_applications.length}
+                  </span>
+                ) : (
+                  <span className='text-muted-foreground'>—</span>
+                )}
+              </span>
               <span className='text-muted-foreground w-20 truncate text-xs'>
                 {SELECTION_CATEGORY_LABEL[c.category]}
               </span>
