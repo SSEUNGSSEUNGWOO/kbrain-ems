@@ -2,19 +2,33 @@
  * cohort 라이프사이클 단계 자동 판별.
  *
  *  recruiting : 모집기간 내 (application_start_at ≤ 오늘 ≤ application_end_at)
- *  active     : 교육기간 내 (started_at ≤ 오늘 ≤ ended_at)
+ *  selecting  : 모집 마감 후 ~ 선발확정일(decided_at) 전. decided_at NULL이면 머무름.
+ *  notifying  : decided_at 도달 후 ~ 통보일(notified_at) 전.
+ *  onboarding : notified_at 도달 후 ~ 교육 시작 전.
+ *  active     : 교육기간 내 (started_at ≤ 오늘 ≤ ended_at).
+ *               started_at 도달 시 중간 단계와 무관하게 active로 점프(데드라인 fallback).
  *  finished   : 교육 종료 (오늘 > ended_at)
  *  preparing  : 일정은 있지만 아직 모집/교육 시작 전
  *  unset      : 일정 정보 자체가 없음
  *
- * 모집기간과 교육기간이 겹치면 모집을 우선 (보통 모집 마감 후 교육 시작이지만 안전).
+ * 우선순위 순으로 평가 — 활성/완료가 먼저 걸리면 중간 단계 누락도 안전.
  */
 
-export type CohortStage = 'recruiting' | 'active' | 'finished' | 'preparing' | 'unset';
+export type CohortStage =
+  | 'recruiting'
+  | 'selecting'
+  | 'notifying'
+  | 'onboarding'
+  | 'active'
+  | 'finished'
+  | 'preparing'
+  | 'unset';
 
 type StageInput = {
   application_start_at?: string | null;
   application_end_at?: string | null;
+  decided_at?: string | null;
+  notified_at?: string | null;
   started_at?: string | null;
   ended_at?: string | null;
 };
@@ -31,12 +45,20 @@ export function computeCohortStage(c: StageInput, todayIso?: string): CohortStag
     return 'recruiting';
   }
 
+  // started_at 도달 시 active/finished가 중간 단계보다 우선
   if (c.started_at && c.ended_at && today >= c.started_at && today <= c.ended_at) {
     return 'active';
   }
 
   if (c.ended_at && today > c.ended_at) {
     return 'finished';
+  }
+
+  // 모집 마감 후 ~ 교육 시작 전 사이의 중간 단계
+  if (c.application_end_at && today > c.application_end_at) {
+    if (c.notified_at && today >= c.notified_at) return 'onboarding';
+    if (c.decided_at && today >= c.decided_at) return 'notifying';
+    return 'selecting';
   }
 
   // 일정(교육 또는 모집)이 박혀 있으면 '준비' — 아직 시작 전
@@ -49,6 +71,9 @@ export function computeCohortStage(c: StageInput, todayIso?: string): CohortStag
 
 export const STAGE_LABEL: Record<CohortStage, string> = {
   recruiting: '모집',
+  selecting: '선발',
+  notifying: '통보',
+  onboarding: '입과대기',
   active: '진행',
   finished: '완료',
   preparing: '준비',
@@ -58,6 +83,12 @@ export const STAGE_LABEL: Record<CohortStage, string> = {
 /** 단계별 노출 DOMAIN slug — 사이드바·문서·테이블에서 공통 사용 */
 export const STAGE_DOMAINS: Record<CohortStage, readonly string[]> = {
   recruiting: ['applications', 'students', 'lessons', 'instructors', 'surveys', 'reports'],
+  // 모집 마감 후 선발 작업 중 — applications가 1순위
+  selecting: ['applications', 'students', 'lessons', 'instructors', 'surveys', 'reports'],
+  // 합격 통보 중 — applications + students 병행
+  notifying: ['applications', 'students', 'lessons', 'instructors', 'surveys', 'reports'],
+  // 통보 완료, 입과 준비 — applications 빠지고 students 중심
+  onboarding: ['students', 'lessons', 'instructors', 'surveys', 'reports'],
   active: [
     'students',
     'lessons',

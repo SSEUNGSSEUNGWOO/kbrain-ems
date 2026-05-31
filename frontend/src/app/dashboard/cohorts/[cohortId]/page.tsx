@@ -8,7 +8,6 @@ import { Icons } from '@/components/icons';
 import { computeCohortStage, STAGE_DOMAINS } from '@/lib/cohort-stage';
 import { todayKst } from '@/lib/format';
 import { RecruitingCard } from './_components/recruiting-card';
-import { RoundSelector, type RoundOption } from './_components/round-selector';
 import { ScheduleEditSheet } from './_components/schedule-edit-sheet';
 
 function formatDate(dateStr: string): string {
@@ -70,11 +69,11 @@ export default async function CohortOverviewPage({
   const { cohortId } = await params;
   const supabase = createAdminClient();
 
-  const [cohortRes, studentRes, sessionRes, roundsRes] = await Promise.all([
+  const [cohortRes, studentRes, sessionRes] = await Promise.all([
     supabase
       .from('cohorts')
       .select(
-        'id, name, started_at, ended_at, application_start_at, application_end_at, decided_at, notified_at, orientation_date, pre_online_start_at, pre_online_end_at, certification_start_at, certification_end_at, self_study_start_at, self_study_end_at, delivery_method, recruiting_slug, max_capacity, recruitment_round_id'
+        'id, name, started_at, ended_at, application_start_at, application_end_at, decided_at, notified_at, orientation_date, pre_online_start_at, pre_online_end_at, certification_start_at, certification_end_at, self_study_start_at, self_study_end_at, delivery_method, recruiting_slug, max_capacity'
       )
       .eq('id', cohortId)
       .limit(1),
@@ -86,11 +85,7 @@ export default async function CohortOverviewPage({
       .from('sessions')
       .select('id, session_date, title, start_time, end_time')
       .eq('cohort_id', cohortId)
-      .order('session_date', { ascending: true }),
-    supabase
-      .from('recruitment_rounds')
-      .select('id, round_no, label, application_start_at, application_end_at, selection_at, announce_at')
-      .order('round_no')
+      .order('session_date', { ascending: true })
   ]);
 
   if (cohortRes.error) throw new Error(cohortRes.error.message);
@@ -100,21 +95,11 @@ export default async function CohortOverviewPage({
   const cohort = cohortRes.data?.[0];
   if (!cohort) notFound();
 
-  const rounds = (roundsRes.data ?? []) as Array<RoundOption & {
-    selection_at: string | null;
-    announce_at: string | null;
-  }>;
-  const currentRound = rounds.find((r) => r.id === cohort.recruitment_round_id) ?? null;
-
-  // 라운드 매핑되면 라운드 일정이 우선, 미매핑이면 cohort 컬럼 fallback
-  const scheduleApplicationStart = currentRound?.application_start_at ?? cohort.application_start_at;
-  const scheduleApplicationEnd = currentRound?.application_end_at ?? cohort.application_end_at;
-  const scheduleDecided = currentRound?.selection_at ?? cohort.decided_at;
-  const scheduleNotified = currentRound?.announce_at ?? cohort.notified_at;
-
   const stage = computeCohortStage({
-    application_start_at: scheduleApplicationStart,
-    application_end_at: scheduleApplicationEnd,
+    application_start_at: cohort.application_start_at,
+    application_end_at: cohort.application_end_at,
+    decided_at: cohort.decided_at,
+    notified_at: cohort.notified_at,
     started_at: cohort.started_at,
     ended_at: cohort.ended_at
   });
@@ -196,10 +181,10 @@ export default async function CohortOverviewPage({
     >
       {/* 일정 정보 — 모집·교육 핵심 일자 한눈에 */}
       <ScheduleInfoCard
-        applicationStartAt={scheduleApplicationStart}
-        applicationEndAt={scheduleApplicationEnd}
-        decidedAt={scheduleDecided}
-        notifiedAt={scheduleNotified}
+        applicationStartAt={cohort.application_start_at}
+        applicationEndAt={cohort.application_end_at}
+        decidedAt={cohort.decided_at}
+        notifiedAt={cohort.notified_at}
         startedAt={cohort.started_at}
         endedAt={cohort.ended_at}
         orientationDate={cohort.orientation_date}
@@ -211,18 +196,10 @@ export default async function CohortOverviewPage({
         selfStudyEnd={cohort.self_study_end_at}
         deliveryMethod={cohort.delivery_method}
         maxCapacity={cohort.max_capacity}
-        roundSelector={
-          <RoundSelector
-            cohortId={cohort.id}
-            currentRoundId={cohort.recruitment_round_id}
-            rounds={rounds}
-          />
-        }
-        roundLabel={currentRound?.label ?? null}
         editSheet={
           <ScheduleEditSheet
             cohortId={cohort.id}
-            hasRound={!!currentRound}
+            hasRound={false}
             initial={{
               application_start_at: cohort.application_start_at,
               application_end_at: cohort.application_end_at,
@@ -257,8 +234,8 @@ export default async function CohortOverviewPage({
       {isRecruiting && cohort.recruiting_slug && (
         <RecruitingCard
           slug={cohort.recruiting_slug}
-          applicationStartAt={scheduleApplicationStart}
-          applicationEndAt={scheduleApplicationEnd}
+          applicationStartAt={cohort.application_start_at}
+          applicationEndAt={cohort.application_end_at}
           applicantCount={applicantCount}
           maxCapacity={cohort.max_capacity}
         />
@@ -454,8 +431,6 @@ function ScheduleInfoCard({
   selfStudyEnd,
   deliveryMethod,
   maxCapacity,
-  roundSelector,
-  roundLabel,
   editSheet
 }: {
   applicationStartAt: string | null;
@@ -473,20 +448,21 @@ function ScheduleInfoCard({
   selfStudyEnd: string | null;
   deliveryMethod: string | null;
   maxCapacity: number | null;
-  roundSelector?: React.ReactNode;
-  roundLabel?: string | null;
   editSheet?: React.ReactNode;
 }) {
   const fmt = (d: string | null) => (d ? formatShortDate(d) : '—');
   const fmtRange = (a: string | null, b: string | null) => {
     if (!a && !b) return '—';
-    if (a && b) return `${formatShortDate(a)} ~ ${formatShortDate(b)}`;
+    if (a && b) {
+      if (a === b) return formatShortDate(a);
+      return `${formatShortDate(a)} ~ ${formatShortDate(b)}`;
+    }
     return formatShortDate(a ?? b!);
   };
-  const items: { label: string; value: string; fromRound?: boolean }[] = [
-    { label: '신청기간', value: fmtRange(applicationStartAt, applicationEndAt), fromRound: !!roundLabel },
-    { label: '선발일', value: fmt(decidedAt), fromRound: !!roundLabel },
-    { label: '선발통보', value: fmt(notifiedAt), fromRound: !!roundLabel },
+  const items: { label: string; value: string }[] = [
+    { label: '신청기간', value: fmtRange(applicationStartAt, applicationEndAt) },
+    { label: '선발일', value: fmt(decidedAt) },
+    { label: '선발통보', value: fmt(notifiedAt) },
     { label: '사전 온라인', value: fmtRange(preOnlineStart, preOnlineEnd) },
     { label: 'OT', value: fmt(orientationDate) },
     { label: '교육기간', value: fmtRange(startedAt, endedAt) },
@@ -494,39 +470,21 @@ function ScheduleInfoCard({
     { label: '인증평가', value: fmtRange(certificationStart, certificationEnd) },
     { label: '방법', value: deliveryMethod ?? '—' },
     { label: '인원', value: maxCapacity ? `${maxCapacity}명` : '—' }
-  ];
+  ].filter((it) => it.value !== '—');
   return (
     <div className='mb-6 rounded-xl border bg-card px-5 py-4 shadow-sm'>
       <div className='mb-3 flex flex-wrap items-center justify-between gap-3'>
         <div className='flex items-center gap-2'>
           <Icons.calendar className='text-muted-foreground h-4 w-4' />
           <span className='text-sm font-semibold'>일정 정보</span>
-          {roundLabel && (
-            <Badge variant='outline' className='text-xs font-normal'>
-              {roundLabel} 기준
-            </Badge>
-          )}
         </div>
-        <div className='flex items-center gap-2'>
-          {roundSelector && (
-            <>
-              <span className='text-muted-foreground text-xs'>모집 라운드</span>
-              {roundSelector}
-            </>
-          )}
-          {editSheet}
-        </div>
+        <div className='flex items-center gap-2'>{editSheet}</div>
       </div>
       <dl className='grid gap-x-6 gap-y-3 sm:grid-cols-3'>
         {items.map((it) => (
           <div key={it.label} className='flex items-baseline gap-2'>
             <dt className='text-muted-foreground w-16 shrink-0 text-xs font-medium'>{it.label}</dt>
-            <dd className='font-mono text-sm tabular-nums'>
-              {it.value}
-              {it.fromRound && it.value !== '—' && (
-                <span className='text-muted-foreground ml-1.5 text-[10px]'>라운드</span>
-              )}
-            </dd>
+            <dd className='font-mono text-sm tabular-nums'>{it.value}</dd>
           </div>
         ))}
       </dl>

@@ -33,6 +33,12 @@ import { updateCohort, deleteCohort } from '../_actions';
 const STAGE_BADGE_CLASS: Record<CohortStage, string> = {
   recruiting:
     'border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-900 dark:bg-orange-950/40 dark:text-orange-300',
+  selecting:
+    'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300',
+  notifying:
+    'border-cyan-200 bg-cyan-50 text-cyan-700 dark:border-cyan-900 dark:bg-cyan-950/40 dark:text-cyan-300',
+  onboarding:
+    'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300',
   active:
     'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-300',
   finished:
@@ -52,6 +58,8 @@ type Cohort = {
   recruiting_slug: string | null;
   application_start_at: string | null;
   application_end_at: string | null;
+  decided_at: string | null;
+  notified_at: string | null;
   max_capacity: number | null;
   prereq_course_codes: string[] | null;
   student_count: number;
@@ -109,9 +117,15 @@ export function CohortCard({ cohort }: { cohort: Cohort }) {
               const suffix =
                 stage === 'recruiting' && cohort.application_end_at
                   ? ` ~${cohort.application_end_at}`
-                  : stage === 'active' && cohort.ended_at
-                    ? ` ~${cohort.ended_at}`
-                    : '';
+                  : stage === 'selecting' && cohort.decided_at
+                    ? ` ~${cohort.decided_at}`
+                    : stage === 'notifying' && cohort.notified_at
+                      ? ` ~${cohort.notified_at}`
+                      : stage === 'onboarding' && cohort.started_at
+                        ? ` ~${cohort.started_at}`
+                        : stage === 'active' && cohort.ended_at
+                          ? ` ~${cohort.ended_at}`
+                          : '';
               return (
                 <Badge variant='outline' className={`gap-1 font-semibold ${STAGE_BADGE_CLASS[stage]}`}>
                   {STAGE_LABEL[stage]}
@@ -218,6 +232,24 @@ export function CohortCard({ cohort }: { cohort: Cohort }) {
                       name='application_end_at'
                       type='date'
                       defaultValue={cohort.application_end_at ?? ''}
+                    />
+                  </div>
+                  <div className='grid gap-2'>
+                    <Label htmlFor='edit-decided'>선발 확정일</Label>
+                    <Input
+                      id='edit-decided'
+                      name='decided_at'
+                      type='date'
+                      defaultValue={cohort.decided_at ?? ''}
+                    />
+                  </div>
+                  <div className='grid gap-2'>
+                    <Label htmlFor='edit-notified'>통보일</Label>
+                    <Input
+                      id='edit-notified'
+                      name='notified_at'
+                      type='date'
+                      defaultValue={cohort.notified_at ?? ''}
                     />
                   </div>
                 </div>

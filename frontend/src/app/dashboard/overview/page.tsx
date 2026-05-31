@@ -4,23 +4,61 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Icons } from '@/components/icons';
-import {
-  classifyOrganization,
-  ORGANIZATION_CATEGORY_LABEL,
-  type OrganizationCategory
-} from '@/lib/organization-category';
-import { computeCohortStage } from '@/lib/cohort-stage';
+import { computeCohortStage, STAGE_LABEL, type CohortStage } from '@/lib/cohort-stage';
 import { todayKst } from '@/lib/format';
-import { CategoryPieChart } from './_components/category-pie-chart';
-import { RecruitingCohortsCard } from './_components/recruiting-cohorts-card';
-import {
-  CohortLineChart,
-  type Point as ChartPoint,
-  type Series as ChartSeries
-} from './_components/cohort-line-chart';
 import { ActivityFeed, type Activity } from './_components/activity-feed';
 
-const COHORT_COLORS = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ec4899', '#06b6d4'];
+// outline 형식 stage 뱃지 색
+const STAGE_BADGE_CLASS: Record<CohortStage, string> = {
+  recruiting:
+    'border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-900 dark:bg-orange-950/40 dark:text-orange-300',
+  selecting:
+    'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300',
+  notifying:
+    'border-cyan-200 bg-cyan-50 text-cyan-700 dark:border-cyan-900 dark:bg-cyan-950/40 dark:text-cyan-300',
+  onboarding:
+    'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300',
+  active:
+    'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-300',
+  finished:
+    'border-slate-200 bg-slate-100 text-slate-600 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-300',
+  preparing:
+    'border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-900 dark:bg-violet-950/40 dark:text-violet-300',
+  unset:
+    'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300'
+};
+
+// SVG/막대 시각화에 쓰는 stage 단색
+const STAGE_DOT_COLOR: Record<CohortStage, string> = {
+  recruiting: '#f59e0b', // amber
+  selecting: '#e11d48', // rose
+  notifying: '#06b6d4', // cyan
+  onboarding: '#10b981', // emerald
+  active: '#3b82f6', // blue
+  finished: '#94a3b8', // slate
+  preparing: '#a78bfa', // violet
+  unset: '#cbd5e1' // slate-300
+};
+
+const DOW = ['일', '월', '화', '수', '목', '금', '토'] as const;
+
+function formatShortDate(dateStr: string): string {
+  const date = new Date(`${dateStr}T00:00:00`);
+  return `${date.getMonth() + 1}. ${date.getDate()}. (${DOW[date.getDay()]})`;
+}
+
+function dDaysBetween(targetIso: string, fromIso: string): number {
+  const a = new Date(`${targetIso}T00:00:00`);
+  const b = new Date(`${fromIso}T00:00:00`);
+  return Math.round((a.getTime() - b.getTime()) / (24 * 3600 * 1000));
+}
+
+function formatDday(targetIso: string, fromIso: string): string {
+  const d = dDaysBetween(targetIso, fromIso);
+  if (d === 0) return 'D-DAY';
+  if (d > 0) return `D-${d}`;
+  return `D+${-d}`;
+}
 
 function timeAgo(iso: string): string {
   const then = new Date(iso).getTime();
@@ -40,125 +78,219 @@ function timeAgo(iso: string): string {
   return `${Math.floor(day / 365)}년 전`;
 }
 
-const DOW = ['일', '월', '화', '수', '목', '금', '토'] as const;
+type Urgency = 'critical' | 'soon' | 'pending';
 
-function formatShortDate(dateStr: string): string {
-  const date = new Date(`${dateStr}T00:00:00`);
-  return `${date.getMonth() + 1}. ${date.getDate()}. (${DOW[date.getDay()]})`;
+type ActionItem = {
+  id: string;
+  urgency: Urgency;
+  stage: CohortStage | null;
+  cohortName: string | null;
+  title: string;
+  detail: string;
+  href: string;
+};
+
+const STAGE_PRIORITY: Record<CohortStage, number> = {
+  active: 0,
+  onboarding: 1,
+  notifying: 2,
+  selecting: 3,
+  recruiting: 4,
+  preparing: 5,
+  finished: 6,
+  unset: 7
+};
+
+type CohortStatus = {
+  id: string;
+  name: string;
+  stage: CohortStage;
+  studentCount: number;
+  applicantCount: number;
+  maxCapacity: number | null;
+  totalSessions: number;
+  doneSessions: number;
+  progressPct: number;
+  attendanceRate: number | null;
+  missingAttendanceCount: number;
+  nextSession: { id: string; sessionDate: string; title: string | null } | null;
+  targetDate: string | null;
+  targetLabel: string | null;
+  nextActionLabel: string | null;
+  nextActionHref: string | null;
+  recruitingSlug: string | null;
+};
+
+// 카드/막대에서 stage별 진행도(%) — 시각적 채움 정도 (절대 정확도보다 분위기)
+function getStatusBarPct(c: CohortStatus, today: string): number {
+  switch (c.stage) {
+    case 'recruiting':
+      if (!c.maxCapacity) return Math.min(c.applicantCount * 2, 100);
+      return Math.min((c.applicantCount / c.maxCapacity) * 100, 100);
+    case 'active':
+      return c.progressPct;
+    case 'finished':
+      return 100;
+    case 'selecting':
+    case 'notifying':
+    case 'onboarding': {
+      if (!c.targetDate) return 70;
+      const d = dDaysBetween(c.targetDate, today);
+      if (d <= 0) return 100;
+      if (d >= 14) return 30;
+      return 100 - (d / 14) * 70;
+    }
+    case 'preparing': {
+      if (!c.targetDate) return 8;
+      const d = dDaysBetween(c.targetDate, today);
+      if (d >= 60) return 5;
+      return Math.max(5, 30 - (d / 60) * 25);
+    }
+    default:
+      return 0;
+  }
+}
+
+// 도넛/막대 옆에 들어가는 메인 라벨 — stage별 다름
+function getStatusLabel(c: CohortStatus, today: string): string {
+  switch (c.stage) {
+    case 'recruiting':
+      return c.maxCapacity
+        ? `${c.applicantCount}/${c.maxCapacity}`
+        : `${c.applicantCount}명`;
+    case 'active':
+      return c.totalSessions > 0 ? `${c.progressPct}%` : '대기';
+    case 'finished':
+      return '완료';
+    case 'selecting':
+    case 'notifying':
+    case 'onboarding':
+    case 'preparing':
+      return c.targetDate ? formatDday(c.targetDate, today) : '—';
+    case 'unset':
+      return '—';
+  }
+}
+
+// 도넛 안 가운데 텍스트는 좀 더 짧게
+function getDonutCenterLabel(c: CohortStatus, today: string): string {
+  switch (c.stage) {
+    case 'recruiting':
+      return `${c.applicantCount}`;
+    case 'active':
+      return c.totalSessions > 0 ? `${c.progressPct}%` : '—';
+    case 'finished':
+      return '✓';
+    case 'selecting':
+    case 'notifying':
+    case 'onboarding':
+    case 'preparing':
+      return c.targetDate ? formatDday(c.targetDate, today) : '—';
+    default:
+      return '—';
+  }
 }
 
 export default async function OverviewPage() {
   const today = todayKst();
   const supabase = createAdminClient();
 
-  // Fetch all cohorts (incl. recruiting metadata)
-  const { data: cohortRows, error: cohortError } = await supabase
-    .from('cohorts')
-    .select(
-      'id, name, started_at, ended_at, application_start_at, application_end_at, recruiting_slug, max_capacity'
-    )
-    .order('name', { ascending: true });
-  if (cohortError) throw new Error(cohortError.message);
-  const allCohorts = (cohortRows ?? []).map((c) => ({
+  // === Fetch ===
+  const [cohortRes, studentRes, sessionRes, attendanceRes, appRes] = await Promise.all([
+    supabase
+      .from('cohorts')
+      .select(
+        'id, name, started_at, ended_at, application_start_at, application_end_at, decided_at, notified_at, orientation_date, recruiting_slug, max_capacity'
+      )
+      .order('name', { ascending: true }),
+    supabase.from('students').select('id, cohort_id'),
+    supabase.from('sessions').select('id, cohort_id, session_date, title').order('session_date'),
+    supabase.from('attendance_records').select('session_id, status'),
+    supabase.from('applications').select('cohort_id')
+  ]);
+  if (cohortRes.error) throw new Error(cohortRes.error.message);
+  if (studentRes.error) throw new Error(studentRes.error.message);
+  if (sessionRes.error) throw new Error(sessionRes.error.message);
+  if (attendanceRes.error) throw new Error(attendanceRes.error.message);
+
+  // risks/issues — 테이블 없을 수도 있어 try-catch
+  let openRiskCount = 0;
+  let openIssueCount = 0;
+  try {
+    const [r, i] = await Promise.all([
+      supabase.from('risks').select('id', { count: 'exact', head: true }).neq('status', 'closed'),
+      supabase.from('issues').select('id', { count: 'exact', head: true }).neq('status', 'closed')
+    ]);
+    openRiskCount = r.count ?? 0;
+    openIssueCount = i.count ?? 0;
+  } catch {
+    // 무시
+  }
+
+  const allCohorts = (cohortRes.data ?? []).map((c) => ({
     id: c.id,
     name: c.name,
     startedAt: c.started_at,
     endedAt: c.ended_at,
     applicationStartAt: c.application_start_at,
     applicationEndAt: c.application_end_at,
+    decidedAt: c.decided_at,
+    notifiedAt: c.notified_at,
+    orientationDate: c.orientation_date,
     recruitingSlug: c.recruiting_slug,
     maxCapacity: c.max_capacity
   }));
 
-  // 모집중 cohort 필터링
-  const recruitingCohorts = allCohorts.filter(
-    (c) =>
-      c.recruitingSlug !== null &&
-      computeCohortStage({
-        application_start_at: c.applicationStartAt,
-        application_end_at: c.applicationEndAt,
-        started_at: c.startedAt,
-        ended_at: c.endedAt
-      }) === 'recruiting'
-  );
-
-  // 모집중 cohort별 신청자 수 (applications count)
-  const applicantCountMap = new Map<string, number>();
-  if (recruitingCohorts.length > 0) {
-    const ids = recruitingCohorts.map((c) => c.id);
-    const { data: appRows } = await supabase
-      .from('applications')
-      .select('cohort_id')
-      .in('cohort_id', ids);
-    for (const r of appRows ?? []) {
-      applicantCountMap.set(r.cohort_id, (applicantCountMap.get(r.cohort_id) ?? 0) + 1);
-    }
-  }
-
-  const recruitingForCard = recruitingCohorts
-    .filter((c): c is typeof c & { recruitingSlug: string } => !!c.recruitingSlug)
-    .map((c) => ({
-      id: c.id,
-      name: c.name,
-      slug: c.recruitingSlug,
-      applicationEndAt: c.applicationEndAt,
-      applicantCount: applicantCountMap.get(c.id) ?? 0,
-      maxCapacity: c.maxCapacity
-    }));
-
-  // Fetch per-cohort student counts (group by → JS reduce)
-  const { data: studentRows, error: studentError } = await supabase
-    .from('students')
-    .select('cohort_id');
-  if (studentError) throw new Error(studentError.message);
-
+  // per-cohort 집계 maps
   const studentCountMap = new Map<string, number>();
-  for (const r of studentRows ?? []) {
+  for (const r of studentRes.data ?? []) {
     studentCountMap.set(r.cohort_id, (studentCountMap.get(r.cohort_id) ?? 0) + 1);
   }
 
-  // Fetch all sessions with cohort info
-  const { data: sessionRows, error: sessionError } = await supabase
-    .from('sessions')
-    .select('id, cohort_id, session_date, title')
-    .order('session_date', { ascending: true });
-  if (sessionError) throw new Error(sessionError.message);
-  const allSessions = (sessionRows ?? []).map((s) => ({
-    id: s.id,
-    cohortId: s.cohort_id,
-    sessionDate: s.session_date,
-    title: s.title
-  }));
+  const applicationCountMap = new Map<string, number>();
+  for (const r of appRes.data ?? []) {
+    applicationCountMap.set(r.cohort_id, (applicationCountMap.get(r.cohort_id) ?? 0) + 1);
+  }
 
-  // Fetch all attendance records and aggregate in JS
-  const { data: attendanceRows, error: attendanceError } = await supabase
-    .from('attendance_records')
-    .select('session_id, status');
-  if (attendanceError) throw new Error(attendanceError.message);
+  const sessionsByCohort = new Map<string, typeof sessionRes.data>();
+  for (const s of sessionRes.data ?? []) {
+    const arr = sessionsByCohort.get(s.cohort_id) ?? [];
+    arr!.push(s);
+    sessionsByCohort.set(s.cohort_id, arr);
+  }
 
   const attendanceMap = new Map<string, { total: number; present: number }>();
-  for (const r of attendanceRows ?? []) {
+  for (const r of attendanceRes.data ?? []) {
     if (r.status === 'none') continue;
     const entry = attendanceMap.get(r.session_id) ?? { total: 0, present: 0 };
     entry.total++;
     if (r.status !== 'absent') entry.present++;
     attendanceMap.set(r.session_id, entry);
   }
-  const attendanceCounts = Array.from(attendanceMap.entries()).map(([sessionId, v]) => ({
-    sessionId,
-    total: v.total,
-    present: v.present
-  }));
 
-  // Build per-cohort data
-  const cohortData = allCohorts.map((c) => {
-    const cohortSessions = allSessions.filter((s) => s.cohortId === c.id);
+  // === Cohort 상태 계산 ===
+  const cohortStatuses: CohortStatus[] = allCohorts.map((c) => {
+    const stage = computeCohortStage({
+      application_start_at: c.applicationStartAt,
+      application_end_at: c.applicationEndAt,
+      decided_at: c.decidedAt,
+      notified_at: c.notifiedAt,
+      started_at: c.startedAt,
+      ended_at: c.endedAt
+    });
+    const cohortSessions = sessionsByCohort.get(c.id) ?? [];
     const totalSessions = cohortSessions.length;
-    const doneSessions = cohortSessions.filter((s) => s.sessionDate < today).length;
-    const nextSession = cohortSessions.find((s) => s.sessionDate >= today);
-    const studentCount = studentCountMap.get(c.id) ?? 0;
+    const doneSessions = cohortSessions.filter((s) => s.session_date < today).length;
+    const nextSessionRow = cohortSessions.find((s) => s.session_date >= today);
+    const nextSession = nextSessionRow
+      ? {
+          id: nextSessionRow.id,
+          sessionDate: nextSessionRow.session_date,
+          title: nextSessionRow.title
+        }
+      : null;
+    const progressPct = totalSessions > 0 ? Math.round((doneSessions / totalSessions) * 100) : 0;
 
-    // Attendance rate for this cohort
     let totalRecords = 0;
     let presentRecords = 0;
     for (const s of cohortSessions) {
@@ -171,183 +303,207 @@ export default async function OverviewPage() {
     const attendanceRate =
       totalRecords > 0 ? Math.round((presentRecords / totalRecords) * 100) : null;
 
-    // Past sessions without attendance records
-    const missingAttendance = cohortSessions.filter(
-      (s) => s.sessionDate < today && !attendanceMap.has(s.id)
-    );
+    const missingAttendanceCount = cohortSessions.filter(
+      (s) => s.session_date < today && !attendanceMap.has(s.id)
+    ).length;
 
-    const progressPct = totalSessions > 0 ? Math.round((doneSessions / totalSessions) * 100) : 0;
+    let targetDate: string | null = null;
+    let targetLabel: string | null = null;
+    let nextActionLabel: string | null = null;
+    let nextActionHref: string | null = `/dashboard/cohorts/${c.id}`;
+    switch (stage) {
+      case 'recruiting':
+        targetDate = c.applicationEndAt;
+        targetLabel = '모집 마감';
+        nextActionLabel = c.maxCapacity
+          ? `신청 ${applicationCountMap.get(c.id) ?? 0} / 정원 ${c.maxCapacity}명`
+          : `신청 ${applicationCountMap.get(c.id) ?? 0}명`;
+        nextActionHref = `/dashboard/cohorts/${c.id}/applications`;
+        break;
+      case 'selecting':
+        targetDate = c.decidedAt;
+        targetLabel = '선발 확정';
+        nextActionLabel = '자동선발 또는 명단 검토 후 확정';
+        nextActionHref = `/dashboard/cohorts/${c.id}/applications`;
+        break;
+      case 'notifying':
+        targetDate = c.notifiedAt;
+        targetLabel = '통보일';
+        nextActionLabel = '합격 통보 발송';
+        nextActionHref = `/dashboard/cohorts/${c.id}/notifications`;
+        break;
+      case 'onboarding':
+        targetDate = c.orientationDate ?? c.startedAt;
+        targetLabel = c.orientationDate ? '입과식' : '교육 시작';
+        nextActionLabel = '입과 안내·자료 발송';
+        nextActionHref = `/dashboard/cohorts/${c.id}/notifications`;
+        break;
+      case 'active':
+        targetDate = nextSession?.sessionDate ?? null;
+        targetLabel = nextSession ? '다음 수업' : null;
+        nextActionLabel = nextSession
+          ? `다음 수업 ${formatShortDate(nextSession.sessionDate)} · ${nextSession.title ?? ''}`
+          : '진행 중인 수업 없음';
+        nextActionHref = nextSession
+          ? `/dashboard/cohorts/${c.id}/attendance/${nextSession.id}`
+          : `/dashboard/cohorts/${c.id}/attendance`;
+        break;
+      case 'finished':
+        targetDate = c.endedAt;
+        targetLabel = '종료';
+        nextActionLabel = '결과보고서 검토 / 강사료 정산';
+        nextActionHref = `/dashboard/cohorts/${c.id}/reports`;
+        break;
+      case 'preparing':
+        targetDate = c.applicationStartAt ?? c.startedAt;
+        targetLabel = c.applicationStartAt ? '모집 시작' : '교육 시작';
+        nextActionLabel = '일정 점검';
+        break;
+      case 'unset':
+        nextActionLabel = '일정 입력 필요';
+        break;
+    }
 
     return {
-      ...c,
-      studentCount,
+      id: c.id,
+      name: c.name,
+      stage,
+      studentCount: studentCountMap.get(c.id) ?? 0,
+      applicantCount: applicationCountMap.get(c.id) ?? 0,
+      maxCapacity: c.maxCapacity,
       totalSessions,
       doneSessions,
       progressPct,
-      nextSession,
       attendanceRate,
-      missingAttendance
+      missingAttendanceCount,
+      nextSession,
+      targetDate,
+      targetLabel,
+      nextActionLabel,
+      nextActionHref,
+      recruitingSlug: c.recruitingSlug
     };
   });
 
-  // Global stats
-  const totalStudents = studentRows?.length ?? 0;
-  const activeCohorts = cohortData.filter((c) => c.totalSessions > 0).length;
-
-  // Global next session
-  const globalNext = allSessions.find((s) => s.sessionDate >= today);
-  const globalNextCohort = globalNext ? allCohorts.find((c) => c.id === globalNext.cohortId) : null;
-
-  // All missing attendance across cohorts
-  const allMissing = cohortData.flatMap((c) =>
-    c.missingAttendance.map((s) => ({
-      cohortId: c.id,
-      cohortName: c.name,
-      sessionId: s.id,
-      sessionDate: s.sessionDate,
-      title: s.title
-    }))
-  );
-
-  // Global attendance rate
-  let globalTotal = 0;
-  let globalPresent = 0;
-  for (const att of attendanceCounts) {
-    globalTotal += att.total;
-    globalPresent += att.present;
-  }
-  const globalRate = globalTotal > 0 ? Math.round((globalPresent / globalTotal) * 100) : null;
-
-  // 소속 카테고리별 집계
-  type StudentOrgRow = {
-    organizations: { name: string } | null;
-  };
-  const { data: studentOrgRowsRaw, error: studentOrgError } = await supabase
-    .from('students')
-    .select('organizations(name)')
-    .returns<StudentOrgRow[]>();
-  if (studentOrgError) throw new Error(studentOrgError.message);
-  const allStudentOrgs = (studentOrgRowsRaw ?? []).map((r) => ({
-    orgName: r.organizations?.name ?? null
-  }));
-
-  const CATEGORY_COLORS: Record<OrganizationCategory, string> = {
-    central: '#3b82f6',
-    basic_local: '#10b981',
-    metro_local: '#06b6d4',
-    public: '#f59e0b',
-    education: '#8b5cf6',
-    unknown: '#94a3b8'
-  };
-
-  const categoryCounts = allStudentOrgs.reduce(
-    (acc, r) => {
-      const cat = classifyOrganization(r.orgName);
-      acc[cat] = (acc[cat] ?? 0) + 1;
-      return acc;
-    },
-    {} as Record<OrganizationCategory, number>
-  );
-
-  const categoryChartData = (
-    Object.keys(ORGANIZATION_CATEGORY_LABEL) as OrganizationCategory[]
-  ).map((key) => ({
-    name: ORGANIZATION_CATEGORY_LABEL[key],
-    value: categoryCounts[key] ?? 0,
-    color: CATEGORY_COLORS[key]
-  }));
-
-  // 출석률 추세 시계열 빌드
-  const cohortSeries: ChartSeries[] = allCohorts.map((c, i) => ({
-    id: c.id,
-    name: c.name.replace('전문인재 ', ''),
-    color: COHORT_COLORS[i % COHORT_COLORS.length]
-  }));
-
-  // (cohortId, sessionDate) → { total, present } 누적 Map을 한 번만 빌드 — O(sessions).
-  // 이후 date×cohort lookup만 → O(dates × cohorts). 삼중 루프 → 이중으로 감소.
-  const attendanceDateSet = new Set<string>();
-  const attendanceByCohortDate = new Map<string, { total: number; present: number }>();
-  for (const s of allSessions) {
-    const att = attendanceMap.get(s.id);
-    if (!att) continue;
-    attendanceDateSet.add(s.sessionDate);
-    const key = `${s.cohortId}|${s.sessionDate}`;
-    const cur = attendanceByCohortDate.get(key) ?? { total: 0, present: 0 };
-    cur.total += att.total;
-    cur.present += att.present;
-    attendanceByCohortDate.set(key, cur);
-  }
-  const attendanceDates = [...attendanceDateSet].toSorted();
-  const attendanceTrendData: ChartPoint[] = attendanceDates.map((date) => {
-    const row: ChartPoint = { date };
-    for (const c of allCohorts) {
-      const agg = attendanceByCohortDate.get(`${c.id}|${date}`);
-      row[c.id] = agg && agg.total > 0 ? Math.round((agg.present / agg.total) * 100) : null;
-    }
-    return row;
+  cohortStatuses.sort((a, b) => {
+    const pa = STAGE_PRIORITY[a.stage];
+    const pb = STAGE_PRIORITY[b.stage];
+    if (pa !== pb) return pa - pb;
+    return a.name.localeCompare(b.name);
   });
-  const activeAttendanceSeries = cohortSeries.filter((s) =>
-    attendanceTrendData.some((row) => typeof row[s.id] === 'number')
-  );
 
-  // 신청자 누적 곡선 (모집중 cohort 있을 때만)
-  let applicationsTrendData: ChartPoint[] = [];
-  let applicationsTrendSeries: ChartSeries[] = [];
-  if (recruitingCohorts.length > 0) {
-    const ids = recruitingCohorts.map((c) => c.id);
-    const { data: appliedRows } = await supabase
-      .from('applications')
-      .select('cohort_id, applied_at')
-      .in('cohort_id', ids)
-      .not('applied_at', 'is', null);
+  // === 액션 도출 ===
+  const actions: ActionItem[] = [];
 
-    const byCohort = new Map<string, string[]>();
-    for (const r of appliedRows ?? []) {
-      if (!r.applied_at) continue;
-      const ymd = r.applied_at.slice(0, 10);
-      const arr = byCohort.get(r.cohort_id) ?? [];
-      arr.push(ymd);
-      byCohort.set(r.cohort_id, arr);
+  for (const c of cohortStatuses) {
+    if (c.missingAttendanceCount > 0) {
+      actions.push({
+        id: `att-${c.id}`,
+        urgency: 'critical',
+        stage: 'active',
+        cohortName: c.name,
+        title: `출결 미입력 ${c.missingAttendanceCount}건`,
+        detail: '지난 수업의 출결 기록 누락',
+        href: `/dashboard/cohorts/${c.id}/attendance`
+      });
     }
 
-    applicationsTrendSeries = recruitingCohorts.map((c, i) => ({
-      id: c.id,
-      name: c.maxCapacity
-        ? `${c.name.replace('전문인재 ', '')} (목표 ${c.maxCapacity}명)`
-        : c.name.replace('전문인재 ', ''),
-      color: COHORT_COLORS[i % COHORT_COLORS.length]
-    }));
-
-    const dateSet = new Set<string>();
-    for (const c of recruitingCohorts) {
-      if (c.applicationStartAt) dateSet.add(c.applicationStartAt.slice(0, 10));
+    if (c.nextSession?.sessionDate === today) {
+      actions.push({
+        id: `today-${c.nextSession.id}`,
+        urgency: 'critical',
+        stage: 'active',
+        cohortName: c.name,
+        title: '오늘 수업',
+        detail: c.nextSession.title ?? '제목 없음',
+        href: `/dashboard/cohorts/${c.id}/attendance/${c.nextSession.id}`
+      });
     }
-    dateSet.add(today);
-    for (const dates of byCohort.values()) {
-      for (const d of dates) dateSet.add(d);
-    }
-    const sortedDates = [...dateSet].toSorted();
 
-    applicationsTrendData = sortedDates.map((date) => {
-      const row: ChartPoint = { date };
-      for (const c of recruitingCohorts) {
-        const dates = byCohort.get(c.id) ?? [];
-        const startDate = c.applicationStartAt?.slice(0, 10) ?? null;
-        const endDate = c.applicationEndAt?.slice(0, 10) ?? null;
-        if (startDate && date < startDate) {
-          row[c.id] = null;
-        } else if (endDate && date > endDate) {
-          row[c.id] = null;
-        } else {
-          row[c.id] = dates.filter((d) => d <= date).length;
-        }
+    if (c.stage === 'recruiting' && c.targetDate) {
+      const d = dDaysBetween(c.targetDate, today);
+      if (d >= 0 && d <= 7) {
+        actions.push({
+          id: `recruit-${c.id}`,
+          urgency: d <= 3 ? 'critical' : 'soon',
+          stage: 'recruiting',
+          cohortName: c.name,
+          title: `모집 마감 ${formatDday(c.targetDate, today)}`,
+          detail: `현재 ${c.applicantCount}명 신청${c.maxCapacity ? ` / 정원 ${c.maxCapacity}명` : ''}`,
+          href: `/dashboard/cohorts/${c.id}/applications`
+        });
       }
-      return row;
-    });
+    }
+
+    if (c.stage === 'selecting') {
+      const d = c.targetDate ? dDaysBetween(c.targetDate, today) : null;
+      actions.push({
+        id: `select-${c.id}`,
+        urgency: d !== null && d <= 3 ? 'critical' : 'soon',
+        stage: 'selecting',
+        cohortName: c.name,
+        title: `선발 진행${c.targetDate ? ` · ${formatDday(c.targetDate, today)}` : ''}`,
+        detail: '자동선발 또는 명단 검토 후 확정',
+        href: `/dashboard/cohorts/${c.id}/applications`
+      });
+    }
+
+    if (c.stage === 'notifying') {
+      const d = c.targetDate ? dDaysBetween(c.targetDate, today) : null;
+      actions.push({
+        id: `notify-${c.id}`,
+        urgency: d !== null && d <= 3 ? 'critical' : 'soon',
+        stage: 'notifying',
+        cohortName: c.name,
+        title: `합격 통보 발송${c.targetDate ? ` · ${formatDday(c.targetDate, today)}` : ''}`,
+        detail: '카카오·이메일 등 통보 발송',
+        href: `/dashboard/cohorts/${c.id}/notifications`
+      });
+    }
+
+    if (c.stage === 'onboarding') {
+      const d = c.targetDate ? dDaysBetween(c.targetDate, today) : null;
+      actions.push({
+        id: `onboard-${c.id}`,
+        urgency: d !== null && d <= 3 ? 'critical' : 'soon',
+        stage: 'onboarding',
+        cohortName: c.name,
+        title: `입과 안내 발송${c.targetDate ? ` · ${formatDday(c.targetDate, today)}` : ''}`,
+        detail: '입과 자료·OT 안내',
+        href: `/dashboard/cohorts/${c.id}/notifications`
+      });
+    }
   }
 
-  // 활동 피드
+  const urgencyOrder: Record<Urgency, number> = { critical: 0, soon: 1, pending: 2 };
+  actions.sort((a, b) => {
+    const ua = urgencyOrder[a.urgency];
+    const ub = urgencyOrder[b.urgency];
+    if (ua !== ub) return ua - ub;
+    return a.title.localeCompare(b.title);
+  });
+
+  const criticalCount = actions.filter((a) => a.urgency === 'critical').length;
+  const soonCount = actions.filter((a) => a.urgency === 'soon').length;
+
+  // === KPI ===
+  const totalStudents = studentRes.data?.length ?? 0;
+  const operatingCohorts = cohortStatuses.filter(
+    (c) => !['finished', 'preparing', 'unset'].includes(c.stage)
+  ).length;
+  const totalRecords = attendanceRes.data?.filter((r) => r.status !== 'none').length ?? 0;
+  const presentRecords =
+    attendanceRes.data?.filter((r) => r.status !== 'none' && r.status !== 'absent').length ?? 0;
+  const globalRate = totalRecords > 0 ? Math.round((presentRecords / totalRecords) * 100) : null;
+
+  // KPI 시각화 데이터
+  const studentBars = cohortStatuses
+    .filter((c) => c.studentCount > 0)
+    .map((c) => c.studentCount);
+  const operatingPct =
+    allCohorts.length > 0 ? Math.round((operatingCohorts / allCohorts.length) * 100) : 0;
+
+  // === Activity Feed (기존 유지) ===
   type AppliedFeedRow = {
     id: string;
     applied_at: string | null;
@@ -374,7 +530,7 @@ export default async function OverviewPage() {
   };
 
   const FEED_LIMIT_PER_TYPE = 8;
-  const FEED_LIMIT_TOTAL = 15;
+  const FEED_LIMIT_TOTAL = 12;
 
   const [appliedFeedRes, surveyFeedRes, assignmentFeedRes] = await Promise.all([
     supabase
@@ -442,131 +598,202 @@ export default async function OverviewPage() {
     time: timeAgo(a.time)
   }));
 
+  // === Render ===
   return (
-    <PageContainer pageTitle='대시보드' pageDescription='교육과정 운영 현황'>
-      {/* 현재 모집중 (있을 때만) */}
-      <RecruitingCohortsCard cohorts={recruitingForCard} />
-
-      {/* 상단 통계 카드 */}
-      <div className='mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4'>
-        <div className='rounded-xl border bg-gradient-to-br from-blue-50 to-white px-6 py-5 dark:from-blue-950/30 dark:to-background'>
-          <div className='mb-2 flex h-9 w-9 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/50'>
-            <Icons.teams className='h-4.5 w-4.5 text-blue-600 dark:text-blue-400' />
-          </div>
-          <div className='text-muted-foreground text-xs font-medium'>전체 교육생</div>
-          <div className='mt-1 text-3xl font-bold'>{totalStudents}명</div>
-          <div className='text-muted-foreground mt-1 text-xs'>
-            {allCohorts
-              .filter((c) => (studentCountMap.get(c.id) ?? 0) > 0)
-              .map((c) => `${c.name.replace('전문인재 ', '')} ${studentCountMap.get(c.id)}명`)
-              .join(' · ')}
-          </div>
-        </div>
-        <div className='rounded-xl border bg-gradient-to-br from-violet-50 to-white px-6 py-5 dark:from-violet-950/30 dark:to-background'>
-          <div className='mb-2 flex h-9 w-9 items-center justify-center rounded-lg bg-violet-100 dark:bg-violet-900/50'>
-            <Icons.galleryVerticalEnd className='h-4.5 w-4.5 text-violet-600 dark:text-violet-400' />
-          </div>
-          <div className='text-muted-foreground text-xs font-medium'>진행 중 과정</div>
-          <div className='mt-1 text-3xl font-bold'>{activeCohorts}개</div>
-          <div className='text-muted-foreground mt-1 text-xs'>전체 {allCohorts.length}개 과정</div>
-        </div>
-        <div className='rounded-xl border bg-gradient-to-br from-emerald-50 to-white px-6 py-5 dark:from-emerald-950/30 dark:to-background'>
-          <div className='mb-2 flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-900/50'>
-            <Icons.circleCheck className='h-4.5 w-4.5 text-emerald-600 dark:text-emerald-400' />
-          </div>
-          <div className='text-muted-foreground text-xs font-medium'>전체 출석률</div>
-          <div className='mt-1 text-3xl font-bold'>
-            {globalRate != null ? `${globalRate}%` : '-'}
-          </div>
-          <div className='text-muted-foreground mt-1 text-xs'>
-            {globalTotal > 0 ? `${globalPresent}/${globalTotal}건 출석` : '출결 미입력'}
-          </div>
-        </div>
-        {(() => {
-          const isToday = globalNext?.sessionDate === today;
-          const card = (
-            <>
-              <div
-                className={`mb-2 flex h-9 w-9 items-center justify-center rounded-lg ${isToday ? 'bg-rose-100 dark:bg-rose-900/50' : 'bg-amber-100 dark:bg-amber-900/50'}`}
-              >
-                {isToday ? (
-                  <span className='h-2.5 w-2.5 animate-pulse rounded-full bg-rose-500' />
-                ) : (
-                  <Icons.calendar className='h-4.5 w-4.5 text-amber-600 dark:text-amber-400' />
-                )}
-              </div>
-              <div className='text-muted-foreground text-xs font-medium'>
-                {isToday ? '오늘 수업' : '다음 수업'}
-              </div>
-              <div className='mt-1 text-2xl font-bold'>
-                {globalNext ? formatShortDate(globalNext.sessionDate) : '-'}
-              </div>
-              <div className='text-muted-foreground mt-1 truncate text-xs'>
-                {globalNext && globalNextCohort
-                  ? `${globalNextCohort.name.replace('전문인재 ', '')} · ${globalNext.title ?? ''}`
-                  : '예정된 수업 없음'}
-              </div>
-              {isToday && globalNext && globalNextCohort && (
-                <div className='mt-2 text-[11px] font-semibold text-rose-600 dark:text-rose-400'>
-                  출결 입력하기 →
-                </div>
-              )}
-            </>
-          );
-          const cls = `rounded-xl border px-6 py-5 ${isToday ? 'border-rose-200 bg-gradient-to-br from-rose-50 to-white transition hover:border-rose-300 hover:shadow-sm dark:border-rose-900 dark:from-rose-950/30 dark:to-background' : 'bg-gradient-to-br from-amber-50 to-white dark:from-amber-950/30 dark:to-background'}`;
-          return isToday && globalNext && globalNextCohort ? (
-            <Link
-              href={`/dashboard/cohorts/${globalNextCohort.id}/attendance/${globalNext.id}`}
-              className={cls}
-            >
-              {card}
-            </Link>
-          ) : (
-            <div className={cls}>{card}</div>
-          );
-        })()}
+    <PageContainer pageTitle='대시보드' pageDescription='오늘 처리할 일과 전체 운영 현황'>
+      {/* KPI Row — 미니 시각화 포함 */}
+      <div className='mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4'>
+        <KpiBox
+          label='전체 교육생'
+          value={`${totalStudents}명`}
+          sub={`운영 중 ${operatingCohorts}개 기수`}
+          viz={
+            studentBars.length > 0 ? (
+              <MiniBars values={studentBars} color='#3b82f6' height={44} />
+            ) : null
+          }
+        />
+        <KpiBox
+          label='운영 중 과정'
+          value={`${operatingCohorts}개`}
+          sub={`전체 ${allCohorts.length}개 기수`}
+          viz={
+            <MiniDonut
+              size={56}
+              stroke={6}
+              percent={operatingPct}
+              color='#3b82f6'
+              label={`${operatingCohorts}`}
+            />
+          }
+        />
+        <KpiBox
+          label='오늘의 액션'
+          value={`${actions.length}건`}
+          sub={`긴급 ${criticalCount} · 곧 ${soonCount}`}
+          viz={<MiniStackedBar critical={criticalCount} soon={soonCount} />}
+        />
+        <KpiBox
+          label='전체 출석률'
+          value={globalRate != null ? `${globalRate}%` : '-'}
+          sub={totalRecords > 0 ? `${presentRecords}/${totalRecords}건 출석` : '출결 미입력'}
+          viz={
+            globalRate != null ? (
+              <MiniDonut
+                size={56}
+                stroke={6}
+                percent={globalRate}
+                color='#10b981'
+                label={`${globalRate}%`}
+              />
+            ) : null
+          }
+        />
       </div>
 
-      {/* 신청자 누적 곡선 (모집중일 때만) */}
-      {recruitingCohorts.length > 0 && (
-        <div className='mb-8'>
-          <Card>
-            <CardHeader className='pb-3'>
-              <CardTitle className='flex items-center gap-2 text-base'>
-                <Icons.trendingUp className='h-4 w-4 text-emerald-600' />
-                모집 추이
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <CohortLineChart
-                data={applicationsTrendData}
-                series={applicationsTrendSeries}
-                yUnit='명'
-                yDomain={[0, 'auto']}
-                emptyText='신청 데이터 없음'
-              />
-            </CardContent>
-          </Card>
+      {/* 미해결 이슈/리스크 (있을 때만) */}
+      {(openRiskCount > 0 || openIssueCount > 0) && (
+        <div className='mb-6 flex flex-wrap gap-3'>
+          {openRiskCount > 0 && (
+            <Link
+              href='/dashboard/risks'
+              className='inline-flex items-center gap-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-1.5 text-sm text-rose-700 transition hover:bg-rose-100 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-950/60'
+            >
+              <Icons.warning className='h-3.5 w-3.5' />
+              <span className='font-medium'>미해결 리스크 {openRiskCount}건</span>
+              <Icons.chevronRight className='h-3 w-3 opacity-70' />
+            </Link>
+          )}
+          {openIssueCount > 0 && (
+            <Link
+              href='/dashboard/issues'
+              className='inline-flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-1.5 text-sm text-amber-700 transition hover:bg-amber-100 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300 dark:hover:bg-amber-950/60'
+            >
+              <Icons.notification className='h-3.5 w-3.5' />
+              <span className='font-medium'>미해결 이슈 {openIssueCount}건</span>
+              <Icons.chevronRight className='h-3 w-3 opacity-70' />
+            </Link>
+          )}
         </div>
       )}
 
-      {/* 출석률 추세 + 최근 활동 */}
+      {/* 운영 현황·진행률 — 모든 기수 한눈에 가로 막대 */}
+      {cohortStatuses.length > 0 && (
+        <Card className='mb-6'>
+          <CardHeader className='pb-3'>
+            <CardTitle className='flex items-center justify-between text-base'>
+              <span className='flex items-center gap-2'>
+                <Icons.trendingUp className='h-4 w-4 text-emerald-600' />
+                운영 현황 · 진행률
+              </span>
+              <span className='text-muted-foreground text-xs font-normal'>
+                {cohortStatuses.length}개 과정
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className='pt-0'>
+            <div className='grid gap-x-8 gap-y-2 sm:grid-cols-2'>
+              {cohortStatuses.map((c) => {
+                const dot = STAGE_DOT_COLOR[c.stage];
+                const pct = getStatusBarPct(c, today);
+                const label = getStatusLabel(c, today);
+                const isCritical =
+                  c.targetDate &&
+                  dDaysBetween(c.targetDate, today) >= 0 &&
+                  dDaysBetween(c.targetDate, today) <= 3 &&
+                  (c.stage === 'selecting' ||
+                    c.stage === 'notifying' ||
+                    c.stage === 'onboarding' ||
+                    c.stage === 'recruiting');
+                return (
+                  <Link
+                    key={c.id}
+                    href={`/dashboard/cohorts/${c.id}`}
+                    className='hover:bg-muted/50 flex items-center gap-3 rounded-md px-1.5 py-1.5 transition-colors'
+                  >
+                    <span
+                      className='h-2 w-2 shrink-0 rounded-full'
+                      style={{ backgroundColor: dot }}
+                    />
+                    <span className='min-w-0 flex-1 truncate text-xs'>{c.name}</span>
+                    <div className='bg-muted h-1.5 w-28 shrink-0 overflow-hidden rounded-full'>
+                      <div
+                        className='h-full rounded-full transition-all'
+                        style={{ width: `${pct}%`, backgroundColor: dot }}
+                      />
+                    </div>
+                    <span
+                      className={`w-14 shrink-0 text-right text-xs font-semibold tabular-nums ${
+                        isCritical ? 'text-rose-600 dark:text-rose-400' : 'text-foreground'
+                      }`}
+                    >
+                      {label}
+                    </span>
+                  </Link>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* 오늘의 할 일 + 최근 활동 */}
       <div className='mb-8 grid gap-4 lg:grid-cols-3'>
         <Card className='lg:col-span-2'>
           <CardHeader className='pb-3'>
             <CardTitle className='flex items-center gap-2 text-base'>
-              <Icons.trendingUp className='h-4 w-4 text-blue-600' />
-              출석률 추세
+              <Icons.checks className='h-4 w-4 text-emerald-600' />
+              오늘의 할 일
+              <Badge variant='outline' className='ml-1 text-xs font-normal'>
+                {actions.length}건
+              </Badge>
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <CohortLineChart
-              data={attendanceTrendData}
-              series={activeAttendanceSeries}
-              yUnit='%'
-              yDomain={[0, 100]}
-              emptyText='출석 데이터 없음'
-            />
+          <CardContent className='pt-0'>
+            {actions.length === 0 ? (
+              <div className='text-muted-foreground py-8 text-center text-sm'>
+                처리할 항목이 없습니다.
+              </div>
+            ) : (
+              <div className='max-h-[28rem] divide-y overflow-y-auto'>
+                {actions.map((a) => (
+                  <Link
+                    key={a.id}
+                    href={a.href}
+                    className='hover:bg-accent group flex items-start gap-3 py-2.5 transition-colors'
+                  >
+                    <span
+                      className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${
+                        a.urgency === 'critical'
+                          ? 'bg-rose-500'
+                          : a.urgency === 'soon'
+                            ? 'bg-amber-500'
+                            : 'bg-slate-400'
+                      }`}
+                    />
+                    <div className='min-w-0 flex-1'>
+                      <div className='flex flex-wrap items-center gap-2'>
+                        {a.stage && (
+                          <span
+                            className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-semibold ${STAGE_BADGE_CLASS[a.stage]}`}
+                          >
+                            {STAGE_LABEL[a.stage]}
+                          </span>
+                        )}
+                        {a.cohortName && (
+                          <span className='text-muted-foreground truncate text-xs'>
+                            {a.cohortName}
+                          </span>
+                        )}
+                      </div>
+                      <div className='mt-0.5 text-sm font-medium'>{a.title}</div>
+                      <div className='text-muted-foreground truncate text-xs'>{a.detail}</div>
+                    </div>
+                    <Icons.chevronRight className='text-muted-foreground mt-2 h-3.5 w-3.5 shrink-0 opacity-0 transition-opacity group-hover:opacity-100' />
+                  </Link>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
         <Card>
@@ -576,136 +803,256 @@ export default async function OverviewPage() {
               최근 활동
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className='pt-0'>
             <ActivityFeed items={feedItems} />
           </CardContent>
         </Card>
       </div>
 
-      {/* 출결 미입력 알림 */}
-      {allMissing.length > 0 && (
-        <div className='mb-8'>
-          <Card className='border-amber-200 dark:border-amber-900'>
-            <CardHeader className='pb-3'>
-              <CardTitle className='flex items-center gap-2 text-base text-amber-600 dark:text-amber-400'>
-                <Icons.warning className='h-4 w-4' />
-                출결 미입력 세션 {allMissing.length}개
-              </CardTitle>
-            </CardHeader>
-            <CardContent className='pt-0'>
-              <div className='max-h-80 divide-y overflow-y-auto'>
-                {allMissing.map((s) => (
-                  <div key={s.sessionId} className='flex items-center justify-between gap-3 py-2'>
-                    <div className='flex min-w-0 items-center gap-2 text-sm'>
-                      <Badge variant='outline' className='shrink-0 text-xs font-normal'>
-                        {s.cohortName.replace('전문인재 ', '')}
-                      </Badge>
-                      <span className='text-muted-foreground shrink-0 text-xs'>
-                        {formatShortDate(s.sessionDate)}
-                      </span>
-                      <span className='truncate'>{s.title ?? '제목 없음'}</span>
-                    </div>
-                    <Link
-                      href={`/dashboard/cohorts/${s.cohortId}/attendance/${s.sessionId}`}
-                      className='text-primary shrink-0 text-xs font-medium hover:underline'
-                    >
-                      입력하기
-                    </Link>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      {/* 소속 분포 */}
-      <div className='mb-8'>
-        <Card>
-          <CardHeader className='pb-3'>
-            <CardTitle className='text-base'>소속 분포</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <CategoryPieChart data={categoryChartData} />
-          </CardContent>
-        </Card>
+      {/* 기수별 운영 현황 — 좌측 도넛 + 우측 정보 */}
+      <div className='mb-3 flex items-center justify-between'>
+        <div className='text-foreground text-sm font-semibold'>기수별 운영 현황</div>
+        <Link
+          href='/dashboard/cohorts'
+          className='text-muted-foreground hover:text-foreground flex items-center gap-1 text-xs'
+        >
+          전체 보기
+          <Icons.chevronRight className='h-3 w-3' />
+        </Link>
       </div>
-
-      {/* 교육과정별 현황 */}
-      <div className='text-muted-foreground mb-3 text-sm font-medium'>교육과정 현황</div>
-      <div className='grid gap-4'>
-        {cohortData.map((c) => (
-          <Card key={c.id}>
-            <CardHeader className='pb-3'>
-              <div className='flex items-center justify-between'>
-                <CardTitle className='text-lg'>{c.name}</CardTitle>
-                <Link
-                  href={`/dashboard/cohorts/${c.id}`}
-                  className='text-muted-foreground hover:text-foreground flex items-center gap-1 text-xs transition-colors'
-                >
-                  상세보기
-                  <Icons.chevronRight className='h-3 w-3' />
-                </Link>
-              </div>
-            </CardHeader>
-            <CardContent className='pt-0'>
-              {/* 기본 정보 */}
-              <div className='text-muted-foreground mb-4 flex flex-wrap gap-x-4 gap-y-1 text-sm'>
-                <span>{c.studentCount}명</span>
-                {c.startedAt && <span>시작일 {formatShortDate(c.startedAt)}</span>}
-                <span>
-                  수업 {c.doneSessions}/{c.totalSessions}회 완료
-                </span>
-                {c.attendanceRate != null && <span>출석률 {c.attendanceRate}%</span>}
-              </div>
-
-              {/* 진행 바 */}
-              {c.totalSessions > 0 && (
-                <div className='mb-4'>
-                  <div className='mb-1 flex items-center justify-between'>
-                    <span className='text-muted-foreground text-xs'>진행률</span>
-                    <span className='text-xs font-medium'>{c.progressPct}%</span>
-                  </div>
-                  <div className='bg-muted h-2 overflow-hidden rounded-full'>
-                    <div
-                      className='h-full rounded-full bg-gradient-to-r from-blue-500 to-violet-500 transition-all'
-                      style={{ width: `${c.progressPct}%` }}
+      <div className='grid gap-3 md:grid-cols-2 xl:grid-cols-3'>
+        {cohortStatuses.map((c) => {
+          const dot = STAGE_DOT_COLOR[c.stage];
+          const pct = getStatusBarPct(c, today);
+          const center = getDonutCenterLabel(c, today);
+          const dDay = c.targetDate ? formatDday(c.targetDate, today) : null;
+          const isCritical =
+            c.targetDate &&
+            dDaysBetween(c.targetDate, today) >= 0 &&
+            dDaysBetween(c.targetDate, today) <= 3 &&
+            c.stage !== 'active' &&
+            c.stage !== 'finished';
+          return (
+            <Link
+              key={c.id}
+              href={`/dashboard/cohorts/${c.id}`}
+              className='hover:bg-accent group flex flex-col rounded-xl border bg-card p-4 transition-colors'
+            >
+              <div className='flex items-start gap-3'>
+                <MiniDonut
+                  size={56}
+                  stroke={5}
+                  percent={pct}
+                  color={dot}
+                  label={center}
+                  labelClassName='font-bold'
+                />
+                <div className='min-w-0 flex-1'>
+                  <div className='flex items-center gap-1.5'>
+                    <span
+                      className='h-1.5 w-1.5 shrink-0 rounded-full'
+                      style={{ backgroundColor: dot }}
                     />
+                    <span className='truncate text-sm font-semibold'>{c.name}</span>
+                  </div>
+                  <div className='text-muted-foreground mt-1 line-clamp-2 text-xs'>
+                    {/* stage별 sub 정보 */}
+                    {c.stage === 'active' &&
+                      c.totalSessions > 0 &&
+                      `수업 ${c.doneSessions} / ${c.totalSessions}회${c.attendanceRate != null ? ` · 출석률 ${c.attendanceRate}%` : ''}`}
+                    {c.stage === 'recruiting' && c.targetDate &&
+                      `모집 마감 ${formatShortDate(c.targetDate)}`}
+                    {(c.stage === 'selecting' || c.stage === 'notifying' || c.stage === 'onboarding') &&
+                      c.targetDate &&
+                      `${c.targetLabel} ${formatShortDate(c.targetDate)}`}
+                    {c.stage === 'preparing' && c.targetDate &&
+                      `${c.targetLabel} ${formatShortDate(c.targetDate)}`}
+                    {c.stage === 'finished' && c.targetDate &&
+                      `${formatShortDate(c.targetDate)} 종료${c.studentCount > 0 ? ` · ${c.studentCount}명` : ''}`}
+                    {c.stage === 'unset' && '일정 미입력'}
                   </div>
                 </div>
-              )}
+              </div>
 
-              {/* 하단 정보 */}
-              <div className='flex flex-wrap gap-x-6 gap-y-2 text-sm'>
-                {c.nextSession && (
-                  <div className='flex items-center gap-2'>
-                    <Icons.calendar className='text-muted-foreground h-3.5 w-3.5' />
-                    <span className='text-muted-foreground'>다음 수업</span>
-                    <span className='font-medium'>
-                      {formatShortDate(c.nextSession.sessionDate)}
-                    </span>
-                    <span className='text-muted-foreground truncate text-xs'>
-                      {c.nextSession.title}
-                    </span>
-                  </div>
-                )}
-                {!c.nextSession && c.totalSessions > 0 && (
-                  <div className='text-muted-foreground flex items-center gap-2'>
-                    <Icons.circleCheck className='h-3.5 w-3.5 text-green-500' />
-                    전체 수업 완료
-                  </div>
-                )}
-                {c.missingAttendance.length > 0 && (
-                  <div className='flex items-center gap-2 text-amber-600 dark:text-amber-400'>
-                    <Icons.warning className='h-3.5 w-3.5' />
-                    <span>출결 미입력 {c.missingAttendance.length}건</span>
-                  </div>
+              {/* 하단 라인: 다음 액션 + D-Day */}
+              <div className='mt-3 flex items-center justify-between gap-2 border-t pt-2.5 text-xs'>
+                <span
+                  className={`truncate ${
+                    c.missingAttendanceCount > 0
+                      ? 'font-semibold text-amber-600 dark:text-amber-400'
+                      : 'text-muted-foreground'
+                  }`}
+                >
+                  {c.missingAttendanceCount > 0
+                    ? `출결 미입력 ${c.missingAttendanceCount}건`
+                    : (c.nextActionLabel ?? '—')}
+                </span>
+                {dDay && (
+                  <span
+                    className={`shrink-0 font-bold tabular-nums ${
+                      isCritical ? 'text-rose-600 dark:text-rose-400' : 'text-muted-foreground'
+                    }`}
+                  >
+                    {dDay}
+                  </span>
                 )}
               </div>
-            </CardContent>
-          </Card>
-        ))}
+            </Link>
+          );
+        })}
       </div>
     </PageContainer>
+  );
+}
+
+// ====== 시각화 헬퍼 ======
+
+function KpiBox({
+  label,
+  value,
+  sub,
+  viz
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  viz?: React.ReactNode;
+}) {
+  return (
+    <div className='bg-card rounded-xl border px-5 py-4'>
+      <div className='flex items-center justify-between gap-3'>
+        <div className='min-w-0 flex-1'>
+          <div className='text-muted-foreground text-xs font-medium'>{label}</div>
+          <div className='mt-1 text-3xl font-bold leading-tight'>{value}</div>
+          {sub && <div className='text-muted-foreground mt-1 truncate text-xs'>{sub}</div>}
+        </div>
+        {viz && <div className='ml-2 flex shrink-0 items-center'>{viz}</div>}
+      </div>
+    </div>
+  );
+}
+
+function MiniDonut({
+  size = 56,
+  stroke = 5,
+  percent,
+  color,
+  label,
+  labelClassName
+}: {
+  size?: number;
+  stroke?: number;
+  percent: number;
+  color: string;
+  label: string;
+  labelClassName?: string;
+}) {
+  const radius = (size - stroke) / 2;
+  const c = 2 * Math.PI * radius;
+  const offset = c * (1 - Math.max(0, Math.min(100, percent)) / 100);
+  const fontSize = Math.max(10, size * 0.22);
+  return (
+    <svg width={size} height={size} className='shrink-0'>
+      <circle
+        cx={size / 2}
+        cy={size / 2}
+        r={radius}
+        fill='none'
+        stroke='#f1f5f9'
+        strokeWidth={stroke}
+      />
+      <circle
+        cx={size / 2}
+        cy={size / 2}
+        r={radius}
+        fill='none'
+        stroke={color}
+        strokeWidth={stroke}
+        strokeDasharray={c}
+        strokeDashoffset={offset}
+        strokeLinecap='round'
+        transform={`rotate(-90 ${size / 2} ${size / 2})`}
+      />
+      <text
+        x='50%'
+        y='50%'
+        dominantBaseline='central'
+        textAnchor='middle'
+        fontSize={fontSize}
+        fontWeight={700}
+        fill={color}
+        className={labelClassName}
+      >
+        {label}
+      </text>
+    </svg>
+  );
+}
+
+function MiniBars({
+  values,
+  color,
+  height = 40
+}: {
+  values: number[];
+  color: string;
+  height?: number;
+}) {
+  if (values.length === 0) return null;
+  const max = Math.max(...values, 1);
+  // 10개 초과 시 균등 sampling
+  const sampled = values.length > 10 ? sample(values, 10) : values;
+  return (
+    <div className='flex items-end gap-0.5' style={{ height }}>
+      {sampled.map((v, i) => (
+        <div
+          key={i}
+          className='w-1.5 rounded-sm'
+          style={{ height: `${Math.max(10, (v / max) * 100)}%`, backgroundColor: color }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function sample<T>(arr: T[], n: number): T[] {
+  if (arr.length <= n) return arr;
+  const step = arr.length / n;
+  const out: T[] = [];
+  for (let i = 0; i < n; i++) out.push(arr[Math.floor(i * step)]);
+  return out;
+}
+
+function MiniStackedBar({ critical, soon }: { critical: number; soon: number }) {
+  const total = Math.max(critical + soon, 1);
+  return (
+    <div className='flex flex-col justify-end gap-1.5 self-stretch'>
+      <div className='flex items-center gap-1.5'>
+        <span className='h-1.5 w-1.5 rounded-full bg-rose-500' />
+        <span className='text-[10px] text-rose-600 dark:text-rose-400'>긴급</span>
+        <span className='ml-auto text-xs font-bold tabular-nums text-rose-600 dark:text-rose-400'>
+          {critical}
+        </span>
+      </div>
+      <div className='bg-muted h-1.5 w-20 overflow-hidden rounded-full'>
+        <div
+          className='h-full rounded-full bg-rose-500'
+          style={{ width: `${(critical / total) * 100}%` }}
+        />
+      </div>
+      <div className='flex items-center gap-1.5'>
+        <span className='h-1.5 w-1.5 rounded-full bg-amber-500' />
+        <span className='text-[10px] text-amber-600 dark:text-amber-400'>곧</span>
+        <span className='ml-auto text-xs font-bold tabular-nums text-amber-600 dark:text-amber-400'>
+          {soon}
+        </span>
+      </div>
+      <div className='bg-muted h-1.5 w-20 overflow-hidden rounded-full'>
+        <div
+          className='h-full rounded-full bg-amber-500'
+          style={{ width: `${(soon / total) * 100}%` }}
+        />
+      </div>
+    </div>
   );
 }

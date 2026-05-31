@@ -170,6 +170,8 @@ export async function updateCohort(id: string, formData: FormData): Promise<Acti
     recruiting_slug: recruitingSlug || null,
     application_start_at: val(formData, 'application_start_at') || null,
     application_end_at: val(formData, 'application_end_at') || null,
+    decided_at: val(formData, 'decided_at') || null,
+    notified_at: val(formData, 'notified_at') || null,
     max_capacity: nullableInt(val(formData, 'max_capacity')),
     category: val(formData, 'category') || null,
     prereq_course_codes: prereqCodes

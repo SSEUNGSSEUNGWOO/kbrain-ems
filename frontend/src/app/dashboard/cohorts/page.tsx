@@ -14,7 +14,7 @@ export default async function CohortsPage() {
     const cohortQuery = supabase
       .from('cohorts')
       .select(
-        'id, name, category, started_at, ended_at, recruiting_slug, application_start_at, application_end_at, max_capacity, prereq_course_codes, created_at' as never
+        'id, name, category, started_at, ended_at, recruiting_slug, application_start_at, application_end_at, decided_at, notified_at, max_capacity, prereq_course_codes, created_at' as never
       )
       .order('created_at', { ascending: true });
     const { data: cohortRows, error: cohortError } = await cohortQuery as unknown as {
@@ -27,6 +27,8 @@ export default async function CohortsPage() {
         recruiting_slug: string | null;
         application_start_at: string | null;
         application_end_at: string | null;
+        decided_at: string | null;
+        notified_at: string | null;
         max_capacity: number | null;
         prereq_course_codes: string[] | null;
         created_at: string;
@@ -57,6 +59,8 @@ export default async function CohortsPage() {
       recruiting_slug: c.recruiting_slug,
       application_start_at: c.application_start_at,
       application_end_at: c.application_end_at,
+      decided_at: c.decided_at,
+      notified_at: c.notified_at,
       max_capacity: c.max_capacity,
       prereq_course_codes: c.prereq_course_codes,
       created_at: c.created_at,

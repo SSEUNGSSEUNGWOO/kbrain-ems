@@ -20,7 +20,7 @@ export default async function StudentsPage({
   const { data: cohortRows, error: cohortError } = await supabase
     .from('cohorts')
     .select(
-      'id, name, started_at, ended_at, application_start_at, application_end_at'
+      'id, name, started_at, ended_at, application_start_at, application_end_at, decided_at, notified_at'
     )
     .eq('id', cohortId)
     .limit(1);
