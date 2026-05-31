@@ -279,18 +279,16 @@ export default async function CohortApplicationsPage({ params, searchParams }: P
           </Button>
         }
       />
-      {!hidePersonal && (
-        <UploadDialog
-          cohortId={cohortId}
-          questions={questions ?? []}
-          trigger={
-            <Button size='sm' disabled={!hasQuestions}>
-              <Icons.upload className='mr-1.5' />
-              응답 엑셀 업로드
-            </Button>
-          }
-        />
-      )}
+      <UploadDialog
+        cohortId={cohortId}
+        questions={questions ?? []}
+        trigger={
+          <Button size='sm' disabled={!hasQuestions}>
+            <Icons.upload className='mr-1.5' />
+            응답 엑셀 업로드
+          </Button>
+        }
+      />
     </div>
   );
 
