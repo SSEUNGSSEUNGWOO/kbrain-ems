@@ -2,9 +2,11 @@ import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 import {
   buildApplicationsWorkbook,
+  type CohortTrack,
   type ExportApplication
 } from '@/lib/excel/applications-export';
 import { DEFAULT_WEIGHTS, PLAN_CHARS_FULL } from '@/app/dashboard/cohorts/[cohortId]/applications/_selection-logic';
+import type { PriorCertSummary } from '@/lib/excel/applications-export';
 
 export async function GET(
   _req: Request,
@@ -32,7 +34,9 @@ export async function GET(
     knowledge_score: number | null;
     knowledge_correct_count: number | null;
     knowledge_total_count: number | null;
+    applicant_id: string | null;
     applicants: {
+      id: string;
       name: string;
       phone: string | null;
       email: string | null;
@@ -45,7 +49,7 @@ export async function GET(
   const { data: applications, error: appError } = await supabase
     .from('applications')
     .select(
-      'id, status, rejected_stage, decided_at, knowledge_score, knowledge_correct_count, knowledge_total_count, applicants(name, phone, email, department, job_role, organizations(name))'
+      'id, status, rejected_stage, decided_at, knowledge_score, knowledge_correct_count, knowledge_total_count, applicant_id, applicants(id, name, phone, email, department, job_role, organizations(name))'
     )
     .eq('cohort_id', cohortId)
     .in('status', ['selected', 'rejected'])
@@ -151,6 +155,49 @@ export async function GET(
     }
   }
 
+  // 비고용 부가 정보: 작년 인증 이력 + 올해 전문인재 수강 여부
+  const applicantIds = Array.from(
+    new Set(rows.map((r) => r.applicants?.id).filter((x): x is string => Boolean(x)))
+  );
+  const priorCertsByApplicant = new Map<string, PriorCertSummary[]>();
+  const expertLabelsByApplicant = new Map<string, string[]>();
+  if (applicantIds.length > 0) {
+    const { data: priorRows } = (await supabase
+      .from('applicants')
+      .select('id, prior_certs')
+      .in('id', applicantIds)) as unknown as {
+      data: { id: string; prior_certs: PriorCertSummary[] | null }[] | null;
+    };
+    for (const p of priorRows ?? []) {
+      priorCertsByApplicant.set(p.id, Array.isArray(p.prior_certs) ? p.prior_certs : []);
+    }
+
+    // students.id는 applicants.id와 1:1 — 현재 cohort 제외하고 'experts' 카테고리 cohort에
+    // 학생으로 등록돼 있는지 + 어느 기수인지 (예: "전문인재 26-1기" → "26-1")
+    const { data: studentRows } = (await supabase
+      .from('students')
+      .select('id, cohorts!inner(name, category)')
+      .in('id', applicantIds)
+      .neq('cohort_id', cohortId)
+      .eq('cohorts.category', 'experts')) as unknown as {
+      data: { id: string; cohorts: { name: string } | null }[] | null;
+    };
+    // "전문인재 26-1기" → "26-1" 추출
+    const labelRe = /(\d+-\d+)기?/;
+    for (const s of studentRows ?? []) {
+      const name = s.cohorts?.name ?? '';
+      const m = name.match(labelRe);
+      const label = m ? m[1] : name;
+      const arr = expertLabelsByApplicant.get(s.id) ?? [];
+      if (!arr.includes(label)) arr.push(label);
+      expertLabelsByApplicant.set(s.id, arr);
+    }
+    // 라벨 정렬
+    for (const [k, v] of expertLabelsByApplicant) {
+      expertLabelsByApplicant.set(k, [...v].toSorted());
+    }
+  }
+
   // 자동선발 화면과 동일한 가중치(50:50)로 종합점수 계산
   const wSum = DEFAULT_WEIGHTS.knowledge + DEFAULT_WEIGHTS.plan;
   const computeFinalScore = (r: AppRow): number | null => {
@@ -183,7 +230,9 @@ export async function GET(
     prereqMax,
     finalScore: computeFinalScore(r),
     decidedAt: r.decided_at,
-    rejectedStage: r.rejected_stage
+    rejectedStage: r.rejected_stage,
+    priorCerts: priorCertsByApplicant.get(r.applicants?.id ?? '') ?? [],
+    expertCohortLabels: r.applicants?.id ? (expertLabelsByApplicant.get(r.applicants.id) ?? []) : []
   });
 
   // 종합점수 내림차순 정렬 (NULL은 뒤로)
@@ -193,8 +242,19 @@ export async function GET(
   const selected = rows.filter((r) => r.status === 'selected').map(toExport).sort(byScoreDesc);
   const rejected = rows.filter((r) => r.status === 'rejected').map(toExport).sort(byScoreDesc);
 
+  // cohort 이름에서 트랙 추출 (예: "AI 챔피언 블루 26-1기" → 'blue')
+  const cohortTrack: CohortTrack = (() => {
+    const n = cohortRow.name;
+    if (n.includes('그린')) return 'green';
+    if (n.includes('블루')) return 'blue';
+    if (n.includes('전문인재')) return 'expert';
+    if (n.includes('보수교육')) return 'continuing';
+    return null;
+  })();
+
   const buf = await buildApplicationsWorkbook({
     cohortName: cohortRow.name,
+    cohortTrack,
     selected,
     rejected
   });

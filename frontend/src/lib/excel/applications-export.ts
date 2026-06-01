@@ -4,6 +4,7 @@ const FONT_NAME = 'Arial';
 const COLOR_HEADER_SELECTED = 'FF1F7A4F'; // emerald
 const COLOR_HEADER_REJECTED = 'FFA12B3F'; // rose
 const COLOR_HEADER_INFO = 'FFF2F2F2';
+const COLOR_NOTE_ROW = 'FFFFF8DC'; // 옅은 크림색 — 비고 있는 행
 const COLOR_WHITE = 'FFFFFFFF';
 const COLOR_BLACK = 'FF000000';
 
@@ -20,6 +21,13 @@ const STAGE_LABEL: Record<string, string> = {
   docs: '서류',
   interview: '면접',
   final: '최종'
+};
+
+export type PriorCertSummary = {
+  year: number;
+  track: 'green' | 'blue' | 'expert' | 'continuing';
+  round: number | null;
+  event: 'hackathon' | 'miniproject' | 'private' | null;
 };
 
 export type ExportApplication = {
@@ -40,6 +48,9 @@ export type ExportApplication = {
   finalScore: number | null;
   decidedAt: string | null;
   rejectedStage: string | null;
+  priorCerts: PriorCertSummary[];
+  // 올해 전문인재 cohort 라벨 (예: "26-1", "26-2"). 없으면 빈 배열.
+  expertCohortLabels: string[];
 };
 
 type ColumnDef = {
@@ -50,6 +61,7 @@ type ColumnDef = {
     | 'knowledge'
     | 'multiCheck'
     | 'prereq'
+    | 'notes'
     | 'rejectedStageLabel';
   header: string;
   width: number;
@@ -59,9 +71,7 @@ const COMMON_COLUMNS: ColumnDef[] = [
   { key: 'no', header: '번호', width: 6 },
   { key: 'name', header: '이름', width: 12 },
   { key: 'category', header: '분류', width: 14 },
-  { key: 'organization', header: '소속기관', width: 24 },
-  { key: 'department', header: '부서', width: 16 },
-  { key: 'jobRole', header: '직책', width: 14 },
+  { key: 'organization', header: '소속기관', width: 28 },
   { key: 'prereq', header: '사전학습', width: 10 },
   { key: 'knowledge', header: '지식평가', width: 14 },
   { key: 'multiCheck', header: '업무활용성', width: 12 },
@@ -71,12 +81,14 @@ const COMMON_COLUMNS: ColumnDef[] = [
 
 const SELECTED_COLUMNS: ColumnDef[] = [
   ...COMMON_COLUMNS,
-  { key: 'decidedAt', header: '선발일', width: 14 }
+  { key: 'decidedAt', header: '선발일', width: 14 },
+  { key: 'notes', header: '비고', width: 32 }
 ];
 
 const REJECTED_COLUMNS: ColumnDef[] = [
   ...COMMON_COLUMNS,
-  { key: 'rejectedStageLabel', header: '탈락단계', width: 12 }
+  { key: 'rejectedStageLabel', header: '탈락단계', width: 12 },
+  { key: 'notes', header: '비고', width: 32 }
 ];
 
 // 분류별 분포 — 4그룹으로 묶어서 표시
@@ -87,26 +99,181 @@ const DISTRIBUTION_GROUPS: { label: string; choices: string[] }[] = [
   { label: '기타', choices: ['⑥'] }
 ];
 
+export type CohortTrack = 'green' | 'blue' | 'expert' | 'continuing' | null;
+
 export async function buildApplicationsWorkbook({
   cohortName,
+  cohortTrack,
   selected,
   rejected
 }: {
   cohortName: string;
+  cohortTrack: CohortTrack;
   selected: ExportApplication[];
   rejected: ExportApplication[];
 }): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
-  buildSheet(wb, '합격자', cohortName, selected, SELECTED_COLUMNS, COLOR_HEADER_SELECTED);
-  buildSheet(wb, '불합격자', cohortName, rejected, REJECTED_COLUMNS, COLOR_HEADER_REJECTED);
+  buildSummarySheet(wb, cohortName, selected, rejected);
+  buildSheet(wb, '합격자', cohortName, cohortTrack, selected, SELECTED_COLUMNS, COLOR_HEADER_SELECTED);
+  buildSheet(wb, '불합격자', cohortName, cohortTrack, rejected, REJECTED_COLUMNS, COLOR_HEADER_REJECTED);
   const buf = await wb.xlsx.writeBuffer();
   return Buffer.from(buf);
+}
+
+function buildSummarySheet(
+  wb: ExcelJS.Workbook,
+  cohortName: string,
+  selected: ExportApplication[],
+  rejected: ExportApplication[]
+) {
+  const ws = wb.addWorksheet('요약');
+
+  ws.getColumn(1).width = 3;
+  ws.getColumn(2).width = 24;
+  ws.getColumn(3).width = 20;
+  ws.getColumn(4).width = 20;
+  const lastCol = 4;
+
+  // 제목 (B2:D3)
+  ws.mergeCells(`${cellRef(2, 2)}:${cellRef(lastCol, 3)}`);
+  const titleCell = ws.getCell(2, 2);
+  titleCell.value = `「${cohortName}」 선발 결과 요약`;
+  titleCell.fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: COLOR_HEADER_SELECTED }
+  };
+  titleCell.font = {
+    name: FONT_NAME,
+    size: 18,
+    bold: true,
+    color: { argb: COLOR_WHITE }
+  };
+  titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
+  applyBorder(titleCell, 'medium');
+
+  // 출력일 (B4)
+  ws.mergeCells(`${cellRef(2, 4)}:${cellRef(lastCol, 4)}`);
+  const metaCell = ws.getCell(4, 2);
+  const today = new Date().toISOString().slice(0, 10);
+  metaCell.value = `출력일 ${today}`;
+  metaCell.font = { name: FONT_NAME, size: 10, color: { argb: '666666' } };
+  metaCell.alignment = { horizontal: 'right', vertical: 'middle' };
+
+  let row = 6;
+
+  // 지원 현황
+  row = addSummarySectionHeader(ws, row, '지원 현황', lastCol);
+  const total = selected.length + rejected.length;
+  const selPct = total > 0 ? Math.round((selected.length / total) * 1000) / 10 : 0;
+  row = addSummaryRow(ws, row, '총 지원자', `${total}명`);
+  row = addSummaryRow(ws, row, '합격', `${selected.length}명 (${selPct}%)`);
+  row = addSummaryRow(ws, row, '불합격', `${rejected.length}명`);
+  row++;
+
+  // 분류별 합격 현황 — 지원 대비 합격. 지원자 0명 그룹은 생략
+  row = addSummarySectionHeader(ws, row, '분류별 합격 현황', lastCol);
+  const allApps = [...selected, ...rejected];
+  if (allApps.length === 0) {
+    row = addSummaryRow(ws, row, '—', '지원자 없음');
+  } else {
+    for (const group of DISTRIBUTION_GROUPS) {
+      const applied = allApps.filter(
+        (r) => r.c2Choice && group.choices.includes(r.c2Choice)
+      ).length;
+      if (applied === 0) continue;
+      const accepted = selected.filter(
+        (r) => r.c2Choice && group.choices.includes(r.c2Choice)
+      ).length;
+      const pct = Math.round((accepted / applied) * 1000) / 10;
+      row = addSummaryRow(
+        ws,
+        row,
+        group.label,
+        `지원 ${applied}명 → 합격 ${accepted}명 (${pct}%)`
+      );
+    }
+  }
+  row++;
+
+  // 종합점수 분포 (합격)
+  row = addSummarySectionHeader(ws, row, '종합점수 분포 (합격)', lastCol);
+  const scores = selected
+    .map((s) => s.finalScore)
+    .filter((s): s is number => s !== null)
+    .toSorted((a, b) => a - b);
+  if (scores.length === 0) {
+    row = addSummaryRow(ws, row, '—', '점수 정보 없음');
+  } else {
+    const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
+    const median =
+      scores.length % 2 === 0
+        ? (scores[scores.length / 2 - 1] + scores[scores.length / 2]) / 2
+        : scores[Math.floor(scores.length / 2)];
+    row = addSummaryRow(ws, row, '평균', fmtScore(avg));
+    row = addSummaryRow(ws, row, '중앙값', fmtScore(median));
+    row = addSummaryRow(ws, row, '최저', fmtScore(scores[0]));
+    row = addSummaryRow(ws, row, '최고', fmtScore(scores[scores.length - 1]));
+  }
+}
+
+function addSummarySectionHeader(
+  ws: ExcelJS.Worksheet,
+  row: number,
+  label: string,
+  lastCol: number
+): number {
+  ws.mergeCells(`${cellRef(2, row)}:${cellRef(lastCol, row)}`);
+  const cell = ws.getCell(row, 2);
+  cell.value = label;
+  cell.fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: COLOR_HEADER_INFO }
+  };
+  cell.font = {
+    name: FONT_NAME,
+    size: 12,
+    bold: true,
+    color: { argb: COLOR_BLACK }
+  };
+  cell.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+  applyBorder(cell, 'thin');
+  ws.getRow(row).height = 22;
+  return row + 1;
+}
+
+function addSummaryRow(
+  ws: ExcelJS.Worksheet,
+  row: number,
+  label: string,
+  value: string
+): number {
+  const labelCell = ws.getCell(row, 2);
+  labelCell.value = label;
+  labelCell.font = { name: FONT_NAME, size: 11, color: { argb: COLOR_BLACK } };
+  labelCell.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+  applyBorder(labelCell, 'thin');
+
+  ws.mergeCells(`${cellRef(3, row)}:${cellRef(4, row)}`);
+  const valueCell = ws.getCell(row, 3);
+  valueCell.value = value;
+  valueCell.font = { name: FONT_NAME, size: 11, color: { argb: COLOR_BLACK } };
+  valueCell.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+  applyBorder(valueCell, 'thin');
+
+  return row + 1;
+}
+
+function fmtScore(n: number): string {
+  return (Math.round(n * 10) / 10).toString();
 }
 
 function buildSheet(
   wb: ExcelJS.Workbook,
   sheetName: string,
   cohortName: string,
+  cohortTrack: CohortTrack,
   rows: ExportApplication[],
   cols: ColumnDef[],
   titleColor: string
@@ -142,7 +309,7 @@ function buildSheet(
   // 메타 (4행) — 총 인원, 출력일
   const metaRange = `${cellRef(2, 4)}:${cellRef(lastCol, 4)}`;
   ws.mergeCells(metaRange);
-  const metaCell = ws.getCell(2, 4);
+  const metaCell = ws.getCell(4, 2);
   const today = new Date().toISOString().slice(0, 10);
   metaCell.value = `총 ${rows.length}명 · 출력일 ${today}`;
   metaCell.font = {
@@ -155,7 +322,7 @@ function buildSheet(
   // 분류 분포 (5행)
   const distRange = `${cellRef(2, 5)}:${cellRef(lastCol, 5)}`;
   ws.mergeCells(distRange);
-  const distCell = ws.getCell(2, 5);
+  const distCell = ws.getCell(5, 2);
   distCell.value = buildDistributionText(rows);
   distCell.font = {
     name: FONT_NAME,
@@ -214,6 +381,12 @@ function buildSheet(
   for (let idx = 0; idx < rows.length; idx++) {
     const r = rows[idx];
     const rowNum = headerRow + 1 + idx;
+    // 음영 조건:
+    //  1) 현재 cohort 트랙과 동일 트랙의 25 인증자 (그린→그린, 블루→블루)
+    //  2) 26 전문인재 수강자 (트랙 무관)
+    const sameTrackPrior =
+      cohortTrack !== null && r.priorCerts.some((c) => c.track === cohortTrack);
+    const hasNote = sameTrackPrior || r.expertCohortLabels.length > 0;
     for (let ci = 0; ci < cols.length; ci++) {
       const col = cols[ci];
       const cell = ws.getCell(rowNum, 2 + ci);
@@ -224,6 +397,13 @@ function buildSheet(
         vertical: 'middle'
       };
       applyBorder(cell, 'thin');
+      if (hasNote) {
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: COLOR_NOTE_ROW }
+        };
+      }
     }
     widenLeft(ws.getCell(rowNum, 2));
     widenRight(ws.getCell(rowNum, lastCol));
@@ -279,9 +459,46 @@ function renderValue(col: ColumnDef, r: ExportApplication, no: number): string |
       return r.decidedAt ?? '—';
     case 'rejectedStageLabel':
       return r.rejectedStage ? (STAGE_LABEL[r.rejectedStage] ?? r.rejectedStage) : '—';
+    case 'notes':
+      return buildNotesText(r);
     default:
       return '—';
   }
+}
+
+const PRIOR_TRACK_LABEL: Record<PriorCertSummary['track'], string> = {
+  green: '그린',
+  blue: '블루',
+  expert: '전문인재',
+  continuing: '보수교육'
+};
+const PRIOR_EVENT_LABEL: Record<NonNullable<PriorCertSummary['event']>, string> = {
+  hackathon: '해커톤',
+  miniproject: '미니프로젝트',
+  private: '민간협업'
+};
+
+function buildNotesText(r: ExportApplication): string {
+  const parts: string[] = [];
+  if (r.priorCerts.length > 0) {
+    const sorted = [...r.priorCerts].toSorted((a, b) => {
+      if (a.year !== b.year) return a.year - b.year;
+      if (a.track !== b.track) return a.track.localeCompare(b.track);
+      return (a.round ?? 0) - (b.round ?? 0);
+    });
+    const items = sorted.map((c) => {
+      const label = PRIOR_TRACK_LABEL[c.track] ?? c.track;
+      const yy = String(c.year).slice(-2);
+      const suffix = c.round ? `${yy}-${c.round}` : yy;
+      const event = c.event ? `(${PRIOR_EVENT_LABEL[c.event]})` : '';
+      return `${label} ${suffix}${event}`;
+    });
+    parts.push(`${items.join(', ')} 인증자`);
+  }
+  if (r.expertCohortLabels.length > 0) {
+    parts.push(`전문인재 ${r.expertCohortLabels.join(', ')}`);
+  }
+  return parts.length > 0 ? parts.join(' / ') : '';
 }
 
 function alignFor(key: ColumnDef['key']): 'left' | 'center' | 'right' {
@@ -294,7 +511,9 @@ function alignFor(key: ColumnDef['key']): 'left' | 'center' | 'right' {
   ) {
     return 'right';
   }
-  if (key === 'organization' || key === 'department' || key === 'jobRole') return 'left';
+  if (key === 'organization' || key === 'department' || key === 'jobRole' || key === 'notes') {
+    return 'left';
+  }
   return 'center';
 }
 
