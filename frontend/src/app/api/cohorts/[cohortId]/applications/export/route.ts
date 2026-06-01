@@ -29,6 +29,16 @@ export async function GET(
   if (cohortError) return new NextResponse(cohortError.message, { status: 500 });
   if (!cohortRow) return new NextResponse('Cohort not found', { status: 404 });
 
+  // 집중교육 기간 = sessions의 첫·마지막 session_date
+  const { data: sessionRows } = await supabase
+    .from('sessions')
+    .select('session_date')
+    .eq('cohort_id', cohortId)
+    .order('session_date', { ascending: true });
+  const sessionDates = (sessionRows ?? []).map((s) => s.session_date).filter(Boolean);
+  const sessionStart = sessionDates[0] ?? null;
+  const sessionEnd = sessionDates[sessionDates.length - 1] ?? null;
+
   const prereqCodes = cohortRow.prereq_course_codes ?? [];
   const prereqMax = prereqCodes.length;
 
@@ -263,11 +273,13 @@ export async function GET(
     cohortTrack,
     selected,
     rejected,
-    selectionConfig: cohortRow.selection_config as SelectionConfigSummary | null
+    selectionConfig: cohortRow.selection_config as SelectionConfigSummary | null,
+    startedAt: sessionStart,
+    endedAt: sessionEnd
   });
 
-  const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-  const filename = `${cohortRow.name} 선발결과 ${today}.xlsx`;
+  const year = new Date().getFullYear();
+  const filename = `${year}년 ${cohortRow.name} 선발 명단.xlsx`;
   const encoded = encodeURIComponent(filename);
 
   return new NextResponse(new Uint8Array(buf), {

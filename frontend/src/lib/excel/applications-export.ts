@@ -51,7 +51,44 @@ export type ExportApplication = {
   priorCerts: PriorCertSummary[];
   // 올해 전문인재 cohort 라벨 (예: "26-1", "26-2"). 없으면 빈 배열.
   expertCohortLabels: string[];
+  // 미선발 사유 (buildApplicationsWorkbook에서 자동 채움)
+  rejectionReason?: string;
 };
+
+export const REJECTION_REASONS = [
+  '사전학습 미이수',
+  '기관별 배정 인원 기준 적용',
+  '지식평가 점수 미흡',
+  '업무활용 계획 구체성 미흡'
+] as const;
+export type RejectionReason = (typeof REJECTION_REASONS)[number];
+
+function classifyRejection(
+  r: ExportApplication,
+  config: SelectionConfigSummary,
+  selected: ExportApplication[]
+): string {
+  // 1. 사전학습 미이수
+  if (config.excludeNoPrereq && r.prereqMax > 0 && r.prereqDoneCount < r.prereqMax) {
+    return '사전학습 미이수';
+  }
+  // 4. 기관별 배정 인원 초과 — 같은 기관 selected가 정원 도달했으면 본인은 정원 정책으로 미선발
+  if (config.maxPerOrg > 0 && r.organization) {
+    const sameOrgSelected = selected.filter((x) => x.organization === r.organization);
+    if (sameOrgSelected.length >= config.maxPerOrg) {
+      return '기관별 배정 인원 기준 적용';
+    }
+  }
+  // 2 vs 3: 지식 vs 정성 정규화 비교
+  const kTotal = r.knowledgeTotal ?? 0;
+  const kNorm = kTotal > 0 && r.knowledgeScore !== null ? r.knowledgeScore / kTotal : null;
+  const planNorm = Math.min((r.planCharCount ?? 0) / 100, 1);
+  const multiNorm =
+    r.multiChoicesMax > 0 ? Math.min((r.multiSelectedCount ?? 0) / r.multiChoicesMax, 1) : 0;
+  const pNorm = (planNorm + multiNorm) / 2;
+  if (kNorm === null) return '지식평가 점수 미흡';
+  return kNorm < pNorm ? '지식평가 점수 미흡' : '업무활용 계획 구체성 미흡';
+}
 
 type ColumnDef = {
   key:
@@ -62,7 +99,7 @@ type ColumnDef = {
     | 'multiCheck'
     | 'prereq'
     | 'notes'
-    | 'rejectedStageLabel';
+    | 'rejectionReason';
   header: string;
   width: number;
 };
@@ -87,7 +124,7 @@ const SELECTED_COLUMNS: ColumnDef[] = [
 
 const REJECTED_COLUMNS: ColumnDef[] = [
   ...COMMON_COLUMNS,
-  { key: 'rejectedStageLabel', header: '탈락단계', width: 12 },
+  { key: 'rejectionReason', header: '미선발 사유', width: 26 },
   { key: 'notes', header: '비고', width: 32 }
 ];
 
@@ -113,23 +150,51 @@ export type SelectionConfigSummary = {
   appliedAt: string;
 };
 
+function fmtPeriod(startedAt: string | null, endedAt: string | null): string {
+  const fmt = (s: string | null) => {
+    if (!s) return null;
+    const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    return m ? `${m[1]}.${m[2]}.${m[3]}` : s;
+  };
+  const a = fmt(startedAt);
+  const b = fmt(endedAt);
+  if (a && b) return a === b ? a : `${a} ~ ${b}`;
+  if (a) return a;
+  if (b) return b;
+  return '';
+}
+
 export async function buildApplicationsWorkbook({
   cohortName,
   cohortTrack,
   selected,
   rejected,
-  selectionConfig
+  selectionConfig,
+  startedAt,
+  endedAt
 }: {
   cohortName: string;
   cohortTrack: CohortTrack;
   selected: ExportApplication[];
   rejected: ExportApplication[];
   selectionConfig: SelectionConfigSummary | null;
+  startedAt?: string | null;
+  endedAt?: string | null;
 }): Promise<Buffer> {
+  const period = fmtPeriod(startedAt ?? null, endedAt ?? null);
+  // 미선발 사유 자동 분류 (selection_config 있을 때만)
+  if (selectionConfig) {
+    for (const r of rejected) {
+      r.rejectionReason = classifyRejection(r, selectionConfig, selected);
+    }
+  }
+
   const wb = new ExcelJS.Workbook();
-  buildSummarySheet(wb, cohortName, selected, rejected, selectionConfig);
-  buildSheet(wb, '합격자', cohortName, cohortTrack, selected, SELECTED_COLUMNS, COLOR_HEADER_SELECTED);
-  buildSheet(wb, '불합격자', cohortName, cohortTrack, rejected, REJECTED_COLUMNS, COLOR_HEADER_REJECTED);
+  buildSummarySheet(wb, cohortName, selected, rejected, selectionConfig, period);
+  const selSheetName = period ? `선발 (${period})` : '선발';
+  const rejSheetName = period ? `미선발 (${period})` : '미선발';
+  buildSheet(wb, selSheetName, cohortName, cohortTrack, selected, SELECTED_COLUMNS, COLOR_HEADER_SELECTED, period);
+  buildSheet(wb, rejSheetName, cohortName, cohortTrack, rejected, REJECTED_COLUMNS, COLOR_HEADER_REJECTED, period);
   const buf = await wb.xlsx.writeBuffer();
   return Buffer.from(buf);
 }
@@ -139,14 +204,15 @@ function buildSummarySheet(
   cohortName: string,
   selected: ExportApplication[],
   rejected: ExportApplication[],
-  selectionConfig: SelectionConfigSummary | null
+  selectionConfig: SelectionConfigSummary | null,
+  period: string
 ) {
   const ws = wb.addWorksheet('요약');
 
   ws.getColumn(1).width = 3;
-  ws.getColumn(2).width = 32;
-  ws.getColumn(3).width = 22;
-  ws.getColumn(4).width = 22;
+  ws.getColumn(2).width = 42;
+  ws.getColumn(3).width = 28;
+  ws.getColumn(4).width = 28;
   const lastCol = 4;
 
   // 제목 (B2:D3)
@@ -167,26 +233,26 @@ function buildSummarySheet(
   titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
   applyBorder(titleCell, 'medium');
 
-  // 출력일 (B4)
+  // 출력일 + 교육기간 (B4)
   ws.mergeCells(`${cellRef(2, 4)}:${cellRef(lastCol, 4)}`);
   const metaCell = ws.getCell(4, 2);
   const today = new Date().toISOString().slice(0, 10);
-  metaCell.value = `출력일 ${today}`;
+  metaCell.value = period ? `교육기간 ${period} · 출력일 ${today}` : `출력일 ${today}`;
   metaCell.font = { name: FONT_NAME, size: 10, color: { argb: '666666' } };
   metaCell.alignment = { horizontal: 'right', vertical: 'middle' };
 
   let row = 6;
 
-  // 지원 현황
+  // 1) 지원 현황
   row = addSummarySectionHeader(ws, row, '지원 현황', lastCol);
   const total = selected.length + rejected.length;
   const selPct = total > 0 ? Math.round((selected.length / total) * 1000) / 10 : 0;
   row = addSummaryRow(ws, row, '총 지원자', `${total}명`);
-  row = addSummaryRow(ws, row, '합격', `${selected.length}명 (${selPct}%)`);
-  row = addSummaryRow(ws, row, '불합격', `${rejected.length}명`);
+  row = addSummaryRow(ws, row, '선발', `${selected.length}명 (${selPct}%)`);
+  row = addSummaryRow(ws, row, '미선발', `${rejected.length}명`);
   row++;
 
-  // 분류별 합격 현황 — 지원 대비 합격. 지원자 0명 그룹은 생략
+  // 2) 분류별 합격 현황 — 지원 대비 합격. 지원자 0명 그룹은 생략
   row = addSummarySectionHeader(ws, row, '분류별 합격 현황', lastCol);
   const allApps = [...selected, ...rejected];
   if (allApps.length === 0) {
@@ -205,61 +271,12 @@ function buildSummarySheet(
         ws,
         row,
         group.label,
-        `지원 ${applied}명 → 합격 ${accepted}명 (${pct}%)`
+        `지원 ${applied}명 → 선발 ${accepted}명 (${pct}%)`
       );
     }
   }
-  row++;
 
-  // 종합점수 분포 (합격)
-  row = addSummarySectionHeader(ws, row, '종합점수 분포 (합격)', lastCol);
-  const scores = selected
-    .map((s) => s.finalScore)
-    .filter((s): s is number => s !== null)
-    .toSorted((a, b) => a - b);
-  if (scores.length === 0) {
-    row = addSummaryRow(ws, row, '—', '점수 정보 없음');
-  } else {
-    const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
-    const median =
-      scores.length % 2 === 0
-        ? (scores[scores.length / 2 - 1] + scores[scores.length / 2]) / 2
-        : scores[Math.floor(scores.length / 2)];
-    row = addSummaryRow(ws, row, '평균', fmtScore(avg));
-    row = addSummaryRow(ws, row, '중앙값', fmtScore(median));
-    row = addSummaryRow(ws, row, '최저', fmtScore(scores[0]));
-    row = addSummaryRow(ws, row, '최고', fmtScore(scores[scores.length - 1]));
-  }
-
-  // 기관별 지원 현황 (2명 이상) — 기관당 정원 정책 효과 확인용
-  row++;
-  row = addSummarySectionHeader(ws, row, '기관별 지원 현황 (2명 이상)', lastCol);
-  const orgStats = new Map<string, { applied: number; accepted: number }>();
-  for (const r of [...selected, ...rejected]) {
-    if (!r.organization) continue;
-    const cur = orgStats.get(r.organization) ?? { applied: 0, accepted: 0 };
-    cur.applied++;
-    orgStats.set(r.organization, cur);
-  }
-  for (const r of selected) {
-    if (!r.organization) continue;
-    const cur = orgStats.get(r.organization);
-    if (cur) cur.accepted++;
-  }
-  const overTwo = [...orgStats.entries()]
-    .filter(([, v]) => v.applied >= 2)
-    .toSorted(
-      (a, b) => b[1].applied - a[1].applied || a[0].localeCompare(b[0], 'ko')
-    );
-  if (overTwo.length === 0) {
-    row = addSummaryRow(ws, row, '—', '2명 이상 지원 기관 없음');
-  } else {
-    for (const [org, v] of overTwo) {
-      row = addSummaryRow(ws, row, org, `지원 ${v.applied}명 → 합격 ${v.accepted}명`);
-    }
-  }
-
-  // 선발 정책 — selection_config가 저장돼 있을 때만
+  // 3) 선발 정책 — selection_config가 저장돼 있을 때만
   if (selectionConfig) {
     row++;
     row = addSummarySectionHeader(ws, row, '선발 정책', lastCol);
@@ -293,6 +310,83 @@ function buildSummarySheet(
       c.excludeNoPrereq ? '예' : '아니오'
     );
     row = addSummaryRow(ws, row, '적용 시점', fmtDateTime(c.appliedAt));
+  }
+
+  // 4) 미선발 사유 — 4 카테고리별 인원
+  row++;
+  row = addSummarySectionHeader(ws, row, '미선발 사유', lastCol);
+  if (rejected.length === 0) {
+    row = addSummaryRow(ws, row, '—', '미선발자 없음');
+  } else {
+    const reasonCount = new Map<string, number>();
+    for (const r of rejected) {
+      const k = r.rejectionReason ?? '—';
+      reasonCount.set(k, (reasonCount.get(k) ?? 0) + 1);
+    }
+    const ORDER: string[] = [...REJECTION_REASONS];
+    for (const k of ORDER) {
+      const n = reasonCount.get(k) ?? 0;
+      if (n === 0) continue;
+      const labelSuffix = k === '기관별 배정 인원 기준 적용' && selectionConfig?.maxPerOrg
+        ? ` (${selectionConfig.maxPerOrg}명 이내)`
+        : '';
+      const pct = Math.round((n / rejected.length) * 1000) / 10;
+      row = addSummaryRow(ws, row, `${k}${labelSuffix}`, `${n}명 (${pct}%)`);
+    }
+    const other = reasonCount.get('—') ?? 0;
+    if (other > 0) {
+      const pct = Math.round((other / rejected.length) * 1000) / 10;
+      row = addSummaryRow(ws, row, '미분류', `${other}명 (${pct}%)`);
+    }
+  }
+
+  // 5) 종합점수 분포 (합격)
+  row++;
+  row = addSummarySectionHeader(ws, row, '종합점수 분포 (합격)', lastCol);
+  const scores = selected
+    .map((s) => s.finalScore)
+    .filter((s): s is number => s !== null)
+    .toSorted((a, b) => a - b);
+  if (scores.length === 0) {
+    row = addSummaryRow(ws, row, '—', '점수 정보 없음');
+  } else {
+    const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
+    const median =
+      scores.length % 2 === 0
+        ? (scores[scores.length / 2 - 1] + scores[scores.length / 2]) / 2
+        : scores[Math.floor(scores.length / 2)];
+    row = addSummaryRow(ws, row, '평균', fmtScore(avg));
+    row = addSummaryRow(ws, row, '중앙값', fmtScore(median));
+    row = addSummaryRow(ws, row, '최저', fmtScore(scores[0]));
+    row = addSummaryRow(ws, row, '최고', fmtScore(scores[scores.length - 1]));
+  }
+
+  // 6) 기관별 지원 현황 (2명 이상) — 기관당 정원 정책 효과 확인용
+  row++;
+  row = addSummarySectionHeader(ws, row, '기관별 지원 현황 (2명 이상)', lastCol);
+  const orgStats = new Map<string, { applied: number; accepted: number }>();
+  for (const r of [...selected, ...rejected]) {
+    if (!r.organization) continue;
+    const cur = orgStats.get(r.organization) ?? { applied: 0, accepted: 0 };
+    cur.applied++;
+    orgStats.set(r.organization, cur);
+  }
+  for (const r of selected) {
+    if (!r.organization) continue;
+    const cur = orgStats.get(r.organization);
+    if (cur) cur.accepted++;
+  }
+  const overTwo = [...orgStats.entries()]
+    .filter(([, v]) => v.applied >= 2)
+    .toSorted(
+      (a, b) => b[1].applied - a[1].applied || a[0].localeCompare(b[0], 'ko')
+    );
+  if (overTwo.length === 0) {
+    row = addSummaryRow(ws, row, '—', '2명 이상 지원 기관 없음');
+  } else {
+    for (const [org, v] of overTwo) {
+      row = addSummaryRow(ws, row, org, `지원 ${v.applied}명 → 선발 ${v.accepted}명`);
+    }
   }
 }
 
@@ -331,15 +425,21 @@ function addSummaryRow(
   const labelCell = ws.getCell(row, 2);
   labelCell.value = label;
   labelCell.font = { name: FONT_NAME, size: 11, color: { argb: COLOR_BLACK } };
-  labelCell.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+  labelCell.alignment = { horizontal: 'left', vertical: 'middle', indent: 1, wrapText: true };
   applyBorder(labelCell, 'thin');
 
   ws.mergeCells(`${cellRef(3, row)}:${cellRef(4, row)}`);
   const valueCell = ws.getCell(row, 3);
   valueCell.value = value;
   valueCell.font = { name: FONT_NAME, size: 11, color: { argb: COLOR_BLACK } };
-  valueCell.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+  valueCell.alignment = { horizontal: 'left', vertical: 'middle', indent: 1, wrapText: true };
   applyBorder(valueCell, 'thin');
+
+  // 셀 너비 대비 텍스트 길이가 길면 행 높이 자동 늘리기
+  const maxLen = Math.max(label.length, value.length);
+  if (maxLen > 28) {
+    ws.getRow(row).height = Math.max(ws.getRow(row).height ?? 18, Math.ceil(maxLen / 28) * 18);
+  }
 
   return row + 1;
 }
@@ -366,7 +466,8 @@ function buildSheet(
   cohortTrack: CohortTrack,
   rows: ExportApplication[],
   cols: ColumnDef[],
-  titleColor: string
+  titleColor: string,
+  period: string
 ) {
   const ws = wb.addWorksheet(sheetName);
 
@@ -381,7 +482,11 @@ function buildSheet(
   const titleRange = `${cellRef(2, 2)}:${cellRef(lastCol, 3)}`;
   ws.mergeCells(titleRange);
   const titleCell = ws.getCell(2, 2);
-  titleCell.value = `「${cohortName}」 ${sheetName} 명단`;
+  // 시트 제목: 「cohort명」 (교육기간) 선발/미선발 명단
+  const baseName = sheetName.startsWith('선발') ? '선발' : sheetName.startsWith('미선발') ? '미선발' : sheetName;
+  titleCell.value = period
+    ? `「${cohortName}」 (교육기간 ${period}) ${baseName} 명단`
+    : `「${cohortName}」 ${baseName} 명단`;
   titleCell.fill = {
     type: 'pattern',
     pattern: 'solid',
@@ -401,7 +506,9 @@ function buildSheet(
   ws.mergeCells(metaRange);
   const metaCell = ws.getCell(4, 2);
   const today = new Date().toISOString().slice(0, 10);
-  metaCell.value = `총 ${rows.length}명 · 출력일 ${today}`;
+  metaCell.value = period
+    ? `총 ${rows.length}명 · 교육기간 ${period} · 출력일 ${today}`
+    : `총 ${rows.length}명 · 출력일 ${today}`;
   metaCell.font = {
     name: FONT_NAME,
     size: 10,
@@ -547,8 +654,8 @@ function renderValue(col: ColumnDef, r: ExportApplication, no: number): string |
       return r.finalScore !== null ? Math.round(r.finalScore * 10) / 10 : '—';
     case 'decidedAt':
       return r.decidedAt ?? '—';
-    case 'rejectedStageLabel':
-      return r.rejectedStage ? (STAGE_LABEL[r.rejectedStage] ?? r.rejectedStage) : '—';
+    case 'rejectionReason':
+      return r.rejectionReason ?? '—';
     case 'notes':
       return buildNotesText(r);
     default:
@@ -601,7 +708,13 @@ function alignFor(key: ColumnDef['key']): 'left' | 'center' | 'right' {
   ) {
     return 'right';
   }
-  if (key === 'organization' || key === 'department' || key === 'jobRole' || key === 'notes') {
+  if (
+    key === 'organization' ||
+    key === 'department' ||
+    key === 'jobRole' ||
+    key === 'notes' ||
+    key === 'rejectionReason'
+  ) {
     return 'left';
   }
   return 'center';

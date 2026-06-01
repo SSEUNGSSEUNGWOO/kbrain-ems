@@ -749,13 +749,13 @@ export default async function OverviewPage() {
               </Badge>
             </CardTitle>
           </CardHeader>
-          <CardContent className='pt-0'>
+          <CardContent className='flex min-h-0 flex-1 flex-col pt-0'>
             {actions.length === 0 ? (
               <div className='text-muted-foreground py-8 text-center text-sm'>
                 처리할 항목이 없습니다.
               </div>
             ) : (
-              <div className='max-h-[28rem] divide-y overflow-y-auto'>
+              <div className='min-h-0 flex-1 divide-y overflow-y-auto'>
                 {actions.map((a) => (
                   <Link
                     key={a.id}
