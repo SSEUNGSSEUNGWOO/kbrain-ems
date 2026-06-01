@@ -638,7 +638,7 @@ function CandidateList({
         <span className='w-6' />
         <span className='w-20'>이름</span>
         <span className='w-12 text-center'>타과정</span>
-        <span className='w-20 text-center'>작년</span>
+        <span className='w-20 text-center'>인증</span>
         <span className='w-20'>분류</span>
         <span className='flex-1'>소속</span>
         <span className='w-10 text-center'>사전</span>
