@@ -144,9 +144,9 @@ function buildSummarySheet(
   const ws = wb.addWorksheet('요약');
 
   ws.getColumn(1).width = 3;
-  ws.getColumn(2).width = 24;
-  ws.getColumn(3).width = 20;
-  ws.getColumn(4).width = 20;
+  ws.getColumn(2).width = 32;
+  ws.getColumn(3).width = 22;
+  ws.getColumn(4).width = 22;
   const lastCol = 4;
 
   // 제목 (B2:D3)
@@ -229,6 +229,34 @@ function buildSummarySheet(
     row = addSummaryRow(ws, row, '중앙값', fmtScore(median));
     row = addSummaryRow(ws, row, '최저', fmtScore(scores[0]));
     row = addSummaryRow(ws, row, '최고', fmtScore(scores[scores.length - 1]));
+  }
+
+  // 기관별 지원 현황 (2명 이상) — 기관당 정원 정책 효과 확인용
+  row++;
+  row = addSummarySectionHeader(ws, row, '기관별 지원 현황 (2명 이상)', lastCol);
+  const orgStats = new Map<string, { applied: number; accepted: number }>();
+  for (const r of [...selected, ...rejected]) {
+    if (!r.organization) continue;
+    const cur = orgStats.get(r.organization) ?? { applied: 0, accepted: 0 };
+    cur.applied++;
+    orgStats.set(r.organization, cur);
+  }
+  for (const r of selected) {
+    if (!r.organization) continue;
+    const cur = orgStats.get(r.organization);
+    if (cur) cur.accepted++;
+  }
+  const overTwo = [...orgStats.entries()]
+    .filter(([, v]) => v.applied >= 2)
+    .toSorted(
+      (a, b) => b[1].applied - a[1].applied || a[0].localeCompare(b[0], 'ko')
+    );
+  if (overTwo.length === 0) {
+    row = addSummaryRow(ws, row, '—', '2명 이상 지원 기관 없음');
+  } else {
+    for (const [org, v] of overTwo) {
+      row = addSummaryRow(ws, row, org, `지원 ${v.applied}명 → 합격 ${v.accepted}명`);
+    }
   }
 
   // 선발 정책 — selection_config가 저장돼 있을 때만

@@ -244,7 +244,7 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
       }}
     >
       <SheetTrigger asChild>{trigger}</SheetTrigger>
-      <SheetContent className='flex w-full max-w-3xl flex-col gap-0 overflow-hidden sm:max-w-3xl'>
+      <SheetContent className='flex w-full max-w-5xl flex-col gap-0 overflow-hidden sm:max-w-5xl'>
         <SheetHeader className='border-b'>
           <SheetTitle>자동 선발</SheetTitle>
           <SheetDescription>
