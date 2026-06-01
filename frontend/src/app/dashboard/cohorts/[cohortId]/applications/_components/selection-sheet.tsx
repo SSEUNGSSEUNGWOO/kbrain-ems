@@ -51,9 +51,9 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
   const [weights, setWeights] = useState<ScoreWeights>(DEFAULT_WEIGHTS);
   const [quotaRatio, setQuotaRatio] = useState<QuotaRatio>(DEFAULT_QUOTA_RATIO);
   const [totalCapacity, setTotalCapacity] = useState(defaultCapacity);
-  const [withReserve, setWithReserve] = useState(false);
+  const [withReserve, setWithReserve] = useState(true);
   const [maxPerOrg, setMaxPerOrg] = useState(3);
-  const [excludeNoPrereq, setExcludeNoPrereq] = useState(false);
+  const [excludeNoPrereq, setExcludeNoPrereq] = useState(true);
   const [filterCategory, setFilterCategory] = useState<SelectionCategory | null>(null);
 
   // 110% 선발 시 실제 사용되는 정원 (예: 100 → 110). 미체크면 입력값 그대로.
@@ -143,9 +143,9 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
     setWeights(DEFAULT_WEIGHTS);
     setQuotaRatio(DEFAULT_QUOTA_RATIO);
     setTotalCapacity(defaultCapacity);
-    setWithReserve(false);
+    setWithReserve(true);
     setMaxPerOrg(3);
-    setExcludeNoPrereq(false);
+    setExcludeNoPrereq(true);
     setFilterCategory(null);
   };
 
