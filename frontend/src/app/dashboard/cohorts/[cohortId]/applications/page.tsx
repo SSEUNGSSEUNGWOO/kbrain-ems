@@ -55,6 +55,8 @@ export default async function CohortApplicationsPage({ params, searchParams }: P
     applicants: {
       id: string;
       name: string;
+      phone: string | null;
+      email: string | null;
       department: string | null;
       job_role: string | null;
       organizations: { name: string } | null;
@@ -72,7 +74,7 @@ export default async function CohortApplicationsPage({ params, searchParams }: P
   const [{ data: cohort }, { data: questions }, { data: statsRows }] = await Promise.all([
     supabase
       .from('cohorts')
-      .select('id, name, max_capacity')
+      .select('id, name, max_capacity, prereq_course_codes')
       .eq('id', cohortId)
       .maybeSingle(),
     supabase
@@ -135,7 +137,7 @@ export default async function CohortApplicationsPage({ params, searchParams }: P
   let rowsQuery = supabase
     .from('applications')
     .select(
-      'id, status, rejected_stage, applied_at, decided_at, knowledge_score, knowledge_correct_count, knowledge_total_count, self_diagnosis_avg, applicants(id, name, department, job_role, organizations(name))',
+      'id, status, rejected_stage, applied_at, decided_at, knowledge_score, knowledge_correct_count, knowledge_total_count, self_diagnosis_avg, applicants(id, name, phone, email, department, job_role, organizations(name))',
       { count: 'exact' }
     )
     .eq('cohort_id', cohortId)
@@ -176,6 +178,48 @@ export default async function CohortApplicationsPage({ params, searchParams }: P
       planCharMap.set(a.application_id, text.replace(/\s+/g, '').length);
     }
   }
+
+  // 사전학습 수료 매칭 — cohort에 prereq 과목이 있을 때만 lms_completions 조회
+  const prereqCodes = (cohort?.prereq_course_codes ?? []) as string[];
+  const prereqMax = prereqCodes.length;
+  const phonesByCourse = new Map<string, Set<string>>();
+  const emailsByCourse = new Map<string, Set<string>>();
+  if (prereqMax > 0) {
+    type LmsRow = { course_code: string; phone: string | null; email: string | null };
+    const chunk = 1000;
+    for (let offset = 0; offset < 1_000_000; offset += chunk) {
+      const res = (await supabase
+        // @ts-expect-error supabase types.ts에 lms_completions 미반영
+        .from('lms_completions')
+        .select('course_code, phone, email')
+        .in('course_code', prereqCodes)
+        .range(offset, offset + chunk - 1)) as unknown as {
+        data: LmsRow[] | null;
+      };
+      const batch = res.data ?? [];
+      for (const r of batch) {
+        if (!phonesByCourse.has(r.course_code)) {
+          phonesByCourse.set(r.course_code, new Set());
+          emailsByCourse.set(r.course_code, new Set());
+        }
+        if (r.phone) phonesByCourse.get(r.course_code)!.add(r.phone.replace(/[^\d]/g, ''));
+        if (r.email) emailsByCourse.get(r.course_code)!.add(r.email.trim().toLowerCase());
+      }
+      if (batch.length < chunk) break;
+    }
+  }
+  const computePrereqDone = (phone: string | null, email: string | null): number => {
+    if (prereqMax === 0) return 0;
+    const p = (phone ?? '').replace(/[^\d]/g, '');
+    const e = (email ?? '').trim().toLowerCase();
+    let done = 0;
+    for (const code of prereqCodes) {
+      const ps = phonesByCourse.get(code);
+      const es = emailsByCourse.get(code);
+      if ((p && ps?.has(p)) || (e && es?.has(e))) done++;
+    }
+    return done;
+  };
 
   // facet counts (필터 적용 전 코호트 전체 기준)
   const categoryCounts: Record<string, number> = {
@@ -221,6 +265,7 @@ export default async function CohortApplicationsPage({ params, searchParams }: P
     knowledge_correct_count: a.knowledge_correct_count,
     knowledge_total_count: a.knowledge_total_count,
     plan_char_count: planCharMap.get(a.id) ?? null,
+    prereq_done_count: computePrereqDone(a.applicants?.phone ?? null, a.applicants?.email ?? null),
     applied_at: a.applied_at
   }));
 
@@ -319,6 +364,7 @@ export default async function CohortApplicationsPage({ params, searchParams }: P
             totalCount={filteredTotal}
             categoryCounts={categoryCounts}
             statusCounts={statusCounts}
+            prereqMax={prereqMax}
           />
         )}
       </div>

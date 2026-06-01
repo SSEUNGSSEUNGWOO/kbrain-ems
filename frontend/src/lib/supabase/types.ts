@@ -113,6 +113,7 @@ export type Database = {
           max_capacity: number | null;
           recruitment_round_id: string | null;
           selection_config: Record<string, unknown> | null;
+          prereq_course_codes: string[] | null;
           created_at: string;
           updated_at: string;
         };
@@ -138,6 +139,7 @@ export type Database = {
           max_capacity?: number | null;
           recruitment_round_id?: string | null;
           selection_config?: Record<string, unknown> | null;
+          prereq_course_codes?: string[] | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -163,6 +165,7 @@ export type Database = {
           max_capacity?: number | null;
           recruitment_round_id?: string | null;
           selection_config?: Record<string, unknown> | null;
+          prereq_course_codes?: string[] | null;
           created_at?: string;
           updated_at?: string;
         };

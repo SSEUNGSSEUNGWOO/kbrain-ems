@@ -44,6 +44,7 @@ export type ApplicationRow = {
   knowledge_correct_count: number | null;
   knowledge_total_count: number | null;
   plan_char_count: number | null;
+  prereq_done_count: number;
   applied_at: string | null;
 };
 
@@ -91,6 +92,7 @@ type Props = {
   totalCount: number;
   categoryCounts: Record<string, number>;
   statusCounts: Record<string, number>;
+  prereqMax: number; // 0이면 사전학습 컬럼 숨김
 };
 
 const CATEGORY_KEYS = ['central', 'metro_local', 'basic_local', 'public', 'education', 'other'] as const;
@@ -106,7 +108,8 @@ export function ApplicantsTable({
   pageCount,
   totalCount,
   categoryCounts,
-  statusCounts
+  statusCounts,
+  prereqMax
 }: Props) {
   const [{ q, category, status, sort }, setParams] = useQueryStates(
     {
@@ -241,6 +244,9 @@ export function ApplicantsTable({
                 </SortableHead>
                 <TableHead>분류</TableHead>
                 <TableHead>소속</TableHead>
+                {prereqMax > 0 && (
+                  <TableHead className='text-right'>사전학습</TableHead>
+                )}
                 <SortableHead
                   col='knowledge_score'
                   current={sortCol}
@@ -289,6 +295,20 @@ export function ApplicantsTable({
                     <TableCell className='text-muted-foreground'>
                       {r.organization ?? '—'}
                     </TableCell>
+                    {prereqMax > 0 && (
+                      <TableCell
+                        className={cn(
+                          'text-right tabular-nums text-sm font-medium',
+                          r.prereq_done_count >= prereqMax
+                            ? 'text-emerald-600'
+                            : r.prereq_done_count > 0
+                              ? 'text-amber-600'
+                              : 'text-muted-foreground'
+                        )}
+                      >
+                        {r.prereq_done_count}/{prereqMax}
+                      </TableCell>
+                    )}
                     <TableCell className='text-right tabular-nums'>
                       <KnowledgeCell row={r} />
                     </TableCell>
