@@ -2,8 +2,8 @@
  * cohort 라이프사이클 단계 자동 판별.
  *
  *  recruiting : 모집기간 내 (application_start_at ≤ 오늘 ≤ application_end_at)
- *  selecting  : 모집 마감 후 ~ 선발확정일(decided_at) 전. decided_at NULL이면 머무름.
- *  notifying  : decided_at 도달 후 ~ 통보일(notified_at) 전.
+ *  selecting  : 모집 마감 후 ~ 선발확정일(decided_at) 당일까지. decided_at NULL이면 머무름.
+ *  notifying  : decided_at 다음날 ~ 통보일(notified_at) 전.
  *  onboarding : notified_at 도달 후 ~ 교육 시작 전.
  *  active     : 교육기간 내 (started_at ≤ 오늘 ≤ ended_at).
  *               started_at 도달 시 중간 단계와 무관하게 active로 점프(데드라인 fallback).
@@ -56,8 +56,8 @@ export function computeCohortStage(c: StageInput, todayIso?: string): CohortStag
 
   // 모집 마감 후 ~ 교육 시작 전 사이의 중간 단계
   if (c.application_end_at && today > c.application_end_at) {
-    if (c.notified_at && today >= c.notified_at) return 'onboarding';
-    if (c.decided_at && today >= c.decided_at) return 'notifying';
+    if (c.notified_at && today > c.notified_at) return 'onboarding';
+    if (c.decided_at && today > c.decided_at) return 'notifying';
     return 'selecting';
   }
 
