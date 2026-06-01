@@ -256,6 +256,7 @@ export default async function CohortApplicationsPage({ params, searchParams }: P
   const filteredTotal = totalCount ?? 0;
   const pageCount = Math.max(1, Math.ceil(filteredTotal / pageSize));
 
+  const canExport = stats.selected > 0 || stats.rejected > 0;
   const headerAction = (
     <div className='flex flex-wrap items-center justify-end gap-2'>
       <Button variant='outline' size='sm' asChild disabled={!hasQuestions}>
@@ -263,6 +264,12 @@ export default async function CohortApplicationsPage({ params, searchParams }: P
           <Icons.forms className='mr-1.5' />
           사전문항 미리보기
         </Link>
+      </Button>
+      <Button variant='outline' size='sm' asChild disabled={!canExport}>
+        <a href={`/api/cohorts/${cohortId}/applications/export`}>
+          <Icons.download className='mr-1.5' />
+          선발결과 엑셀
+        </a>
       </Button>
       <ResetSelectionButton cohortId={cohortId} disabled={stats.total === 0} />
       <SelectionSheet
