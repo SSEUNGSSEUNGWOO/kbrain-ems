@@ -90,6 +90,18 @@ export type ScoredCandidate = CandidateRow & {
   parts: { knowledge: number; plan: number };
 };
 
+// 자동선발 '적용' 시점에 cohorts.selection_config jsonb에 저장되는 스냅샷.
+export type SelectionConfigSnapshot = {
+  weights: ScoreWeights;
+  quotaRatio: QuotaRatio;
+  maxPerOrg: number; // 0 = 무제한
+  excludeNoPrereq: boolean;
+  totalCapacity: number; // 사용자가 입력한 정원
+  withReserve: boolean; // 110% 예비 적용 여부
+  effectiveCapacity: number; // withReserve 적용 후 실제 사용된 정원
+  appliedAt: string; // ISO timestamp
+};
+
 /**
  * 두 부분의 가중합 — 부처는 점수에 포함하지 않고 쿼터로만 처리.
  *  - 지식점수: knowledge_score / knowledgeMax (clamp 0~1)

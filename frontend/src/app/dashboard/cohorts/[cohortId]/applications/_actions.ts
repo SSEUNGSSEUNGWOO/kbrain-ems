@@ -8,6 +8,7 @@ import {
   mapAnswerValue
 } from '@/lib/applications-xls-parser';
 import type { Json } from '@/lib/supabase/types';
+import type { SelectionConfigSnapshot } from './_selection-logic';
 
 const ALLOWED_STATUSES = ['applied', 'pending', 'selected', 'rejected', 'withdrawn'] as const;
 type ApplicationStatus = (typeof ALLOWED_STATUSES)[number];
@@ -281,7 +282,8 @@ export async function resetSelections(
 export async function applySelections(
   cohortId: string,
   selectedIds: string[],
-  rejectOthers: boolean
+  rejectOthers: boolean,
+  selectionConfig: SelectionConfigSnapshot
 ): Promise<{ error?: string; selectedCount?: number; rejectedCount?: number }> {
   try {
     const supabase = createAdminClient();
@@ -298,6 +300,13 @@ export async function applySelections(
       p_decided_at: today
     });
     if (error) throw new Error(error.message);
+
+    // 선발 정책 스냅샷을 cohort에 저장 (요약 시트·결과보고서에서 표시)
+    const { error: cfgErr } = await supabase
+      .from('cohorts')
+      .update({ selection_config: selectionConfig as unknown as Record<string, unknown> })
+      .eq('id', cohortId);
+    if (cfgErr) throw new Error(cfgErr.message);
 
     const result = (data ?? {}) as { selected_count?: number; rejected_count?: number };
 

@@ -3,7 +3,8 @@ import { createAdminClient } from '@/lib/supabase/server';
 import {
   buildApplicationsWorkbook,
   type CohortTrack,
-  type ExportApplication
+  type ExportApplication,
+  type SelectionConfigSummary
 } from '@/lib/excel/applications-export';
 import { DEFAULT_WEIGHTS, PLAN_CHARS_FULL } from '@/app/dashboard/cohorts/[cohortId]/applications/_selection-logic';
 import type { PriorCertSummary } from '@/lib/excel/applications-export';
@@ -17,9 +18,14 @@ export async function GET(
 
   const { data: cohortRow, error: cohortError } = await supabase
     .from('cohorts')
-    .select('id, name, prereq_course_codes')
+    .select('id, name, prereq_course_codes, selection_config')
     .eq('id', cohortId)
-    .maybeSingle<{ id: string; name: string; prereq_course_codes: string[] | null }>();
+    .maybeSingle<{
+      id: string;
+      name: string;
+      prereq_course_codes: string[] | null;
+      selection_config: Record<string, unknown> | null;
+    }>();
   if (cohortError) return new NextResponse(cohortError.message, { status: 500 });
   if (!cohortRow) return new NextResponse('Cohort not found', { status: 404 });
 
@@ -256,7 +262,8 @@ export async function GET(
     cohortName: cohortRow.name,
     cohortTrack,
     selected,
-    rejected
+    rejected,
+    selectionConfig: cohortRow.selection_config as SelectionConfigSummary | null
   });
 
   const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');

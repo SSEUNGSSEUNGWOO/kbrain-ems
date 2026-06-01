@@ -112,6 +112,7 @@ export type Database = {
           recruiting_slug: string | null;
           max_capacity: number | null;
           recruitment_round_id: string | null;
+          selection_config: Record<string, unknown> | null;
           created_at: string;
           updated_at: string;
         };
@@ -136,6 +137,7 @@ export type Database = {
           recruiting_slug?: string | null;
           max_capacity?: number | null;
           recruitment_round_id?: string | null;
+          selection_config?: Record<string, unknown> | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -160,6 +162,7 @@ export type Database = {
           recruiting_slug?: string | null;
           max_capacity?: number | null;
           recruitment_round_id?: string | null;
+          selection_config?: Record<string, unknown> | null;
           created_at?: string;
           updated_at?: string;
         };

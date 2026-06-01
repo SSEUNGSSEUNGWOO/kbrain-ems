@@ -207,8 +207,23 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
   const onConfirm = () => {
     setStage('applying');
     setError(null);
+    const snapshot = {
+      weights,
+      quotaRatio,
+      maxPerOrg,
+      excludeNoPrereq,
+      totalCapacity,
+      withReserve,
+      effectiveCapacity,
+      appliedAt: new Date().toISOString()
+    };
     startTransition(async () => {
-      const res = await applySelections(cohortId, [...effectiveSelectedIds], rejectOthers);
+      const res = await applySelections(
+        cohortId,
+        [...effectiveSelectedIds],
+        rejectOthers,
+        snapshot
+      );
       if (res.error) {
         setError(res.error);
         setStage('editing');

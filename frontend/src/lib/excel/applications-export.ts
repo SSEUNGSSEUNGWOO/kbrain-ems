@@ -101,19 +101,33 @@ const DISTRIBUTION_GROUPS: { label: string; choices: string[] }[] = [
 
 export type CohortTrack = 'green' | 'blue' | 'expert' | 'continuing' | null;
 
+// cohorts.selection_config jsonb 스냅샷. applySelections에서 저장.
+export type SelectionConfigSummary = {
+  weights: { knowledge: number; plan: number };
+  quotaRatio: { central: number; local: number; public_edu: number };
+  maxPerOrg: number; // 0 = 무제한
+  excludeNoPrereq: boolean;
+  totalCapacity: number;
+  withReserve: boolean;
+  effectiveCapacity: number;
+  appliedAt: string;
+};
+
 export async function buildApplicationsWorkbook({
   cohortName,
   cohortTrack,
   selected,
-  rejected
+  rejected,
+  selectionConfig
 }: {
   cohortName: string;
   cohortTrack: CohortTrack;
   selected: ExportApplication[];
   rejected: ExportApplication[];
+  selectionConfig: SelectionConfigSummary | null;
 }): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
-  buildSummarySheet(wb, cohortName, selected, rejected);
+  buildSummarySheet(wb, cohortName, selected, rejected, selectionConfig);
   buildSheet(wb, '합격자', cohortName, cohortTrack, selected, SELECTED_COLUMNS, COLOR_HEADER_SELECTED);
   buildSheet(wb, '불합격자', cohortName, cohortTrack, rejected, REJECTED_COLUMNS, COLOR_HEADER_REJECTED);
   const buf = await wb.xlsx.writeBuffer();
@@ -124,7 +138,8 @@ function buildSummarySheet(
   wb: ExcelJS.Workbook,
   cohortName: string,
   selected: ExportApplication[],
-  rejected: ExportApplication[]
+  rejected: ExportApplication[],
+  selectionConfig: SelectionConfigSummary | null
 ) {
   const ws = wb.addWorksheet('요약');
 
@@ -215,6 +230,42 @@ function buildSummarySheet(
     row = addSummaryRow(ws, row, '최저', fmtScore(scores[0]));
     row = addSummaryRow(ws, row, '최고', fmtScore(scores[scores.length - 1]));
   }
+
+  // 선발 정책 — selection_config가 저장돼 있을 때만
+  if (selectionConfig) {
+    row++;
+    row = addSummarySectionHeader(ws, row, '선발 정책', lastCol);
+    const c = selectionConfig;
+    const capLabel = c.withReserve
+      ? `${c.totalCapacity}명 (110% 예비: ${c.effectiveCapacity}명)`
+      : `${c.totalCapacity}명`;
+    row = addSummaryRow(ws, row, '정원', capLabel);
+    row = addSummaryRow(
+      ws,
+      row,
+      '점수 가중치',
+      `지식 ${c.weights.knowledge} : 정성 ${c.weights.plan}`
+    );
+    row = addSummaryRow(
+      ws,
+      row,
+      '부처별 비율',
+      `중앙 ${c.quotaRatio.central} : 지자체 ${c.quotaRatio.local} : 공공·교육 ${c.quotaRatio.public_edu}`
+    );
+    row = addSummaryRow(
+      ws,
+      row,
+      '기관당 최대',
+      c.maxPerOrg > 0 ? `${c.maxPerOrg}명` : '무제한'
+    );
+    row = addSummaryRow(
+      ws,
+      row,
+      '사전학습 미수료 제외',
+      c.excludeNoPrereq ? '예' : '아니오'
+    );
+    row = addSummaryRow(ws, row, '적용 시점', fmtDateTime(c.appliedAt));
+  }
 }
 
 function addSummarySectionHeader(
@@ -267,6 +318,17 @@ function addSummaryRow(
 
 function fmtScore(n: number): string {
   return (Math.round(n * 10) / 10).toString();
+}
+
+function fmtDateTime(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mi = String(d.getMinutes()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
 }
 
 function buildSheet(
