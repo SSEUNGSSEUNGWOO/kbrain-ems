@@ -27,6 +27,17 @@ export const C2_TO_SELECTION: Record<string, SelectionCategory> = {
   '⑥': 'other'
 };
 
+export type PriorCert = {
+  year: number;
+  cert_no: string;
+  track: 'green' | 'blue' | 'expert' | 'continuing';
+  round: number | null;
+  kind: string | null; // 교육형 | 자기주도형 | null
+  event: 'hackathon' | 'miniproject' | 'private' | null;
+  organization?: string | null;
+  cert_name?: string;
+};
+
 export type CandidateRow = {
   application_id: string;
   applicant_id: string;
@@ -43,6 +54,8 @@ export type CandidateRow = {
   current_status: string;
   // 같은 applicant가 다른 cohort에 지원한 active 이력 (applied/pending/selected만)
   other_applications: { cohort_id: string; cohort_name: string; status: string }[];
+  // 이전 사업 인증 이력 (applicants.prior_certs)
+  prior_certs: PriorCert[];
 };
 
 // 정성평가 만점 기준 (글자수). 설문 안내 "100자 내외"에 맞춤.

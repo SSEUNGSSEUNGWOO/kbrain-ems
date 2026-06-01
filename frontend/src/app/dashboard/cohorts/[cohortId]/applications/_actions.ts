@@ -37,7 +37,7 @@ export async function updateApplicationStatus(
 // 자동 선발 추천 (로직 자체는 _selection-logic.ts, 여기는 DB I/O만)
 // ============================================================================
 
-import { C2_TO_SELECTION, type CandidateRow } from './_selection-logic';
+import { C2_TO_SELECTION, type CandidateRow, type PriorCert } from './_selection-logic';
 
 // C2 응답 텍스트 정규화 (parser와 동일 규칙)
 const normC2 = (s: string) => s.replace(/\s+/g, '').replace(/[·、,「」『』""'']/g, '');
@@ -64,14 +64,14 @@ export async function loadSelectionPool(
         organizations: { name: string } | null;
       } | null;
     };
-    // 자동 선발 후보군은 심사 대상(applied/pending)만. 이미 확정·취하된 사람은 제외.
+    // 후보군 = 취하(withdrawn) 제외 전부. 이미 selected/rejected여도 재편집 가능하도록 포함.
     const { data: apps, error: appErr } = await supabase
       .from('applications')
       .select(
         'id, status, knowledge_score, applicant_id, applicants(id, name, phone, email, organizations(name))'
       )
       .eq('cohort_id', cohortId)
-      .in('status', ['applied', 'pending'])
+      .in('status', ['applied', 'pending', 'selected', 'rejected'])
       .returns<AppQ[]>();
     if (appErr) throw new Error(appErr.message);
 
@@ -182,10 +182,23 @@ export async function loadSelectionPool(
       }
     }
 
-    // 같은 applicant가 다른 cohort에 active(applied/pending/selected) 지원한 이력 매핑
+    // applicants.prior_certs (이전 사업 인증) 매핑
     const applicantIds = (apps ?? [])
       .map((a) => a.applicants?.id)
       .filter((x): x is string => Boolean(x));
+    const priorCertsByApplicant = new Map<string, PriorCert[]>();
+    if (applicantIds.length > 0) {
+      const { data: priorRows } = (await supabase
+        .from('applicants')
+        .select('id, prior_certs')
+        .in('id', applicantIds)) as unknown as {
+        data: { id: string; prior_certs: PriorCert[] | null }[] | null;
+      };
+      for (const r of priorRows ?? []) {
+        priorCertsByApplicant.set(r.id, Array.isArray(r.prior_certs) ? r.prior_certs : []);
+      }
+    }
+
     const otherByApplicant = new Map<
       string,
       { cohort_id: string; cohort_name: string; status: string }[]
@@ -234,7 +247,8 @@ export async function loadSelectionPool(
         prereq_done_count: computePrereqDone(a.applicants?.phone ?? null, a.applicants?.email ?? null),
         prereq_max: prereqMax,
         current_status: a.status,
-        other_applications: otherByApplicant.get(applicantId) ?? []
+        other_applications: otherByApplicant.get(applicantId) ?? [],
+        prior_certs: priorCertsByApplicant.get(applicantId) ?? []
       };
     });
 
