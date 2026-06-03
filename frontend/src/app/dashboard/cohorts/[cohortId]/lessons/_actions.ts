@@ -20,6 +20,40 @@ type CreateLessonInput = {
 
 type Result = { error?: string };
 
+type LocationResult = Result & {
+  location?: {
+    id: string;
+    name: string;
+  };
+};
+
+export async function createLocation(name: string): Promise<LocationResult> {
+  const trimmedName = name.trim();
+  if (!trimmedName) return { error: '장소명을 입력해주세요.' };
+
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from('locations')
+    .insert({ name: trimmedName })
+    .select('id, name')
+    .single();
+
+  if (!error && data) return { location: data };
+
+  if (error?.code === '23505') {
+    const { data: existing, error: findErr } = await supabase
+      .from('locations')
+      .select('id, name')
+      .eq('name', trimmedName)
+      .single();
+
+    if (findErr || !existing) return { error: findErr?.message ?? '장소 조회 실패' };
+    return { location: existing };
+  }
+
+  return { error: error?.message ?? '장소 추가 실패' };
+}
+
 export async function createLesson(input: CreateLessonInput): Promise<Result> {
   const {
     cohortId,

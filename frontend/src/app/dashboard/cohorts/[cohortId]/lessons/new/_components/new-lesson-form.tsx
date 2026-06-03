@@ -3,7 +3,7 @@
 import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { autoShareCode } from '@/lib/share-code';
-import { createLesson } from '../../_actions';
+import { createLesson, createLocation } from '../../_actions';
 
 type Instructor = {
   id: string;
@@ -34,7 +34,9 @@ export function NewLessonForm({ cohortId, cohortName, instructors, locations }: 
 
   const [sessionDate, setSessionDate] = useState(todayIso());
   const [title, setTitle] = useState('');
+  const [locationOptions, setLocationOptions] = useState<Location[]>(locations);
   const [locationId, setLocationId] = useState<string>('');
+  const [newLocationName, setNewLocationName] = useState('');
   const [instructorIds, setInstructorIds] = useState<string[]>(['']);
 
   // 옵션 토글
@@ -54,6 +56,25 @@ export function NewLessonForm({ cohortId, cohortName, instructors, locations }: 
   const addInstructor = () => setInstructorIds((prev) => [...prev, '']);
   const removeInstructor = (idx: number) => {
     setInstructorIds((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== idx) : prev));
+  };
+
+  const handleAddLocation = () => {
+    setError(null);
+    startTransition(async () => {
+      const result = await createLocation(newLocationName);
+      if (result.error || !result.location) {
+        setError(result.error ?? '장소 추가 실패');
+        return;
+      }
+
+      setLocationOptions((prev) =>
+        prev.some((l) => l.id === result.location!.id)
+          ? prev
+          : [...prev, result.location!].toSorted((a, b) => a.name.localeCompare(b.name))
+      );
+      setLocationId(result.location.id);
+      setNewLocationName('');
+    });
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -110,25 +131,50 @@ export function NewLessonForm({ cohortId, cohortName, instructors, locations }: 
           </div>
 
           <Field label='장소'>
-            <select
-              value={locationId}
-              onChange={(e) => setLocationId(e.target.value)}
-              className='w-full rounded-md border bg-background px-3 py-2 text-sm'
-            >
-              <option value=''>장소 미지정</option>
-              {locations.map((l) => (
-                <option key={l.id} value={l.id}>
-                  {l.name}
-                </option>
-              ))}
-            </select>
+            <div className='space-y-2'>
+              <select
+                value={locationId}
+                onChange={(e) => setLocationId(e.target.value)}
+                className='w-full rounded-md border bg-background px-3 py-2 text-sm'
+              >
+                <option value=''>장소 미지정</option>
+                {locationOptions.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.name}
+                  </option>
+                ))}
+              </select>
+              <div className='flex gap-2'>
+                <input
+                  type='text'
+                  value={newLocationName}
+                  onChange={(e) => setNewLocationName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddLocation();
+                    }
+                  }}
+                  placeholder='새 장소명'
+                  className='min-w-0 flex-1 rounded-md border bg-background px-3 py-2 text-sm'
+                />
+                <button
+                  type='button'
+                  onClick={handleAddLocation}
+                  disabled={pending || !newLocationName.trim()}
+                  className='shrink-0 rounded-md border px-3 py-2 text-xs font-semibold hover:bg-muted disabled:opacity-50'
+                >
+                  장소 추가
+                </button>
+              </div>
+            </div>
           </Field>
 
           {/* 강사 목록 */}
           <div>
-            <label className='mb-2 block text-xs font-semibold text-muted-foreground'>
+            <div className='mb-2 block text-xs font-semibold text-muted-foreground'>
               강사 <span className='text-red-500'>*</span>
-            </label>
+            </div>
             <div className='space-y-2'>
               {instructorIds.map((id, idx) => (
                 <div key={idx} className='flex items-center gap-2'>
@@ -218,10 +264,14 @@ export function NewLessonForm({ cohortId, cohortName, instructors, locations }: 
               </p>
               {withSurvey && (
                 <div className='mt-2'>
-                  <label className='block text-[11px] font-semibold text-muted-foreground'>
+                  <label
+                    htmlFor='survey-share-code'
+                    className='block text-[11px] font-semibold text-muted-foreground'
+                  >
                     공유 코드 (카톡방용)
                   </label>
                   <input
+                    id='survey-share-code'
                     type='text'
                     value={surveyShareCode}
                     onChange={(e) => {

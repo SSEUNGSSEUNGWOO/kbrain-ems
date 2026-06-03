@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { updateLesson } from '../../../_actions';
+import { createLocation, updateLesson } from '../../../_actions';
 
 type Instructor = {
   id: string;
@@ -44,7 +44,9 @@ export function EditLessonForm({
 
   const [sessionDate, setSessionDate] = useState(initialDate);
   const [title, setTitle] = useState(initialTitle);
+  const [locationOptions, setLocationOptions] = useState<Location[]>(locations);
   const [locationId, setLocationId] = useState<string>(initialLocationId ?? '');
+  const [newLocationName, setNewLocationName] = useState('');
   const [instructorIds, setInstructorIds] = useState<string[]>(
     initialInstructorIds.length > 0 ? initialInstructorIds : ['']
   );
@@ -55,6 +57,25 @@ export function EditLessonForm({
   const addInstructor = () => setInstructorIds((prev) => [...prev, '']);
   const removeInstructor = (idx: number) => {
     setInstructorIds((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== idx) : prev));
+  };
+
+  const handleAddLocation = () => {
+    setError(null);
+    startTransition(async () => {
+      const result = await createLocation(newLocationName);
+      if (result.error || !result.location) {
+        setError(result.error ?? '장소 추가 실패');
+        return;
+      }
+
+      setLocationOptions((prev) =>
+        prev.some((l) => l.id === result.location!.id)
+          ? prev
+          : [...prev, result.location!].toSorted((a, b) => a.name.localeCompare(b.name))
+      );
+      setLocationId(result.location.id);
+      setNewLocationName('');
+    });
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -90,10 +111,11 @@ export function EditLessonForm({
         <div className='space-y-4'>
           <div className='grid grid-cols-2 gap-4'>
             <div>
-              <label className='block text-xs font-semibold text-muted-foreground'>
+              <label htmlFor='session-date' className='block text-xs font-semibold text-muted-foreground'>
                 날짜 <span className='text-red-500'>*</span>
               </label>
               <input
+                id='session-date'
                 type='date'
                 value={sessionDate}
                 onChange={(e) => setSessionDate(e.target.value)}
@@ -101,10 +123,11 @@ export function EditLessonForm({
               />
             </div>
             <div>
-              <label className='block text-xs font-semibold text-muted-foreground'>
+              <label htmlFor='session-title' className='block text-xs font-semibold text-muted-foreground'>
                 수업 제목 <span className='text-red-500'>*</span>
               </label>
               <input
+                id='session-title'
                 type='text'
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
@@ -114,25 +137,53 @@ export function EditLessonForm({
           </div>
 
           <div>
-            <label className='block text-xs font-semibold text-muted-foreground'>장소</label>
-            <select
-              value={locationId}
-              onChange={(e) => setLocationId(e.target.value)}
-              className='mt-1 w-full rounded-md border bg-background px-3 py-2 text-sm'
-            >
-              <option value=''>장소 미지정</option>
-              {locations.map((l) => (
-                <option key={l.id} value={l.id}>
-                  {l.name}
-                </option>
-              ))}
-            </select>
+            <label htmlFor='session-location' className='block text-xs font-semibold text-muted-foreground'>
+              장소
+            </label>
+            <div className='mt-1 space-y-2'>
+              <select
+                id='session-location'
+                value={locationId}
+                onChange={(e) => setLocationId(e.target.value)}
+                className='w-full rounded-md border bg-background px-3 py-2 text-sm'
+              >
+                <option value=''>장소 미지정</option>
+                {locationOptions.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.name}
+                  </option>
+                ))}
+              </select>
+              <div className='flex gap-2'>
+                <input
+                  type='text'
+                  value={newLocationName}
+                  onChange={(e) => setNewLocationName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddLocation();
+                    }
+                  }}
+                  placeholder='새 장소명'
+                  className='min-w-0 flex-1 rounded-md border bg-background px-3 py-2 text-sm'
+                />
+                <button
+                  type='button'
+                  onClick={handleAddLocation}
+                  disabled={pending || !newLocationName.trim()}
+                  className='shrink-0 rounded-md border px-3 py-2 text-xs font-semibold hover:bg-muted disabled:opacity-50'
+                >
+                  장소 추가
+                </button>
+              </div>
+            </div>
           </div>
 
           <div>
-            <label className='mb-2 block text-xs font-semibold text-muted-foreground'>
+            <div className='mb-2 block text-xs font-semibold text-muted-foreground'>
               강사 <span className='text-red-500'>*</span>
-            </label>
+            </div>
             <div className='space-y-2'>
               {instructorIds.map((id, idx) => (
                 <div key={idx} className='flex items-center gap-2'>
