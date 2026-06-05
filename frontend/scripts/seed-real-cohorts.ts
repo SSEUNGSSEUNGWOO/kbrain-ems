@@ -174,9 +174,9 @@ async function importStudents(cohortId: string, rows: StudentRow[], cohortLabel:
         if (appErr) throw new Error(`application 생성 실패: ${appErr.message}`);
       }
 
-      // students — id에 applicantId 사용
+      // students — per-cohort enrollment, applicant_id 로 연결
       const { error: stuErr } = await sb.from('students').insert({
-        id: applicantId,
+        applicant_id: applicantId,
         cohort_id: cohortId,
         organization_id: orgId,
         name: r.name,

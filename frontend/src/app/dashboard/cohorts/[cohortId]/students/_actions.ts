@@ -85,7 +85,7 @@ export async function createStudent(
 
   const { error: studentError } = await supabase
     .from('students')
-    .insert({ id: applicantId, cohort_id: cohortId, ...fields });
+    .insert({ applicant_id: applicantId, cohort_id: cohortId, ...fields });
   if (studentError) return { error: studentError.message };
 
   revalidatePath(`/dashboard/cohorts/${cohortId}/students`);
@@ -118,22 +118,31 @@ export async function updateStudent(
     notes: String(formData.get('notes') ?? '').trim() || null
   };
 
+  // student row 의 applicant_id 를 먼저 조회 — applicant 마스터까지 동기화
+  const { data: stu } = await supabase
+    .from('students')
+    .select('applicant_id')
+    .eq('id', id)
+    .maybeSingle();
+  const applicantId = stu?.applicant_id;
+  if (!applicantId) return { error: '학생 정보를 찾을 수 없습니다.' };
+
   const { error: studentError } = await supabase
     .from('students')
     .update(fields)
     .eq('id', id);
   if (studentError) return { error: studentError.message };
 
-  // 같은 id의 지원자도 동기화
+  // applicant 마스터도 동기화
   const { error: applicantError } = await supabase
     .from('applicants')
     .update(fields)
-    .eq('id', id);
+    .eq('id', applicantId);
   if (applicantError) return { error: applicantError.message };
 
   revalidatePath(`/dashboard/cohorts/${cohortId}/students`);
   revalidatePath('/dashboard/applicants');
-  revalidatePath(`/dashboard/applicants/${id}`);
+  revalidatePath(`/dashboard/applicants/${applicantId}`);
   return {};
 }
 
@@ -143,6 +152,15 @@ export async function deleteStudent(
 ): Promise<ActionResult> {
   const supabase = createAdminClient();
 
+  // 삭제 전 applicant_id 확보 — applications 'withdrew' 처리에 필요
+  const { data: stu } = await supabase
+    .from('students')
+    .select('applicant_id')
+    .eq('id', id)
+    .maybeSingle();
+  const applicantId = stu?.applicant_id;
+  if (!applicantId) return { error: '학생 정보를 찾을 수 없습니다.' };
+
   const { error: delError } = await supabase
     .from('students')
     .delete()
@@ -150,12 +168,10 @@ export async function deleteStudent(
   if (delError) return { error: delError.message };
 
   // 합격 기록은 보존하되 'withdrew'(철회)로 변경
-  // COALESCE(decided_at, CURRENT_DATE)는 단순화 — selected 상태인 application들을 조회한 뒤
-  // 각각의 decided_at을 보존하면서 status만 업데이트
   const { data: apps } = await supabase
     .from('applications')
     .select('id, decided_at')
-    .eq('applicant_id', id)
+    .eq('applicant_id', applicantId)
     .eq('cohort_id', cohortId)
     .eq('status', 'selected');
 
@@ -195,7 +211,7 @@ export async function promoteApplicant(
 
   // students INSERT (이미 있으면 conflict → 무시)
   const { error: stuErr } = await supabase.from('students').insert({
-    id: applicant.id,
+    applicant_id: applicant.id,
     cohort_id: cohortId,
     organization_id: applicant.organization_id,
     name: applicant.name,
@@ -236,7 +252,7 @@ export async function unpromoteApplicant(
   const { error: delErr } = await supabase
     .from('students')
     .delete()
-    .eq('id', applicantId)
+    .eq('applicant_id', applicantId)
     .eq('cohort_id', cohortId);
   if (delErr) return { error: delErr.message };
 
@@ -260,6 +276,13 @@ export async function deleteStudents(
 
   const supabase = createAdminClient();
 
+  // 삭제 전 applicant_id 들 확보 — applications 'withdrew' 처리에 필요
+  const { data: stuRows } = await supabase
+    .from('students')
+    .select('applicant_id')
+    .in('id', ids);
+  const applicantIds = (stuRows ?? []).map((r) => r.applicant_id).filter(Boolean);
+
   const { error: delError } = await supabase
     .from('students')
     .delete()
@@ -269,7 +292,7 @@ export async function deleteStudents(
   const { data: apps } = await supabase
     .from('applications')
     .select('id, decided_at')
-    .in('applicant_id', ids)
+    .in('applicant_id', applicantIds)
     .eq('cohort_id', cohortId)
     .eq('status', 'selected');
 

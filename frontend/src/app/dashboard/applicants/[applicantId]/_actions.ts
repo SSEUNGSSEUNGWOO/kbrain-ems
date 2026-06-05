@@ -20,35 +20,15 @@ async function syncStudentSelected(
   const a = applicantRows?.[0];
   if (!a) return;
 
+  // 이 기수에 이미 student row 있나?
   const { data: existing } = await supabase
     .from('students')
     .select('id')
-    .eq('id', applicantId)
+    .eq('applicant_id', applicantId)
+    .eq('cohort_id', cohortId)
     .limit(1);
 
-  if (existing && existing[0]) {
-    // 이미 학생이면 cohort만 맞춰주고 정보 갱신
-    await supabase
-      .from('students')
-      .update({
-        cohort_id: cohortId,
-        name: a.name,
-        organization_id: a.organization_id,
-        department: a.department,
-        job_title: a.job_title,
-        job_role: a.job_role,
-        birth_date: a.birth_date,
-        email: a.email,
-        phone: a.phone,
-        notes: a.notes
-      })
-      .eq('id', applicantId);
-    return;
-  }
-
-  await supabase.from('students').insert({
-    id: applicantId,
-    cohort_id: cohortId,
+  const fields = {
     name: a.name,
     organization_id: a.organization_id,
     department: a.department,
@@ -58,22 +38,39 @@ async function syncStudentSelected(
     email: a.email,
     phone: a.phone,
     notes: a.notes
+  };
+
+  if (existing && existing[0]) {
+    await supabase.from('students').update(fields).eq('id', existing[0].id);
+    return;
+  }
+
+  await supabase.from('students').insert({
+    applicant_id: applicantId,
+    cohort_id: cohortId,
+    ...fields
   });
 }
 
-async function removeStudentIfNoSelected(
+async function removeStudentForCohort(
   supabase: SupabaseClient<Database>,
-  applicantId: string
+  applicantId: string,
+  cohortId: string
 ): Promise<void> {
-  // 이 사람이 더 이상 어떤 기수에도 selected가 아니면 학생 행 제거
+  // 이 기수의 application 이 더 이상 'selected' 가 아니면 이 기수 student row 제거
   const { data: stillSelected } = await supabase
     .from('applications')
     .select('id')
     .eq('applicant_id', applicantId)
+    .eq('cohort_id', cohortId)
     .eq('status', 'selected')
     .limit(1);
   if (stillSelected && stillSelected[0]) return;
-  await supabase.from('students').delete().eq('id', applicantId);
+  await supabase
+    .from('students')
+    .delete()
+    .eq('applicant_id', applicantId)
+    .eq('cohort_id', cohortId);
 }
 
 type ActionResult = { error?: string };
@@ -176,7 +173,7 @@ export async function updateApplication(
   if (status === 'selected') {
     await syncStudentSelected(supabase, applicantId, cohortId);
   } else {
-    await removeStudentIfNoSelected(supabase, applicantId);
+    await removeStudentForCohort(supabase, applicantId, cohortId);
   }
 
   revalidatePath(`/dashboard/applicants/${applicantId}`);
@@ -189,10 +186,21 @@ export async function deleteApplication(
   applicantId: string
 ): Promise<ActionResult> {
   const supabase = createAdminClient();
+
+  // 삭제 전 cohort_id 확보 — 해당 기수 student row 정리에 필요
+  const { data: appRow } = await supabase
+    .from('applications')
+    .select('cohort_id')
+    .eq('id', id)
+    .maybeSingle();
+  const cohortId = appRow?.cohort_id;
+
   const { error } = await supabase.from('applications').delete().eq('id', id);
   if (error) return { error: error.message };
 
-  await removeStudentIfNoSelected(supabase, applicantId);
+  if (cohortId) {
+    await removeStudentForCohort(supabase, applicantId, cohortId);
+  }
 
   revalidatePath(`/dashboard/applicants/${applicantId}`);
   revalidatePath('/dashboard/applicants');

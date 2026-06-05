@@ -188,15 +188,15 @@ export async function GET(
       priorCertsByApplicant.set(p.id, Array.isArray(p.prior_certs) ? p.prior_certs : []);
     }
 
-    // students.id는 applicants.id와 1:1 — 현재 cohort 제외하고 'experts' 카테고리 cohort에
-    // 학생으로 등록돼 있는지 + 어느 기수인지 (예: "전문인재 26-1기" → "26-1")
+    // 현재 cohort 제외하고 'experts' 카테고리 cohort 에 학생으로 등록돼 있는지 + 어느 기수인지
+    // (예: "전문인재 26-1기" → "26-1")
     const { data: studentRows } = (await supabase
       .from('students')
-      .select('id, cohorts!inner(name, category)')
-      .in('id', applicantIds)
+      .select('applicant_id, cohorts!inner(name, category)')
+      .in('applicant_id', applicantIds)
       .neq('cohort_id', cohortId)
       .eq('cohorts.category', 'experts')) as unknown as {
-      data: { id: string; cohorts: { name: string } | null }[] | null;
+      data: { applicant_id: string; cohorts: { name: string } | null }[] | null;
     };
     // "전문인재 26-1기" → "26-1" 추출
     const labelRe = /(\d+-\d+)기?/;
@@ -204,9 +204,9 @@ export async function GET(
       const name = s.cohorts?.name ?? '';
       const m = name.match(labelRe);
       const label = m ? m[1] : name;
-      const arr = expertLabelsByApplicant.get(s.id) ?? [];
+      const arr = expertLabelsByApplicant.get(s.applicant_id) ?? [];
       if (!arr.includes(label)) arr.push(label);
-      expertLabelsByApplicant.set(s.id, arr);
+      expertLabelsByApplicant.set(s.applicant_id, arr);
     }
     // 라벨 정렬
     for (const [k, v] of expertLabelsByApplicant) {

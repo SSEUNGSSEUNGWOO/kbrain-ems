@@ -539,6 +539,7 @@ export type Database = {
       students: {
         Row: {
           id: string;
+          applicant_id: string;
           cohort_id: string;
           organization_id: string | null;
           name: string;
@@ -554,7 +555,8 @@ export type Database = {
           updated_at: string;
         };
         Insert: {
-          id: string;
+          id?: string;
+          applicant_id: string;
           cohort_id: string;
           organization_id?: string | null;
           name: string;
@@ -571,6 +573,7 @@ export type Database = {
         };
         Update: {
           id?: string;
+          applicant_id?: string;
           cohort_id?: string;
           organization_id?: string | null;
           name?: string;
@@ -587,8 +590,8 @@ export type Database = {
         };
         Relationships: [
           {
-            foreignKeyName: 'students_id_fkey';
-            columns: ['id'];
+            foreignKeyName: 'students_applicant_id_fkey';
+            columns: ['applicant_id'];
             referencedRelation: 'applicants';
             referencedColumns: ['id'];
           },

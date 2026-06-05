@@ -98,12 +98,12 @@ export async function updateApplicant(
     .eq('id', id);
   if (applicantError) return { error: applicantError.message };
 
-  // 같은 id로 등록된 학생이 있으면 같이 갱신 (students에는 category 없음 → 제외)
+  // 이 지원자의 모든 학생 enrollment 동기화 (students 에 category 없음 → 제외)
   const { category: _unused, ...studentFields } = fields;
   const { error: studentError } = await supabase
     .from('students')
     .update(studentFields)
-    .eq('id', id);
+    .eq('applicant_id', id);
   if (studentError) return { error: studentError.message };
 
   revalidatePath('/dashboard/applicants');
