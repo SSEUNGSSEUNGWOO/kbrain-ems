@@ -87,8 +87,8 @@ export const STAGE_DOMAINS: Record<CohortStage, readonly string[]> = {
   selecting: ['applications', 'students', 'lessons', 'instructors', 'surveys', 'reports'],
   // 합격 통보 중 — applications + students 병행
   notifying: ['applications', 'students', 'lessons', 'instructors', 'surveys', 'reports'],
-  // 통보 완료, 입과 준비 — applications 빠지고 students 중심
-  onboarding: ['students', 'lessons', 'instructors', 'surveys', 'reports'],
+  // 통보 완료, 입과 준비 — 추가 응답/명단 확인 필요해 applications 유지
+  onboarding: ['applications', 'students', 'lessons', 'instructors', 'surveys', 'reports'],
   active: [
     'students',
     'lessons',
