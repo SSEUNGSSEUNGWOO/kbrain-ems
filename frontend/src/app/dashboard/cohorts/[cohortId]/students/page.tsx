@@ -157,12 +157,17 @@ export default async function StudentsPage({
         pageTitle='인원 관리'
         pageDescription={`${cohort.name} · 총 ${mapped.length}명`}
         pageHeaderAction={
-          hidePersonal ? null : (
-            <StudentSheet
-              cohortId={cohortId}
-              trigger={<Button>+ 인원 추가</Button>}
-            />
-          )
+          <div className='flex gap-2'>
+            <Button asChild variant='outline'>
+              <a href={`/api/cohorts/${cohortId}/students/export`}>엑셀 다운로드</a>
+            </Button>
+            {hidePersonal ? null : (
+              <StudentSheet
+                cohortId={cohortId}
+                trigger={<Button>+ 인원 추가</Button>}
+              />
+            )}
+          </div>
         }
       >
         <StudentTable cohortId={cohortId} students={mapped} hidePersonal={hidePersonal} />
