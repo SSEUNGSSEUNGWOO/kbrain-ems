@@ -88,13 +88,14 @@ export const STAGE_DOMAINS: Record<CohortStage, readonly string[]> = {
   // 합격 통보 중 — applications + students 병행
   notifying: ['applications', 'students', 'lessons', 'instructors', 'surveys', 'reports'],
   // 통보 완료, 입과 준비 — 추가 응답/명단 확인 필요해 applications 유지
-  onboarding: ['applications', 'students', 'lessons', 'instructors', 'surveys', 'reports'],
+  onboarding: ['applications', 'students', 'lessons', 'instructors', 'surveys', 'diagnoses', 'reports'],
   active: [
     'students',
     'lessons',
     'attendance',
     'assignments',
     'surveys',
+    'diagnoses',
     'instructors',
     'reports'
   ],
@@ -103,6 +104,7 @@ export const STAGE_DOMAINS: Record<CohortStage, readonly string[]> = {
     'attendance',
     'assignments',
     'surveys',
+    'diagnoses',
     'completion',
     'instructors',
     'reports'

@@ -1276,6 +1276,7 @@ export type Database = {
           cohort_id: string;
           title: string;
           type: string;
+          share_code: string | null;
           opens_at: string | null;
           closes_at: string | null;
           created_at: string;
@@ -1286,6 +1287,7 @@ export type Database = {
           cohort_id: string;
           title: string;
           type: string;
+          share_code?: string | null;
           opens_at?: string | null;
           closes_at?: string | null;
           created_at?: string;
@@ -1296,6 +1298,7 @@ export type Database = {
           cohort_id?: string;
           title?: string;
           type?: string;
+          share_code?: string | null;
           opens_at?: string | null;
           closes_at?: string | null;
           created_at?: string;
