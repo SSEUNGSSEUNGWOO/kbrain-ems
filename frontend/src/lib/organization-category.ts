@@ -15,6 +15,16 @@ export const ORGANIZATION_CATEGORY_LABEL: Record<OrganizationCategory, string> =
   unknown: '미분류'
 };
 
+const LABEL_TO_CATEGORY = Object.fromEntries(
+  Object.entries(ORGANIZATION_CATEGORY_LABEL).map(([k, v]) => [v, k as OrganizationCategory])
+) as Record<string, OrganizationCategory>;
+
+/** 신청서 응답으로 받은 한글 라벨(applicants.category)을 카테고리 키로 변환. 없으면 null. */
+export function categoryFromLabel(label: string | null | undefined): OrganizationCategory | null {
+  if (!label) return null;
+  return LABEL_TO_CATEGORY[label.trim()] ?? null;
+}
+
 const CENTRAL_MINISTRIES = [
   '감사원',
   '개인정보보호위원회',

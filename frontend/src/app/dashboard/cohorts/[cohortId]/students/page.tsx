@@ -106,11 +106,12 @@ export default async function StudentsPage({
       phone?: string | null;
       notes: string | null;
       organizations: { name: string } | null;
+      applicants: { category: string | null } | null;
     };
 
     const studentCols = hidePersonal
-      ? 'id, name, department, job_title, job_role, birth_date, notes, organizations(name)'
-      : 'id, name, department, job_title, job_role, birth_date, email, phone, notes, organizations(name)';
+      ? 'id, name, department, job_title, job_role, birth_date, notes, organizations(name), applicants(category)'
+      : 'id, name, department, job_title, job_role, birth_date, email, phone, notes, organizations(name), applicants(category)';
     const { data: studentRows, error: studentError } = await supabase
       .from('students')
       .select(studentCols)
@@ -141,6 +142,7 @@ export default async function StudentsPage({
       id: r.id,
       name: r.name,
       organizations: r.organizations ? { name: r.organizations.name } : null,
+      category: r.applicants?.category ?? null,
       department: r.department,
       job_title: r.job_title,
       job_role: r.job_role,

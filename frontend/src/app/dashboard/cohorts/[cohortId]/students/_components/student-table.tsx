@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
+  categoryFromLabel,
   classifyOrganization,
   ORGANIZATION_CATEGORY_LABEL,
   type OrganizationCategory
@@ -29,6 +30,7 @@ type Student = {
   id: string;
   name: string;
   organizations: { name: string }[] | { name: string } | null;
+  category: string | null;
   department: string | null;
   job_title: string | null;
   job_role: string | null;
@@ -44,6 +46,11 @@ function getOrgName(org: Student['organizations']): string {
   if (!org) return '-';
   if (Array.isArray(org)) return org[0]?.name ?? '-';
   return org.name;
+}
+
+/** 신청서 응답(applicants.category) 우선, 없으면 기관명으로 자동 분류 fallback. */
+function resolveCategory(student: Student): OrganizationCategory {
+  return categoryFromLabel(student.category) ?? classifyOrganization(getOrgName(student.organizations));
 }
 
 const CATEGORY_CLASS: Record<OrganizationCategory, string> = {
@@ -75,7 +82,7 @@ export function StudentTable({
   const { isDeveloper } = useAuth();
 
   const categoryCounts = students.reduce((acc, student) => {
-    const category = classifyOrganization(getOrgName(student.organizations));
+    const category = resolveCategory(student);
     acc[category] = (acc[category] ?? 0) + 1;
     return acc;
   }, {} as Record<OrganizationCategory, number>);
@@ -90,7 +97,7 @@ export function StudentTable({
   ];
   const filteredStudents = categoryFilter === 'all'
     ? students
-    : students.filter((student) => classifyOrganization(getOrgName(student.organizations)) === categoryFilter);
+    : students.filter((student) => resolveCategory(student) === categoryFilter);
   const visibleIds = filteredStudents.map((s) => s.id);
   const visibleSelectedCount = visibleIds.filter((id) => selected.has(id)).length;
   const isAllSelected = visibleIds.length > 0 && visibleIds.every((id) => selected.has(id));
@@ -209,7 +216,7 @@ export function StudentTable({
           <tbody>
             {filteredStudents.map((s) => {
               const orgName = getOrgName(s.organizations);
-              const category = classifyOrganization(orgName);
+              const category = resolveCategory(s);
 
               return (
                 <tr
