@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import {
+  categoryFromLabel,
   classifyOrganization,
   ORGANIZATION_CATEGORY_LABEL,
   type OrganizationCategory
@@ -101,7 +102,12 @@ type Student = {
   id: string;
   name: string;
   organizations: { name: string }[] | { name: string } | null;
+  category: string | null;
 };
+
+function resolveCategory(student: Student, orgName: string): OrganizationCategory {
+  return categoryFromLabel(student.category) ?? classifyOrganization(orgName);
+}
 
 type RecordMap = Record<string, {
   status: string;
@@ -266,7 +272,7 @@ export function AttendanceTable({
                   <td className='px-4 py-2'>
                     {(() => {
                       const orgName = getOrgName(s.organizations);
-                      const category = classifyOrganization(orgName);
+                      const category = resolveCategory(s, orgName);
                       return (
                         <div className='flex min-w-0 items-center gap-2'>
                           <Badge variant='outline' className={`min-w-[6rem] shrink-0 justify-center text-center ${CATEGORY_CLASS[category]}`}>

@@ -706,6 +706,94 @@ export type Database = {
         Relationships: [];
       };
 
+      attendance_checks: {
+        Row: {
+          id: string;
+          session_id: string;
+          label: string;
+          share_code: string | null;
+          opens_at: string | null;
+          closes_at: string | null;
+          criterion_at: string | null;
+          attendance_role: string | null;
+          display_order: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          session_id: string;
+          label: string;
+          share_code?: string | null;
+          opens_at?: string | null;
+          closes_at?: string | null;
+          criterion_at?: string | null;
+          attendance_role?: string | null;
+          display_order?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          session_id?: string;
+          label?: string;
+          share_code?: string | null;
+          opens_at?: string | null;
+          closes_at?: string | null;
+          criterion_at?: string | null;
+          attendance_role?: string | null;
+          display_order?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'attendance_checks_session_id_fkey';
+            columns: ['session_id'];
+            referencedRelation: 'sessions';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+
+      attendance_check_records: {
+        Row: {
+          id: string;
+          check_id: string;
+          student_id: string;
+          checked_at: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          check_id: string;
+          student_id: string;
+          checked_at?: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          check_id?: string;
+          student_id?: string;
+          checked_at?: string;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'attendance_check_records_check_id_fkey';
+            columns: ['check_id'];
+            referencedRelation: 'attendance_checks';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'attendance_check_records_student_id_fkey';
+            columns: ['student_id'];
+            referencedRelation: 'students';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+
       attendance_records: {
         Row: {
           id: string;
@@ -1277,6 +1365,7 @@ export type Database = {
           title: string;
           type: string;
           share_code: string | null;
+          attendance_check_id: string | null;
           opens_at: string | null;
           closes_at: string | null;
           created_at: string;
@@ -1288,6 +1377,7 @@ export type Database = {
           title: string;
           type: string;
           share_code?: string | null;
+          attendance_check_id?: string | null;
           opens_at?: string | null;
           closes_at?: string | null;
           created_at?: string;
@@ -1299,6 +1389,7 @@ export type Database = {
           title?: string;
           type?: string;
           share_code?: string | null;
+          attendance_check_id?: string | null;
           opens_at?: string | null;
           closes_at?: string | null;
           created_at?: string;
