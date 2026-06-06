@@ -1,6 +1,7 @@
 import PageContainer from '@/components/layout/page-container';
 import { createAdminClient } from '@/lib/supabase/server';
 import { DiagnosisCard } from './_components/diagnosis-card';
+import { QuestionsPreviewButton } from './_components/questions-preview-button';
 
 type Props = {
   params: Promise<{ cohortId: string }>;
@@ -66,6 +67,22 @@ export default async function DiagnosesPage({ params }: Props) {
     responsesByDiag.set(r.diagnosis_id, arr);
   }
 
+  // 문항 — 사전·사후 동일 내용이라 첫 진단의 문항만 fetch
+  type Question = {
+    id: string;
+    question_no: number;
+    type: string;
+    text: string;
+    options: Record<string, unknown> | null;
+    weight: string | null;
+  };
+  const { data: previewQuestions } = await supabase
+    .from('diagnosis_questions')
+    .select('id, question_no, type, text, options, weight')
+    .eq('diagnosis_id', diagnoses[0].id)
+    .order('question_no', { ascending: true })
+    .returns<Question[]>();
+
   // cohort 의 student 수
   const { count: studentCount } = await supabase
     .from('students')
@@ -76,6 +93,11 @@ export default async function DiagnosesPage({ params }: Props) {
     <PageContainer
       pageTitle='사전·사후 진단'
       pageDescription={`학습 효과 측정용 역량 평가 · 학생 ${studentCount ?? 0}명`}
+      pageHeaderAction={
+        previewQuestions && previewQuestions.length > 0 ? (
+          <QuestionsPreviewButton questions={previewQuestions} />
+        ) : null
+      }
     >
       <div className='space-y-6'>
         {diagnoses.map((d) => (

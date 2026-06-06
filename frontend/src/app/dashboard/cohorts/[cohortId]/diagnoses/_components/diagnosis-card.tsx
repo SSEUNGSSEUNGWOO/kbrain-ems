@@ -162,3 +162,4 @@ export function DiagnosisCard({ cohortId, diagnosis, responses, studentCount }: 
     </div>
   );
 }
+
