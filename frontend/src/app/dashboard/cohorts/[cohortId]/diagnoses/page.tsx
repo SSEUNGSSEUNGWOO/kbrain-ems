@@ -15,7 +15,7 @@ export default async function DiagnosesPage({ params }: Props) {
 
   const { data: diagnoses } = await supabase
     .from('diagnoses')
-    .select('id, title, type, opens_at, closes_at, share_code')
+    .select('id, title, type, opens_at, closes_at, share_code, attendance_check_id')
     .eq('cohort_id', cohortId)
     .order('type', { ascending: true })
     .returns<
@@ -26,6 +26,7 @@ export default async function DiagnosesPage({ params }: Props) {
         opens_at: string | null;
         closes_at: string | null;
         share_code: string | null;
+        attendance_check_id: string | null;
       }[]
     >();
 
@@ -89,6 +90,29 @@ export default async function DiagnosesPage({ params }: Props) {
     .select('id', { count: 'exact', head: true })
     .eq('cohort_id', cohortId);
 
+  // cohort 의 세션들 + 그 안의 attendance_checks (출석 연동 옵션용)
+  type AttnCheckOpt = {
+    id: string;
+    label: string;
+    attendance_role: string | null;
+    sessions: { session_date: string; title: string | null } | null;
+  };
+  const { data: sessionList } = await supabase
+    .from('sessions')
+    .select('id')
+    .eq('cohort_id', cohortId);
+  const sessionIds = (sessionList ?? []).map((s) => s.id);
+  let attendanceCheckOptions: AttnCheckOpt[] = [];
+  if (sessionIds.length > 0) {
+    const { data: checks } = await supabase
+      .from('attendance_checks')
+      .select('id, label, attendance_role, sessions(session_date, title)')
+      .in('session_id', sessionIds)
+      .order('display_order', { ascending: true })
+      .returns<AttnCheckOpt[]>();
+    attendanceCheckOptions = checks ?? [];
+  }
+
   return (
     <PageContainer
       pageTitle='사전·사후 진단'
@@ -107,6 +131,7 @@ export default async function DiagnosesPage({ params }: Props) {
             diagnosis={d}
             responses={responsesByDiag.get(d.id) ?? []}
             studentCount={studentCount ?? 0}
+            attendanceCheckOptions={attendanceCheckOptions}
           />
         ))}
       </div>

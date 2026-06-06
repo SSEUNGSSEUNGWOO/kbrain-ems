@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
-import { ensureShareCode } from '../_actions';
+import { ensureShareCode, linkDiagnosisToAttendanceCheck } from '../_actions';
 
 type Diagnosis = {
   id: string;
@@ -11,6 +11,14 @@ type Diagnosis = {
   opens_at: string | null;
   closes_at: string | null;
   share_code: string | null;
+  attendance_check_id: string | null;
+};
+
+type AttnCheckOpt = {
+  id: string;
+  label: string;
+  attendance_role: string | null;
+  sessions: { session_date: string; title: string | null } | null;
 };
 
 type Response = {
@@ -27,9 +35,85 @@ type Props = {
   diagnosis: Diagnosis;
   responses: Response[];
   studentCount: number;
+  attendanceCheckOptions: AttnCheckOpt[];
 };
 
-export function DiagnosisCard({ cohortId, diagnosis, responses, studentCount }: Props) {
+function AttendanceLinkSelector({
+  diagnosisId,
+  cohortId,
+  currentCheckId,
+  options,
+  setMessage
+}: {
+  diagnosisId: string;
+  cohortId: string;
+  currentCheckId: string | null;
+  options: AttnCheckOpt[];
+  setMessage: (s: string | null) => void;
+}) {
+  const [pending, startTransition] = useTransition();
+  const current = options.find((o) => o.id === currentCheckId) ?? null;
+
+  const handleChange = (newId: string | null) => {
+    setMessage(null);
+    startTransition(async () => {
+      const r = await linkDiagnosisToAttendanceCheck(diagnosisId, cohortId, newId);
+      if (r.error) setMessage(`오류: ${r.error}`);
+    });
+  };
+
+  if (options.length === 0) {
+    return (
+      <div className='mt-3 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500'>
+        출석 체크포인트가 없습니다. 회차 출결 페이지에서 먼저 만들어주세요.
+      </div>
+    );
+  }
+
+  return (
+    <div className='mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs'>
+      <div className='flex items-center gap-2'>
+        <span className='font-semibold text-amber-900'>출석 자동 연동:</span>
+        <select
+          value={currentCheckId ?? ''}
+          onChange={(e) => handleChange(e.target.value || null)}
+          disabled={pending}
+          className='rounded border border-amber-200 bg-white px-2 py-0.5 text-xs'
+        >
+          <option value=''>없음 (출석 영향 X)</option>
+          {options.map((o) => {
+            const date = o.sessions?.session_date ?? '';
+            const sessionTitle = o.sessions?.title ?? '';
+            return (
+              <option key={o.id} value={o.id}>
+                {date}
+                {sessionTitle ? ` ${sessionTitle}` : ''} · {o.label}
+                {o.attendance_role === 'arrival'
+                  ? ' (출석·지각)'
+                  : o.attendance_role === 'departure'
+                    ? ' (마감)'
+                    : ''}
+              </option>
+            );
+          })}
+        </select>
+      </div>
+      {current && (
+        <p className='mt-1 text-[11px] text-amber-700'>
+          학생이 이 진단을 제출하면 자동으로 위 체크포인트에 체크인됩니다.
+        </p>
+      )}
+    </div>
+  );
+}
+
+export function DiagnosisCard({
+  cohortId,
+  diagnosis,
+  responses,
+  studentCount,
+  attendanceCheckOptions
+}: Props) {
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
   const [showStatus, setShowStatus] = useState(false);
@@ -95,6 +179,13 @@ export function DiagnosisCard({ cohortId, diagnosis, responses, studentCount }: 
               <span className='font-mono text-blue-700 break-all'>{shareUrl}</span>
             </div>
           )}
+          <AttendanceLinkSelector
+            diagnosisId={diagnosis.id}
+            cohortId={cohortId}
+            currentCheckId={diagnosis.attendance_check_id}
+            options={attendanceCheckOptions}
+            setMessage={setMessage}
+          />
         </div>
         <div className='flex flex-col gap-2'>
           <Button onClick={handleShareCode} disabled={pending}>

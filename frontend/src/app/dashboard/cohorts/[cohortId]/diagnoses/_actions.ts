@@ -91,6 +91,24 @@ export async function generateDiagnosisTokens(
 }
 
 /**
+ * 진단을 출석 체크포인트와 연결 (또는 연결 해제).
+ */
+export async function linkDiagnosisToAttendanceCheck(
+  diagnosisId: string,
+  cohortId: string,
+  attendanceCheckId: string | null
+): Promise<{ error?: string }> {
+  const supabase = createAdminClient();
+  const { error } = await supabase
+    .from('diagnoses')
+    .update({ attendance_check_id: attendanceCheckId })
+    .eq('id', diagnosisId);
+  if (error) return { error: error.message };
+  revalidatePath(`/dashboard/cohorts/${cohortId}/diagnoses`);
+  return {};
+}
+
+/**
  * 응답 가능 시각(opens_at / closes_at) 설정.
  */
 export async function updateDiagnosisSchedule(
