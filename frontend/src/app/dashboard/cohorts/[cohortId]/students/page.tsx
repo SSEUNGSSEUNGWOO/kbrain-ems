@@ -161,7 +161,10 @@ export default async function StudentsPage({
         pageHeaderAction={
           <div className='flex gap-2'>
             <Button asChild variant='outline'>
-              <a href={`/api/cohorts/${cohortId}/students/export`}>엑셀 다운로드</a>
+              <a href={`/api/cohorts/${cohortId}/students/export-simple`}>간이 명단</a>
+            </Button>
+            <Button asChild variant='outline'>
+              <a href={`/api/cohorts/${cohortId}/students/export`}>전체 엑셀</a>
             </Button>
             {hidePersonal ? null : (
               <StudentSheet
