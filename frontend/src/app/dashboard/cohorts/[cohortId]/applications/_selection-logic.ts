@@ -271,6 +271,23 @@ export function recommendByQuotas(
     }
   }
 
+  // Phase 3: 커트라인 동점자 포함 — 합격자의 정렬 키와 완전히 동일한 미선발자는
+  // 정원·기관/상위부처 캡을 무시하고 모두 포함시킨다.
+  // 동점 키 = (prereq_done_count, final_score, knowledge_score, plan_char_count).
+  // 글자수까지 동일하면 알고리즘이 구분할 수 없기 때문에 형평성 차원에서 다 통과.
+  const tieKey = (c: ScoredCandidate) =>
+    `${c.prereq_done_count}|${c.final_score}|${c.knowledge_score}|${c.plan_char_count}`;
+  const selectedKeys = new Set<string>();
+  for (const c of scored) {
+    if (selectedSet.has(c.application_id)) selectedKeys.add(tieKey(c));
+  }
+  for (const c of scored) {
+    if (selectedSet.has(c.application_id)) continue;
+    if (!selectedKeys.has(tieKey(c))) continue;
+    selectedSet.add(c.application_id);
+    selectedIds.push(c.application_id);
+  }
+
   return { selectedIds, scored };
 }
 
