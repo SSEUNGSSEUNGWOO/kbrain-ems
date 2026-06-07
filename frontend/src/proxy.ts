@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 
 const PUBLIC_PATHS = ['/lock'];
-const PUBLIC_PATH_PREFIXES = ['/apply', '/survey', '/diagnosis'];
+const PUBLIC_PATH_PREFIXES = ['/apply', '/survey', '/diagnosis', '/attendance'];
 const PUBLIC_API_PREFIXES = ['/api/auth'];
 
 export async function proxy(req: NextRequest) {

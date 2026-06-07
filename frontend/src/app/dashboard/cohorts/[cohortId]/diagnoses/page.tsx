@@ -1,4 +1,6 @@
 import PageContainer from '@/components/layout/page-container';
+import { Button } from '@/components/ui/button';
+import { Icons } from '@/components/icons';
 import { createAdminClient } from '@/lib/supabase/server';
 import { DiagnosisCard } from './_components/diagnosis-card';
 import { QuestionsPreviewButton } from './_components/questions-preview-button';
@@ -119,7 +121,15 @@ export default async function DiagnosesPage({ params }: Props) {
       pageDescription={`학습 효과 측정용 역량 평가 · 학생 ${studentCount ?? 0}명`}
       pageHeaderAction={
         previewQuestions && previewQuestions.length > 0 ? (
-          <QuestionsPreviewButton questions={previewQuestions} />
+          <div className='flex items-center gap-2'>
+            <Button asChild size='sm' variant='outline'>
+              <a href={`/api/cohorts/${cohortId}/diagnoses/answer-key`} download>
+                <Icons.download className='mr-1.5' />
+                정답지 엑셀
+              </a>
+            </Button>
+            <QuestionsPreviewButton questions={previewQuestions} />
+          </div>
         ) : null
       }
     >

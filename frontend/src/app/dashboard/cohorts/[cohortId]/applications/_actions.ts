@@ -159,27 +159,34 @@ export async function loadSelectionPool(
       .reduce((s, q) => s + Number(q.weight ?? 1), 0);
 
     // 응답 조회: C2(분류) + Plan(활용계획 글자수) + U1(다수체크 개수)
+    // question_id는 cohort-specific이라 .in('application_id', ...) 불필요.
+    // 큰 cohort에서 UUID 수백 개를 in()에 넣으면 URL이 PostgREST 한계를 넘어 응답이 전부 누락됨.
+    // chunked range로 분할 fetch.
     const appIds = (apps ?? []).map((a) => a.id);
     const c2Map = new Map<string, string>();
     const planMap = new Map<string, string>();
     const multiCountMap = new Map<string, number>();
     if (appIds.length > 0 && (c2 || finalQ || multiQ)) {
       const targetIds = [c2?.id, finalQ?.id, multiQ?.id].filter((x): x is string => Boolean(x));
-      const { data: answers } = await supabase
-        .from('application_answers')
-        .select('application_id, question_id, answer_value')
-        .in('application_id', appIds)
-        .in('question_id', targetIds);
-      for (const a of answers ?? []) {
-        if (a.question_id === c2?.id) {
-          c2Map.set(a.application_id, typeof a.answer_value === 'string' ? a.answer_value : '');
-        } else if (a.question_id === finalQ?.id) {
-          planMap.set(a.application_id, typeof a.answer_value === 'string' ? a.answer_value : '');
-        } else if (a.question_id === multiQ?.id) {
-          // multi answer_value는 배열 형태 ["①","②","③"]
-          const arr = Array.isArray(a.answer_value) ? a.answer_value : [];
-          multiCountMap.set(a.application_id, arr.length);
+      const chunk = 1000;
+      for (let offset = 0; offset < 1_000_000; offset += chunk) {
+        const { data: answers } = await supabase
+          .from('application_answers')
+          .select('application_id, question_id, answer_value')
+          .in('question_id', targetIds)
+          .range(offset, offset + chunk - 1);
+        for (const a of answers ?? []) {
+          if (a.question_id === c2?.id) {
+            c2Map.set(a.application_id, typeof a.answer_value === 'string' ? a.answer_value : '');
+          } else if (a.question_id === finalQ?.id) {
+            planMap.set(a.application_id, typeof a.answer_value === 'string' ? a.answer_value : '');
+          } else if (a.question_id === multiQ?.id) {
+            // multi answer_value는 배열 형태 ["①","②","③"]
+            const arr = Array.isArray(a.answer_value) ? a.answer_value : [];
+            multiCountMap.set(a.application_id, arr.length);
+          }
         }
+        if (!answers || answers.length < chunk) break;
       }
     }
 

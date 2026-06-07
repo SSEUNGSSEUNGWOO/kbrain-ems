@@ -95,16 +95,22 @@ export default async function CohortApplicationsPage({ params, searchParams }: P
   const allAppIds = (statsRows ?? []).map((r) => r.id);
 
   // C2 응답을 코호트 전체에 대해 fetch (facet + 필터링)
+  // question_id가 cohort-specific이라 .in('application_id', ...) 없이도 cohort 범위 한정됨.
+  // .in()으로 수백 UUID 넘기면 URL이 너무 길어져 PostgREST가 답안을 못 돌려줌 → chunked range로 분할.
   const c2ChoiceMap = new Map<string, string>();
   if (c2Question && allAppIds.length > 0) {
-    const { data: c2Answers } = await supabase
-      .from('application_answers')
-      .select('application_id, answer_value')
-      .eq('question_id', c2Question.id)
-      .in('application_id', allAppIds);
-    for (const a of c2Answers ?? []) {
-      const key = typeof a.answer_value === 'string' ? a.answer_value : null;
-      if (key) c2ChoiceMap.set(a.application_id, key);
+    const chunk = 1000;
+    for (let offset = 0; offset < 1_000_000; offset += chunk) {
+      const { data: c2Answers } = await supabase
+        .from('application_answers')
+        .select('application_id, answer_value')
+        .eq('question_id', c2Question.id)
+        .range(offset, offset + chunk - 1);
+      for (const a of c2Answers ?? []) {
+        const key = typeof a.answer_value === 'string' ? a.answer_value : null;
+        if (key) c2ChoiceMap.set(a.application_id, key);
+      }
+      if (!c2Answers || c2Answers.length < chunk) break;
     }
   }
 

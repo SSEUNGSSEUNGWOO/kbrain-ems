@@ -154,26 +154,32 @@ export function buildPreview(rows: ParsedRow[], questions: AppQuestion[]): Mappi
   for (let qi = 0; qi < questions.length; qi++) {
     const q = questions[qi];
     if (q.question_type !== 'multi') continue;
-    const set = new Set<string>();
+    const occurrenceCount = new Map<string, number>();
     for (const row of preRows) {
       const raw = row.rawValues[qi];
       if (!raw) continue;
       for (const t of raw.split(/\|\|/)) {
         const id = t.trim();
-        if (id) set.add(id);
+        if (id) occurrenceCount.set(id, (occurrenceCount.get(id) ?? 0) + 1);
       }
     }
-    const externalIds = [...set].toSorted((a, b) =>
-      a.localeCompare(b, undefined, { numeric: true })
-    );
+    // 숫자 ID 와 비-숫자 ID 분리. LMS export 의 실제 답안은 숫자(보기 ID).
+    // 한두 row 의 외부 데이터 오류(예: "1. ① O (맞다)") 가 자동 매핑을 어긋나게 하지 않도록
+    // 숫자 ID 만 emsKeys 순서대로 자동 매칭, 비-숫자는 매핑 안 함.
+    const numericIds = [...occurrenceCount.keys()]
+      .filter((id) => /^\d+$/.test(id))
+      .toSorted((a, b) => Number(a) - Number(b));
+    const otherIds = [...occurrenceCount.keys()]
+      .filter((id) => !/^\d+$/.test(id))
+      .toSorted((a, b) => a.localeCompare(b));
     const emsKeys = (q.choices ?? []).map((c) => c.key);
     const autoSuggest: Record<string, string> = {};
-    for (let i = 0; i < externalIds.length; i++) {
-      autoSuggest[externalIds[i]] = emsKeys[i] ?? '';
+    for (let i = 0; i < numericIds.length; i++) {
+      autoSuggest[numericIds[i]] = emsKeys[i] ?? '';
     }
     multiQuestions.push({
       question_no: q.question_no,
-      externalIds,
+      externalIds: [...numericIds, ...otherIds],
       emsChoices: q.choices ?? [],
       autoSuggest
     });

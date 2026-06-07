@@ -30,7 +30,7 @@ type Step = 'confirm' | 'test' | 'result';
 
 const STORAGE_VERSION = 'v2';
 const MAX_RETRIES = 3;
-const TEST_DURATION_SECONDS = 5 * 60;
+const TEST_DURATION_SECONDS = 7 * 60;
 
 function storageKey(token: string) {
   return `diagnosis-draft-${STORAGE_VERSION}-${token}`;
@@ -215,7 +215,7 @@ export function DiagnosisForm({
     [answers, questions.length, submitting, token, unanswered.length]
   );
 
-  // 5분 카운트다운
+  // 7분 카운트다운
   useEffect(() => {
     if (step !== 'test') return;
     const id = setInterval(() => {
@@ -249,7 +249,7 @@ export function DiagnosisForm({
         </div>
         <p className='mt-6 text-sm text-slate-700'>본인이 맞으십니까?</p>
         <p className='mt-1 text-xs text-slate-500'>
-          확인 후 <strong>5분간 {questions.length}문항</strong>에 응답합니다. 시간 만료 시 자동 제출됩니다.
+          확인 후 <strong>7분간 {questions.length}문항</strong>에 응답합니다. 시간 만료 시 자동 제출됩니다.
         </p>
 
         <div className='mt-8 flex gap-3'>
