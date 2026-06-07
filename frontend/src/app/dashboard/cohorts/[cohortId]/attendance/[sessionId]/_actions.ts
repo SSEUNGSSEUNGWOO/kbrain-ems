@@ -93,6 +93,42 @@ export async function createAttendanceCheck(
   return { id: data.id };
 }
 
+export async function updateAttendanceCheck(
+  checkId: string,
+  cohortId: string,
+  sessionId: string,
+  patch: {
+    label?: string;
+    opens_at?: string | null;
+    closes_at?: string | null;
+    attendance_role?: 'arrival' | 'departure' | null;
+    criterion_at?: string | null;
+  }
+): Promise<{ error?: string }> {
+  if (patch.label !== undefined && !patch.label.trim()) {
+    return { error: '체크포인트 이름을 비울 수 없습니다.' };
+  }
+  if (patch.opens_at && patch.closes_at && new Date(patch.opens_at) >= new Date(patch.closes_at)) {
+    return { error: '종료 시각이 시작 시각보다 빠릅니다.' };
+  }
+  const supabase = createAdminClient();
+  const update: Record<string, unknown> = {};
+  if (patch.label !== undefined) update.label = patch.label.trim();
+  if (patch.opens_at !== undefined) update.opens_at = patch.opens_at;
+  if (patch.closes_at !== undefined) update.closes_at = patch.closes_at;
+  if (patch.attendance_role !== undefined) update.attendance_role = patch.attendance_role;
+  if (patch.criterion_at !== undefined) update.criterion_at = patch.criterion_at;
+
+  const { error } = await supabase
+    .from('attendance_checks')
+    .update(update)
+    .eq('id', checkId);
+  if (error) return { error: error.message };
+
+  revalidatePath(`/dashboard/cohorts/${cohortId}/attendance/${sessionId}`);
+  return {};
+}
+
 export async function deleteAttendanceCheck(
   checkId: string,
   cohortId: string,

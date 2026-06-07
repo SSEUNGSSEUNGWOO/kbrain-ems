@@ -3,7 +3,11 @@
 import { useState, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
 import { QrDialog } from '@/components/qr-dialog';
-import { createAttendanceCheck, deleteAttendanceCheck } from '../_actions';
+import {
+  createAttendanceCheck,
+  deleteAttendanceCheck,
+  updateAttendanceCheck
+} from '../_actions';
 
 type Check = {
   id: string;
@@ -39,6 +43,15 @@ function formatTime(iso: string | null): string {
   });
 }
 
+// ISO timestamp → 'HH:MM' (time input 호환)
+function isoToTimeInput(iso: string | null): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  return `${hh}:${mm}`;
+}
+
 export function AttendanceChecksSection({
   cohortId,
   sessionId,
@@ -57,6 +70,41 @@ export function AttendanceChecksSection({
   const [pending, startTransition] = useTransition();
   const [origin, setOrigin] = useState('');
   const [qrTarget, setQrTarget] = useState<{ label: string; url: string } | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editLabel, setEditLabel] = useState('');
+  const [editOpens, setEditOpens] = useState('');
+  const [editCloses, setEditCloses] = useState('');
+  const [editCriterion, setEditCriterion] = useState('');
+  const [editRole, setEditRole] = useState<'none' | 'arrival' | 'departure'>('none');
+
+  const startEdit = (check: Check) => {
+    setEditingId(check.id);
+    setEditLabel(check.label);
+    setEditOpens(isoToTimeInput(check.opens_at));
+    setEditCloses(isoToTimeInput(check.closes_at));
+    setEditCriterion(isoToTimeInput(check.criterion_at));
+    setEditRole(
+      check.attendance_role === 'arrival' || check.attendance_role === 'departure'
+        ? check.attendance_role
+        : 'none'
+    );
+    setMessage(null);
+  };
+
+  const handleSaveEdit = (checkId: string) => {
+    setMessage(null);
+    startTransition(async () => {
+      const r = await updateAttendanceCheck(checkId, cohortId, sessionId, {
+        label: editLabel,
+        opens_at: combineDateTime(sessionDate, editOpens),
+        closes_at: combineDateTime(sessionDate, editCloses),
+        criterion_at: combineDateTime(sessionDate, editCriterion),
+        attendance_role: editRole === 'none' ? null : editRole
+      });
+      if (r.error) setMessage(`오류: ${r.error}`);
+      else setEditingId(null);
+    });
+  };
 
   if (typeof window !== 'undefined' && !origin) {
     setOrigin(window.location.origin);
@@ -297,6 +345,9 @@ export function AttendanceChecksSection({
                         </Button>
                       </>
                     )}
+                    <Button variant='outline' onClick={() => startEdit(check)}>
+                      수정
+                    </Button>
                     <Button
                       variant='outline'
                       onClick={() => handleDelete(check.id, check.label)}
@@ -306,6 +357,103 @@ export function AttendanceChecksSection({
                     </Button>
                   </div>
                 </div>
+
+                {editingId === check.id && (
+                  <div className='space-y-3 border-t bg-amber-50/40 px-4 py-4'>
+                    <div>
+                      <label className='mb-1 block text-xs font-semibold text-slate-600'>
+                        체크포인트 이름
+                      </label>
+                      <input
+                        type='text'
+                        value={editLabel}
+                        onChange={(e) => setEditLabel(e.target.value)}
+                        className='w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100'
+                      />
+                    </div>
+                    <div className='grid grid-cols-2 gap-3'>
+                      <div>
+                        <label className='mb-1 block text-xs font-semibold text-slate-600'>
+                          체크인 시작 시각{' '}
+                          <span className='font-normal text-slate-400'>(선택)</span>
+                        </label>
+                        <input
+                          type='time'
+                          value={editOpens}
+                          onChange={(e) => setEditOpens(e.target.value)}
+                          className='w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100'
+                        />
+                      </div>
+                      <div>
+                        <label className='mb-1 block text-xs font-semibold text-slate-600'>
+                          체크인 종료 시각{' '}
+                          <span className='font-normal text-slate-400'>(선택)</span>
+                        </label>
+                        <input
+                          type='time'
+                          value={editCloses}
+                          onChange={(e) => setEditCloses(e.target.value)}
+                          className='w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100'
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className='mb-1.5 block text-xs font-semibold text-slate-600'>
+                        출결 자동 반영
+                      </label>
+                      <div className='grid grid-cols-3 gap-2'>
+                        {[
+                          { value: 'none', label: '없음 (기록만)', desc: '체크인 시각만 저장' },
+                          { value: 'arrival', label: '출석/지각 판별', desc: '정시 기준 이후=지각' },
+                          { value: 'departure', label: '마감 확인', desc: '퇴실 시각 기록' }
+                        ].map((opt) => (
+                          <button
+                            key={opt.value}
+                            type='button'
+                            onClick={() => setEditRole(opt.value as typeof editRole)}
+                            className={`rounded-lg border p-2 text-left transition-all ${
+                              editRole === opt.value
+                                ? 'border-blue-500 bg-blue-50'
+                                : 'border-slate-200 bg-white hover:border-slate-300'
+                            }`}
+                          >
+                            <div className='text-xs font-semibold text-slate-900'>{opt.label}</div>
+                            <div className='mt-0.5 text-[10px] text-slate-500'>{opt.desc}</div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <label className='mb-1 block text-xs font-semibold text-slate-600'>
+                        정시 기준 시각{' '}
+                        <span className='font-normal text-slate-400'>
+                          (이후 체크인 = 지각 표시 · 선택)
+                        </span>
+                      </label>
+                      <input
+                        type='time'
+                        value={editCriterion}
+                        onChange={(e) => setEditCriterion(e.target.value)}
+                        className='w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100'
+                      />
+                    </div>
+                    <p className='text-[11px] text-slate-500'>
+                      기준일: {sessionDate}. 시간 비우면 기존 값 그대로 NULL 저장.
+                    </p>
+                    <div className='flex gap-2'>
+                      <Button
+                        onClick={() => handleSaveEdit(check.id)}
+                        disabled={pending || !editLabel.trim()}
+                        className='flex-1'
+                      >
+                        {pending ? '...' : '저장'}
+                      </Button>
+                      <Button variant='outline' onClick={() => setEditingId(null)}>
+                        취소
+                      </Button>
+                    </div>
+                  </div>
+                )}
 
                 {/* 명단 — 항상 표시. 체크인 안 한 학생은 회색, 한 학생은 시각 표시 */}
                 <div className='border-t bg-slate-50 px-4 py-3'>
