@@ -112,7 +112,13 @@ export async function updateAttendanceCheck(
     return { error: '종료 시각이 시작 시각보다 빠릅니다.' };
   }
   const supabase = createAdminClient();
-  const update: Record<string, unknown> = {};
+  const update: {
+    label?: string;
+    opens_at?: string | null;
+    closes_at?: string | null;
+    attendance_role?: 'arrival' | 'departure' | null;
+    criterion_at?: string | null;
+  } = {};
   if (patch.label !== undefined) update.label = patch.label.trim();
   if (patch.opens_at !== undefined) update.opens_at = patch.opens_at;
   if (patch.closes_at !== undefined) update.closes_at = patch.closes_at;
