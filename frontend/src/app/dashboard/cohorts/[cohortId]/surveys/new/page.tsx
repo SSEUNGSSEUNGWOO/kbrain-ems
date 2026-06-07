@@ -37,10 +37,15 @@ export default async function NewSurveyPage({ params }: Props) {
     share_code: s.share_code
   }));
 
+  const isGeneral = cohortRes.data.category === 'general';
+  const templateDesc = isGeneral
+    ? '공통 19문항 (전반·내용·환경 + 비대면 선호 필수 서술) + 강사별 6문항 + 서술형 3문항 자동 생성'
+    : '공통 12문항 + 강사별 6문항 + 서술형 3문항 자동 생성';
+
   return (
     <PageContainer
       pageTitle='새 만족도 설문'
-      pageDescription={`${cohortRes.data.name} — 공통 12문항 + 강사별 6문항 + 서술형 3문항 자동 생성`}
+      pageDescription={`${cohortRes.data.name} — ${templateDesc}`}
     >
       <NewSurveyForm
         cohortId={cohortId}

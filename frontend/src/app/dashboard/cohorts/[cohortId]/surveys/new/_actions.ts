@@ -2,6 +2,7 @@
 
 import { createAdminClient } from '@/lib/supabase/server';
 import { buildSatisfactionQuestions } from '@/lib/survey-templates/satisfaction';
+import { buildGeneralSatisfactionQuestions } from '@/lib/survey-templates/satisfaction-general';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
@@ -39,6 +40,14 @@ export async function createSatisfactionSurvey(input: CreateInput) {
     .eq('share_code', shareCode.trim())
     .maybeSingle();
   if (dup) return { error: '이미 사용 중인 공유 코드입니다.' };
+
+  // cohort category 확인 — 일반교육이면 별도 템플릿
+  const { data: cohortRow } = await supabase
+    .from('cohorts')
+    .select('category')
+    .eq('id', cohortId)
+    .maybeSingle<{ category: string | null }>();
+  const isGeneral = cohortRow?.category === 'general';
 
   // 강사 정보 fetch (섹션 제목용)
   const instructorIds = instructors.map((r) => r.instructorId);
@@ -79,15 +88,18 @@ export async function createSatisfactionSurvey(input: CreateInput) {
     return { error: surveyErr?.message ?? '설문 생성에 실패했습니다.' };
   }
 
-  // survey_questions — 강사 N명 = 헤더 12 + 6N + 푸터 3
-  const questions = buildSatisfactionQuestions({
+  // survey_questions — 카테고리별 템플릿 선택
+  const builderArgs = {
     surveyId: survey.id,
     instructors: instructors.map((row) => ({
       id: row.instructorId,
       name: nameById.get(row.instructorId) ?? '',
       sessionTitle: linkedSessionTitle
     }))
-  });
+  };
+  const questions = isGeneral
+    ? buildGeneralSatisfactionQuestions(builderArgs)
+    : buildSatisfactionQuestions(builderArgs);
   const { error: qErr } = await supabase.from('survey_questions').insert(questions);
   if (qErr) return { error: qErr.message };
 
