@@ -359,7 +359,7 @@ export function DiagnosisForm({
           <span className='inline-flex h-3 w-3 items-center justify-center rounded-full bg-amber-500 text-[7px] text-white'>
             !
           </span>
-          검토 표시 ({reviewedCount})
+          나중에 풀기 ({reviewedCount})
         </div>
       </div>
 
@@ -433,7 +433,7 @@ export function DiagnosisForm({
                     onChange={() => toggleReview(currentNo)}
                     className='h-4 w-4 accent-amber-500'
                   />
-                  검토 표시
+                  나중에 풀기
                 </label>
               </div>
 
