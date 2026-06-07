@@ -375,7 +375,13 @@ export function DiagnosisForm({
   );
 
   return (
-    <>
+    <div
+      onCopy={(e) => e.preventDefault()}
+      onCut={(e) => e.preventDefault()}
+      onContextMenu={(e) => e.preventDefault()}
+      onDragStart={(e) => e.preventDefault()}
+      className='select-none'
+    >
       {/* 상단 타이머 + 진행도 — 문항과 같은 폭 */}
       <div className='sticky top-0 z-20 -mx-4 border-b bg-white/95 px-4 py-3 backdrop-blur'>
         <div className='mx-auto flex max-w-3xl items-center justify-between'>
@@ -491,7 +497,12 @@ export function DiagnosisForm({
                   type='text'
                   value={answers[currentNo] ?? ''}
                   onChange={(e) => setAnswer(currentNo, e.target.value)}
-                  placeholder='답안을 입력하세요'
+                  onPaste={(e) => e.preventDefault()}
+                  onDrop={(e) => e.preventDefault()}
+                  autoComplete='off'
+                  autoCorrect='off'
+                  spellCheck={false}
+                  placeholder='답안을 직접 입력하세요 (붙여넣기 불가)'
                   className='mt-5 w-full rounded-xl border border-slate-200 px-4 py-3 text-base outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100'
                 />
               )}
@@ -547,6 +558,6 @@ export function DiagnosisForm({
 
       {/* 모바일·태블릿: 문항 아래 inline */}
       <aside className='mx-auto mt-4 max-w-3xl xl:hidden'>{navPanel}</aside>
-    </>
+    </div>
   );
 }
