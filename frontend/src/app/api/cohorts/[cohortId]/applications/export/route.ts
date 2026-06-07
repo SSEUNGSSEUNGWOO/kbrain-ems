@@ -151,22 +151,28 @@ export async function GET(
   const planCharMap = new Map<string, number>();
   const multiCountMap = new Map<string, number>();
 
+  // question_id가 cohort-specific이라 .in('application_id', ...) 없이도 cohort 범위 한정됨.
+  // 큰 cohort에서 in() URL 길이·1000행 한계로 응답이 잘리는 걸 chunked range로 회피.
   if (appIds.length > 0) {
     const targetIds = [c2Q?.id, planQ?.id, multiQ?.id].filter((x): x is string => Boolean(x));
     if (targetIds.length > 0) {
-      const { data: answers } = await supabase
-        .from('application_answers')
-        .select('application_id, question_id, answer_value')
-        .in('application_id', appIds)
-        .in('question_id', targetIds);
-      for (const a of answers ?? []) {
-        if (a.question_id === c2Q?.id && typeof a.answer_value === 'string') {
-          c2ChoiceMap.set(a.application_id, a.answer_value);
-        } else if (a.question_id === planQ?.id && typeof a.answer_value === 'string') {
-          planCharMap.set(a.application_id, a.answer_value.replace(/\s+/g, '').length);
-        } else if (a.question_id === multiQ?.id && Array.isArray(a.answer_value)) {
-          multiCountMap.set(a.application_id, a.answer_value.length);
+      const chunk = 1000;
+      for (let offset = 0; offset < 1_000_000; offset += chunk) {
+        const { data: answers } = await supabase
+          .from('application_answers')
+          .select('application_id, question_id, answer_value')
+          .in('question_id', targetIds)
+          .range(offset, offset + chunk - 1);
+        for (const a of answers ?? []) {
+          if (a.question_id === c2Q?.id && typeof a.answer_value === 'string') {
+            c2ChoiceMap.set(a.application_id, a.answer_value);
+          } else if (a.question_id === planQ?.id && typeof a.answer_value === 'string') {
+            planCharMap.set(a.application_id, a.answer_value.replace(/\s+/g, '').length);
+          } else if (a.question_id === multiQ?.id && Array.isArray(a.answer_value)) {
+            multiCountMap.set(a.application_id, a.answer_value.length);
+          }
         }
+        if (!answers || answers.length < chunk) break;
       }
     }
   }
@@ -177,36 +183,43 @@ export async function GET(
   );
   const priorCertsByApplicant = new Map<string, PriorCertSummary[]>();
   const expertLabelsByApplicant = new Map<string, string[]>();
+  // applicantIds in() 으로 한 번에 넘기면 URL 한계 → 200개씩 chunk.
+  const ID_CHUNK = 200;
   if (applicantIds.length > 0) {
-    const { data: priorRows } = (await supabase
-      .from('applicants')
-      .select('id, prior_certs')
-      .in('id', applicantIds)) as unknown as {
-      data: { id: string; prior_certs: PriorCertSummary[] | null }[] | null;
-    };
-    for (const p of priorRows ?? []) {
-      priorCertsByApplicant.set(p.id, Array.isArray(p.prior_certs) ? p.prior_certs : []);
+    for (let i = 0; i < applicantIds.length; i += ID_CHUNK) {
+      const slice = applicantIds.slice(i, i + ID_CHUNK);
+      const { data: priorRows } = (await supabase
+        .from('applicants')
+        .select('id, prior_certs')
+        .in('id', slice)) as unknown as {
+        data: { id: string; prior_certs: PriorCertSummary[] | null }[] | null;
+      };
+      for (const p of priorRows ?? []) {
+        priorCertsByApplicant.set(p.id, Array.isArray(p.prior_certs) ? p.prior_certs : []);
+      }
     }
 
     // 현재 cohort 제외하고 'experts' 카테고리 cohort 에 학생으로 등록돼 있는지 + 어느 기수인지
     // (예: "전문인재 26-1기" → "26-1")
-    const { data: studentRows } = (await supabase
-      .from('students')
-      .select('applicant_id, cohorts!inner(name, category)')
-      .in('applicant_id', applicantIds)
-      .neq('cohort_id', cohortId)
-      .eq('cohorts.category', 'experts')) as unknown as {
-      data: { applicant_id: string; cohorts: { name: string } | null }[] | null;
-    };
-    // "전문인재 26-1기" → "26-1" 추출
     const labelRe = /(\d+-\d+)기?/;
-    for (const s of studentRows ?? []) {
-      const name = s.cohorts?.name ?? '';
-      const m = name.match(labelRe);
-      const label = m ? m[1] : name;
-      const arr = expertLabelsByApplicant.get(s.applicant_id) ?? [];
-      if (!arr.includes(label)) arr.push(label);
-      expertLabelsByApplicant.set(s.applicant_id, arr);
+    for (let i = 0; i < applicantIds.length; i += ID_CHUNK) {
+      const slice = applicantIds.slice(i, i + ID_CHUNK);
+      const { data: studentRows } = (await supabase
+        .from('students')
+        .select('applicant_id, cohorts!inner(name, category)')
+        .in('applicant_id', slice)
+        .neq('cohort_id', cohortId)
+        .eq('cohorts.category', 'experts')) as unknown as {
+        data: { applicant_id: string; cohorts: { name: string } | null }[] | null;
+      };
+      for (const s of studentRows ?? []) {
+        const name = s.cohorts?.name ?? '';
+        const m = name.match(labelRe);
+        const label = m ? m[1] : name;
+        const arr = expertLabelsByApplicant.get(s.applicant_id) ?? [];
+        if (!arr.includes(label)) arr.push(label);
+        expertLabelsByApplicant.set(s.applicant_id, arr);
+      }
     }
     // 라벨 정렬
     for (const [k, v] of expertLabelsByApplicant) {
