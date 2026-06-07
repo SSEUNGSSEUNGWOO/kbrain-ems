@@ -271,19 +271,22 @@ export function recommendByQuotas(
     }
   }
 
-  // Phase 3: 커트라인 동점자 포함 — 합격자의 정렬 키와 완전히 동일한 미선발자는
-  // 정원·기관/상위부처 캡을 무시하고 모두 포함시킨다.
-  // 동점 키 = (prereq_done_count, final_score, knowledge_score, plan_char_count).
-  // 글자수까지 동일하면 알고리즘이 구분할 수 없기 때문에 형평성 차원에서 다 통과.
+  // Phase 3: 커트라인 동점자 포함 — 카테고리별로 합격자 중 가장 낮은 점수 튜플
+  // (= 그 카테고리의 컷오프)과 동일한 미선발자를 같은 카테고리 안에서만 통과시킨다.
+  // 글자수까지 동일하면 알고리즘이 구분할 수 없으니 형평성 차원에서 추가.
+  // 전체 합격자가 아니라 '컷오프' 한 점만 매칭하므로 폭발적 확장 방지.
   const tieKey = (c: ScoredCandidate) =>
     `${c.prereq_done_count}|${c.final_score}|${c.knowledge_score}|${c.plan_char_count}`;
-  const selectedKeys = new Set<string>();
+  const cutoffByCategory = new Map<SelectionCategory, string>();
+  // scored는 점수 desc로 정렬돼 있으므로, 카테고리별 마지막 합격자 = 컷오프
   for (const c of scored) {
-    if (selectedSet.has(c.application_id)) selectedKeys.add(tieKey(c));
+    if (!selectedSet.has(c.application_id)) continue;
+    cutoffByCategory.set(c.category, tieKey(c));
   }
   for (const c of scored) {
     if (selectedSet.has(c.application_id)) continue;
-    if (!selectedKeys.has(tieKey(c))) continue;
+    const cutoff = cutoffByCategory.get(c.category);
+    if (!cutoff || cutoff !== tieKey(c)) continue;
     selectedSet.add(c.application_id);
     selectedIds.push(c.application_id);
   }
