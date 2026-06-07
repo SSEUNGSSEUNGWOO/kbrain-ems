@@ -59,7 +59,7 @@ export default async function DiagnosisResponsePage({ params }: Props) {
     );
   }
 
-  // 이미 제출됨
+  // 이미 제출됨 (점수 비공개)
   if (response.submitted_at) {
     return (
       <main className='flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 to-blue-50 px-4'>
@@ -67,14 +67,8 @@ export default async function DiagnosisResponsePage({ params }: Props) {
           <div className='mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400'>
             {student?.name ?? ''}
           </div>
-          <h2 className='text-lg font-bold text-slate-900'>제출 완료</h2>
-          <p className='mt-2 text-sm text-slate-500'>응답이 정상적으로 접수되었습니다.</p>
-          {response.total_score != null && (
-            <div className='mt-6 rounded-xl bg-blue-50 px-4 py-3 text-blue-900'>
-              <div className='text-xs'>점수</div>
-              <div className='text-2xl font-bold'>{Number(response.total_score)}</div>
-            </div>
-          )}
+          <h2 className='text-xl font-bold text-slate-900'>제출 완료</h2>
+          <p className='mt-2 text-sm text-slate-500'>응답해주셔서 감사합니다.</p>
         </div>
       </main>
     );

@@ -2,6 +2,11 @@ import { NextResponse } from 'next/server';
 import ExcelJS from 'exceljs';
 import { createAdminClient } from '@/lib/supabase/server';
 import { isViewer } from '@/lib/auth';
+import {
+  categoryFromLabel,
+  classifyOrganization,
+  ORGANIZATION_CATEGORY_LABEL
+} from '@/lib/organization-category';
 
 export async function GET(
   _req: Request,
@@ -23,11 +28,12 @@ export async function GET(
     name: string;
     phone: string | null;
     organizations: { name: string } | null;
+    applicants: { category: string | null } | null;
   };
 
   const { data: studentRows, error } = await supabase
     .from('students')
-    .select('applicant_id, name, phone, organizations(name)')
+    .select('applicant_id, name, phone, organizations(name), applicants(category)')
     .eq('cohort_id', cohortId)
     .order('name', { ascending: true })
     .returns<StudentRow[]>();
@@ -54,9 +60,9 @@ export async function GET(
   const ws = wb.addWorksheet(`${cohort.name} 명단`);
 
   const headers = hidePersonal
-    ? ['NO', '교육생 이름', '소속기관']
-    : ['NO', '교육생 이름', '소속기관', '연락처'];
-  const widths = hidePersonal ? [6, 14, 30] : [6, 14, 30, 18];
+    ? ['NO', '교육생 이름', '소속기관구분', '소속기관']
+    : ['NO', '교육생 이름', '소속기관구분', '소속기관', '연락처'];
+  const widths = hidePersonal ? [6, 14, 14, 30] : [6, 14, 14, 30, 18];
 
   const headerRow = ws.addRow(headers);
   headerRow.height = 28;
@@ -86,9 +92,13 @@ export async function GET(
   });
 
   filtered.forEach((s, idx) => {
+    const orgName = s.organizations?.name ?? '';
+    const categoryKey =
+      categoryFromLabel(s.applicants?.category ?? null) ?? classifyOrganization(orgName);
+    const categoryLabel = ORGANIZATION_CATEGORY_LABEL[categoryKey];
     const vals = hidePersonal
-      ? [idx + 1, s.name, s.organizations?.name ?? '']
-      : [idx + 1, s.name, s.organizations?.name ?? '', s.phone ?? ''];
+      ? [idx + 1, s.name, categoryLabel, orgName]
+      : [idx + 1, s.name, categoryLabel, orgName, s.phone ?? ''];
     const row = ws.addRow(vals);
     row.eachCell((cell, col) => {
       cell.font = { name: 'Arial', size: 10 };

@@ -280,25 +280,20 @@ export function DiagnosisForm({
     );
   }
 
-  // === 결과 ===
+  // === 결과 (학생에게는 점수 비공개) ===
   if (step === 'result' && result?.ok) {
     return (
-      <div className='rounded-2xl border bg-white px-8 py-10 text-center shadow-lg'>
+      <div className='rounded-2xl border bg-white px-8 py-12 text-center shadow-lg'>
         <div className='mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400'>
           {studentName} · {diagnosisType === 'pre' ? '사전' : '사후'}
         </div>
-        <h2 className='text-lg font-bold text-slate-900'>제출 완료</h2>
-        <p className='mt-1 text-sm text-slate-500'>응답이 정상적으로 접수되었습니다.</p>
-        <div className='mt-6 rounded-xl bg-blue-50 px-6 py-4 text-blue-900'>
-          <div className='text-xs'>점수</div>
-          <div className='text-3xl font-bold'>
-            {result.total_score}{' '}
-            <span className='text-base font-medium text-blue-700'>/ {result.max_score}</span>
-          </div>
-          <div className='mt-1 text-xs text-blue-700'>
-            정답 {result.correct_count} / {questions.length} 문항
-          </div>
-        </div>
+        <h2 className='text-xl font-bold text-slate-900'>제출 완료</h2>
+        <p className='mt-2 text-sm text-slate-500'>
+          응답해주셔서 감사합니다.
+        </p>
+        <p className='mt-1 text-xs text-slate-400'>
+          {questions.length}문항 모두 정상 접수되었습니다.
+        </p>
       </div>
     );
   }
