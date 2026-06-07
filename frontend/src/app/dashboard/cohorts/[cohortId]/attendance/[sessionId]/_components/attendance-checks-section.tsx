@@ -1,14 +1,8 @@
 'use client';
 
-import { useEffect, useState, useTransition } from 'react';
-import QRCode from 'qrcode';
+import { useState, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle
-} from '@/components/ui/dialog';
+import { QrDialog } from '@/components/qr-dialog';
 import { createAttendanceCheck, deleteAttendanceCheck } from '../_actions';
 
 type Check = {
@@ -73,8 +67,7 @@ export function AttendanceChecksSection({
     setMessage(null);
     const opensAt = combineDateTime(sessionDate, opensInput);
     const closesAt = combineDateTime(sessionDate, closesInput);
-    const criterionAt =
-      roleInput === 'arrival' ? combineDateTime(sessionDate, criterionInput) : null;
+    const criterionAt = combineDateTime(sessionDate, criterionInput);
     const role = roleInput === 'none' ? null : roleInput;
     startTransition(async () => {
       const r = await createAttendanceCheck(
@@ -197,19 +190,17 @@ export function AttendanceChecksSection({
               ))}
             </div>
           </div>
-          {roleInput === 'arrival' && (
-            <div>
-              <label className='mb-1 block text-xs font-semibold text-slate-600'>
-                정시 기준 시각 <span className='font-normal text-slate-400'>(이후 체크인=지각)</span>
-              </label>
-              <input
-                type='time'
-                value={criterionInput}
-                onChange={(e) => setCriterionInput(e.target.value)}
-                className='w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100'
-              />
-            </div>
-          )}
+          <div>
+            <label className='mb-1 block text-xs font-semibold text-slate-600'>
+              정시 기준 시각 <span className='font-normal text-slate-400'>(이후 체크인 = 지각 표시 · 역할 무관 · 선택)</span>
+            </label>
+            <input
+              type='time'
+              value={criterionInput}
+              onChange={(e) => setCriterionInput(e.target.value)}
+              className='w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100'
+            />
+          </div>
           <p className='text-[11px] text-slate-500'>
             시간 입력 안 하면 언제든 체크인 가능. 입력하면 그 시간대에만 학생 체크인 허용 ({sessionDate} 기준).
           </p>
@@ -240,14 +231,22 @@ export function AttendanceChecksSection({
         </div>
       )}
 
-      <QrDialog target={qrTarget} onClose={() => setQrTarget(null)} />
+      <QrDialog
+        open={!!qrTarget}
+        onClose={() => setQrTarget(null)}
+        label={qrTarget?.label ?? ''}
+        url={qrTarget?.url ?? ''}
+        filenamePrefix='attendance'
+      />
 
       {checks.length === 0 ? (
         <div className='rounded-xl border border-dashed border-slate-200 px-6 py-8 text-center text-sm text-slate-400'>
           아직 체크포인트가 없습니다. 위 + 버튼으로 추가하세요.
         </div>
       ) : (
-        <div className='space-y-3'>
+        <>
+          <CheckpointSummaryTable students={students} checks={checks} />
+          <div className='space-y-3'>
           {checks.map((check) => {
             const url = check.share_code ? `${origin}/attendance/${check.share_code}` : '';
             const recordByStudent = new Map<string, string>();
@@ -361,91 +360,104 @@ export function AttendanceChecksSection({
               </div>
             );
           })}
-        </div>
+          </div>
+        </>
       )}
     </div>
   );
 }
 
-function QrDialog({
-  target,
-  onClose
+function CheckpointSummaryTable({
+  students,
+  checks
 }: {
-  target: { label: string; url: string } | null;
-  onClose: () => void;
+  students: { id: string; name: string }[];
+  checks: Check[];
 }) {
-  const [dataUrl, setDataUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    if (!target) {
-      setDataUrl(null);
-      return;
-    }
-    QRCode.toDataURL(target.url, {
-      errorCorrectionLevel: 'M',
-      margin: 2,
-      width: 512,
-      color: { dark: '#0f172a', light: '#ffffff' }
-    })
-      .then((url) => {
-        if (!cancelled) setDataUrl(url);
-      })
-      .catch(() => {
-        if (!cancelled) setDataUrl(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [target]);
-
-  const downloadPng = () => {
-    if (!dataUrl || !target) return;
-    const a = document.createElement('a');
-    a.href = dataUrl;
-    a.download = `attendance-${target.label.replace(/\s+/g, '_')}.png`;
-    a.click();
-  };
-
+  if (students.length === 0) return null;
   return (
-    <Dialog open={!!target} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className='max-w-md'>
-        <DialogHeader>
-          <DialogTitle>QR 코드 — {target?.label}</DialogTitle>
-        </DialogHeader>
-        <div className='flex flex-col items-center gap-4 pb-2 pt-2'>
-          {dataUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={dataUrl}
-              alt='QR 코드'
-              className='h-72 w-72 rounded-lg ring-1 ring-slate-200'
-            />
-          ) : (
-            <div className='flex h-72 w-72 items-center justify-center rounded-lg bg-slate-100 text-sm text-slate-400'>
-              생성 중...
-            </div>
-          )}
-          <p className='break-all text-center text-xs text-slate-500'>{target?.url}</p>
-          <div className='flex w-full gap-2'>
-            <Button
-              variant='outline'
-              className='flex-1'
-              onClick={() => {
-                if (target) void navigator.clipboard.writeText(target.url);
-              }}
-            >
-              URL 복사
-            </Button>
-            <Button className='flex-1' onClick={downloadPng} disabled={!dataUrl}>
-              PNG 다운로드
-            </Button>
-          </div>
-          <p className='text-center text-[11px] text-slate-400'>
-            화면을 학생들에게 보여주거나 PNG 저장 후 출력해 부착하세요.
-          </p>
-        </div>
-      </DialogContent>
-    </Dialog>
+    <div className='mb-4 overflow-hidden rounded-xl border bg-white'>
+      <div className='border-b bg-slate-50 px-4 py-2 text-xs font-semibold text-slate-700'>
+        체크포인트별 출결 요약
+      </div>
+      <div className='max-h-96 overflow-auto'>
+        <table className='w-full text-xs'>
+          <thead className='sticky top-0 z-10 bg-white shadow-sm'>
+            <tr>
+              <th className='sticky left-0 z-20 bg-white px-3 py-2 text-left font-semibold text-slate-700'>
+                이름
+              </th>
+              {checks.map((c) => (
+                <th
+                  key={c.id}
+                  className='whitespace-nowrap border-l px-3 py-2 text-left font-semibold text-slate-700'
+                >
+                  {c.label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className='divide-y'>
+            {students.map((s) => (
+              <tr key={s.id}>
+                <td className='sticky left-0 bg-white px-3 py-2 font-medium text-slate-900'>
+                  {s.name}
+                </td>
+                {checks.map((c) => {
+                  const record = c.records.find((r) => r.student_id === s.id);
+                  return (
+                    <td key={c.id} className='whitespace-nowrap border-l px-3 py-2'>
+                      <CellStatus checkedAt={record?.checked_at} criterionAt={c.criterion_at} />
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function CellStatus({
+  checkedAt,
+  criterionAt
+}: {
+  checkedAt: string | undefined;
+  criterionAt: string | null;
+}) {
+  if (!checkedAt) {
+    return <span className='text-slate-400'>—</span>;
+  }
+  const time = new Date(checkedAt).toLocaleTimeString('ko-KR', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  });
+  if (!criterionAt) {
+    return (
+      <span className='inline-flex items-center gap-1.5'>
+        <span className='rounded bg-emerald-100 px-1.5 py-0 font-semibold text-emerald-700'>출석</span>
+        <span className='text-slate-500'>{time}</span>
+      </span>
+    );
+  }
+  const diffMin = Math.round((new Date(checkedAt).getTime() - new Date(criterionAt).getTime()) / 60000);
+  if (diffMin > 0) {
+    return (
+      <span className='inline-flex items-center gap-1.5'>
+        <span className='rounded bg-orange-100 px-1.5 py-0 font-semibold text-orange-700'>
+          지각 {diffMin}분
+        </span>
+        <span className='text-slate-500'>{time}</span>
+      </span>
+    );
+  }
+  return (
+    <span className='inline-flex items-center gap-1.5'>
+      <span className='rounded bg-emerald-100 px-1.5 py-0 font-semibold text-emerald-700'>정시</span>
+      <span className='text-slate-500'>{time}</span>
+    </span>
   );
 }

@@ -1,14 +1,8 @@
 'use client';
 
-import { useEffect, useState, useTransition } from 'react';
-import QRCode from 'qrcode';
+import { useState, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle
-} from '@/components/ui/dialog';
+import { QrDialog } from '@/components/qr-dialog';
 import { ensureShareCode, linkDiagnosisToAttendanceCheck } from '../_actions';
 
 type Diagnosis = {
@@ -217,6 +211,7 @@ export function DiagnosisCard({
         onClose={() => setQrOpen(false)}
         label={`${typeLabel} · ${diagnosis.title}`}
         url={shareUrl ?? ''}
+        filenamePrefix='diagnosis'
       />
 
       {message && (
@@ -271,93 +266,5 @@ export function DiagnosisCard({
         </div>
       )}
     </div>
-  );
-}
-
-
-function QrDialog({
-  open,
-  onClose,
-  label,
-  url
-}: {
-  open: boolean;
-  onClose: () => void;
-  label: string;
-  url: string;
-}) {
-  const [dataUrl, setDataUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    if (!open || !url) {
-      setDataUrl(null);
-      return;
-    }
-    QRCode.toDataURL(url, {
-      errorCorrectionLevel: 'M',
-      margin: 2,
-      width: 512,
-      color: { dark: '#0f172a', light: '#ffffff' }
-    })
-      .then((d) => {
-        if (!cancelled) setDataUrl(d);
-      })
-      .catch(() => {
-        if (!cancelled) setDataUrl(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [open, url]);
-
-  const downloadPng = () => {
-    if (!dataUrl) return;
-    const a = document.createElement('a');
-    a.href = dataUrl;
-    a.download = `diagnosis-${label.replace(/\s+/g, '_')}.png`;
-    a.click();
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className='max-w-md'>
-        <DialogHeader>
-          <DialogTitle>QR 코드 — {label}</DialogTitle>
-        </DialogHeader>
-        <div className='flex flex-col items-center gap-4 pb-2 pt-2'>
-          {dataUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={dataUrl}
-              alt='QR 코드'
-              className='h-72 w-72 rounded-lg ring-1 ring-slate-200'
-            />
-          ) : (
-            <div className='flex h-72 w-72 items-center justify-center rounded-lg bg-slate-100 text-sm text-slate-400'>
-              생성 중...
-            </div>
-          )}
-          <p className='break-all text-center text-xs text-slate-500'>{url}</p>
-          <div className='flex w-full gap-2'>
-            <Button
-              variant='outline'
-              className='flex-1'
-              onClick={() => {
-                if (url) void navigator.clipboard.writeText(url);
-              }}
-            >
-              URL 복사
-            </Button>
-            <Button className='flex-1' onClick={downloadPng} disabled={!dataUrl}>
-              PNG 다운로드
-            </Button>
-          </div>
-          <p className='text-center text-[11px] text-slate-400'>
-            화면을 학생들에게 보여주거나 PNG 저장 후 출력해 부착하세요.
-          </p>
-        </div>
-      </DialogContent>
-    </Dialog>
   );
 }
