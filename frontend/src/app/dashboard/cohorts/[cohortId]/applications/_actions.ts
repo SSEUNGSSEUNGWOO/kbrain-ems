@@ -191,19 +191,25 @@ export async function loadSelectionPool(
     }
 
     // applicants.prior_certs (이전 사업 인증) 매핑
+    // 큰 cohort에서 .in(id, [수백 UUID])로 호출하면 URL이 PostgREST 한계 넘어 응답 누락.
+    // applicantIds chunk loop으로 분할 호출.
     const applicantIds = (apps ?? [])
       .map((a) => a.applicants?.id)
       .filter((x): x is string => Boolean(x));
+    const ID_CHUNK = 200;
     const priorCertsByApplicant = new Map<string, PriorCert[]>();
     if (applicantIds.length > 0) {
-      const { data: priorRows } = (await supabase
-        .from('applicants')
-        .select('id, prior_certs')
-        .in('id', applicantIds)) as unknown as {
-        data: { id: string; prior_certs: PriorCert[] | null }[] | null;
-      };
-      for (const r of priorRows ?? []) {
-        priorCertsByApplicant.set(r.id, Array.isArray(r.prior_certs) ? r.prior_certs : []);
+      for (let i = 0; i < applicantIds.length; i += ID_CHUNK) {
+        const slice = applicantIds.slice(i, i + ID_CHUNK);
+        const { data: priorRows } = (await supabase
+          .from('applicants')
+          .select('id, prior_certs')
+          .in('id', slice)) as unknown as {
+          data: { id: string; prior_certs: PriorCert[] | null }[] | null;
+        };
+        for (const r of priorRows ?? []) {
+          priorCertsByApplicant.set(r.id, Array.isArray(r.prior_certs) ? r.prior_certs : []);
+        }
       }
     }
 
@@ -218,21 +224,24 @@ export async function loadSelectionPool(
         status: string;
         cohorts: { name: string } | null;
       };
-      const { data: otherApps } = await supabase
-        .from('applications')
-        .select('applicant_id, cohort_id, status, cohorts(name)')
-        .in('applicant_id', applicantIds)
-        .neq('cohort_id', cohortId)
-        .in('status', ['applied', 'pending', 'selected'])
-        .returns<OtherApp[]>();
-      for (const oa of otherApps ?? []) {
-        const arr = otherByApplicant.get(oa.applicant_id) ?? [];
-        arr.push({
-          cohort_id: oa.cohort_id,
-          cohort_name: oa.cohorts?.name ?? '?',
-          status: oa.status
-        });
-        otherByApplicant.set(oa.applicant_id, arr);
+      for (let i = 0; i < applicantIds.length; i += ID_CHUNK) {
+        const slice = applicantIds.slice(i, i + ID_CHUNK);
+        const { data: otherApps } = await supabase
+          .from('applications')
+          .select('applicant_id, cohort_id, status, cohorts(name)')
+          .in('applicant_id', slice)
+          .neq('cohort_id', cohortId)
+          .in('status', ['applied', 'pending', 'selected'])
+          .returns<OtherApp[]>();
+        for (const oa of otherApps ?? []) {
+          const arr = otherByApplicant.get(oa.applicant_id) ?? [];
+          arr.push({
+            cohort_id: oa.cohort_id,
+            cohort_name: oa.cohorts?.name ?? '?',
+            status: oa.status
+          });
+          otherByApplicant.set(oa.applicant_id, arr);
+        }
       }
     }
 
