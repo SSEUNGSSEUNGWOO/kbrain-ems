@@ -99,8 +99,18 @@ export type SelectionConfigSnapshot = {
   totalCapacity: number; // 사용자가 입력한 정원
   withReserve: boolean; // 110% 예비 적용 여부
   effectiveCapacity: number; // withReserve 적용 후 실제 사용된 정원
+  parentOrgCapPct?: number; // 상위부처(공백 prefix) 캡, 정원 대비 % (예: 10) — 미설정/0=비활성
+  excludedCohortIds?: string[]; // 이 cohort들의 selected 신청자는 제외
   appliedAt: string; // ISO timestamp
 };
+
+// "경찰청 서울특별시경찰청" → "경찰청" / "한국전력공사" → "한국전력공사" / null → ''
+export function parentOrgKey(org: string | null | undefined): string {
+  if (!org) return '';
+  const trimmed = org.trim();
+  const idx = trimmed.indexOf(' ');
+  return idx === -1 ? trimmed : trimmed.slice(0, idx);
+}
 
 /**
  * 두 부분의 가중합 — 부처는 점수에 포함하지 않고 쿼터로만 처리.
@@ -193,7 +203,8 @@ export function recommendByQuotas(
   knowledgeMax: number,
   ratio: QuotaRatio,
   maxPerOrg: number = 0,
-  excludeNoPrereq: boolean = false
+  excludeNoPrereq: boolean = false,
+  parentOrgCap: number = 0 // 상위부처(공백 prefix) 절대 인원수, 0=비활성
 ): { selectedIds: string[]; scored: ScoredCandidate[] } {
   const hasPrereq = candidates.some((c) => c.prereq_max > 0);
   const filtered =
@@ -212,18 +223,26 @@ export function recommendByQuotas(
 
   const quotas = computeQuotas(Math.max(0, totalCapacity), ratio);
   const cap = maxPerOrg > 0 ? maxPerOrg : Number.POSITIVE_INFINITY;
+  const pCap = parentOrgCap > 0 ? parentOrgCap : Number.POSITIVE_INFINITY;
   const orgCount = new Map<string, number>();
+  const parentCount = new Map<string, number>();
   const selectedSet = new Set<string>();
   const selectedIds: string[] = [];
 
   const tryAdd = (c: ScoredCandidate): boolean => {
     if (selectedSet.has(c.application_id)) return false;
     const orgKey = c.organization ?? '';
+    const parent = parentOrgKey(c.organization);
     if (orgKey) {
       const used = orgCount.get(orgKey) ?? 0;
       if (used >= cap) return false;
-      orgCount.set(orgKey, used + 1);
     }
+    if (parent) {
+      const pused = parentCount.get(parent) ?? 0;
+      if (pused >= pCap) return false;
+    }
+    if (orgKey) orgCount.set(orgKey, (orgCount.get(orgKey) ?? 0) + 1);
+    if (parent) parentCount.set(parent, (parentCount.get(parent) ?? 0) + 1);
     selectedSet.add(c.application_id);
     selectedIds.push(c.application_id);
     return true;

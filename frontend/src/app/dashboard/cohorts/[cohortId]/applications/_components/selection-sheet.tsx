@@ -56,6 +56,10 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
   const [maxPerOrg, setMaxPerOrg] = useState(3);
   const [excludeNoPrereq, setExcludeNoPrereq] = useState(true);
   const [filterCategory, setFilterCategory] = useState<SelectionCategory | null>(null);
+  // 다른 cohort에서 status='selected'인 신청자를 후보 풀에서 제외
+  const [excludedCohortIds, setExcludedCohortIds] = useState<Set<string>>(new Set());
+  // 상위부처 캡 (정원의 10%)
+  const [parentOrgCapEnabled, setParentOrgCapEnabled] = useState(false);
 
   // 110% 선발 시 실제 사용되는 정원 (예: 100 → 110). 미체크면 입력값 그대로.
   const effectiveCapacity = useMemo(
@@ -89,22 +93,51 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
 
   const initializedTogglesRef = useRef(false);
 
+  // candidates에서 추가 제약(다른 cohort 합격자 제외) 적용한 필터링된 풀
+  const filteredCandidates = useMemo(() => {
+    if (excludedCohortIds.size === 0) return candidates;
+    return candidates.filter(
+      (c) =>
+        !c.other_applications.some(
+          (o) => o.status === 'selected' && excludedCohortIds.has(o.cohort_id)
+        )
+    );
+  }, [candidates, excludedCohortIds]);
+
+  // 다른 cohort 목록 — candidates의 other_applications에서 추출 (cohort_id + name dedup)
+  const availableExclusionCohorts = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const c of candidates) {
+      for (const o of c.other_applications) {
+        if (!seen.has(o.cohort_id)) seen.set(o.cohort_id, o.cohort_name);
+      }
+    }
+    return [...seen.entries()]
+      .map(([id, name]) => ({ id, name }))
+      .toSorted((a, b) => a.name.localeCompare(b.name, 'ko'));
+  }, [candidates]);
+
   // 가중치·정원·쿼터 변하면 자동 추천 (수동 토글이 있는 사람은 그 결정을 유지)
+  const parentOrgCap = useMemo(
+    () => (parentOrgCapEnabled ? Math.floor(effectiveCapacity * 0.1) : 0),
+    [parentOrgCapEnabled, effectiveCapacity]
+  );
   const { scored, autoSelectedIds } = useMemo(() => {
-    if (candidates.length === 0) {
+    if (filteredCandidates.length === 0) {
       return { scored: [] as ScoredCandidate[], autoSelectedIds: new Set<string>() };
     }
     const { selectedIds, scored } = recommendByQuotas(
-      candidates,
+      filteredCandidates,
       weights,
       effectiveCapacity,
       knowledgeMax,
       quotaRatio,
       maxPerOrg,
-      excludeNoPrereq
+      excludeNoPrereq,
+      parentOrgCap
     );
     return { scored, autoSelectedIds: new Set(selectedIds) };
-  }, [candidates, weights, effectiveCapacity, knowledgeMax, quotaRatio, maxPerOrg, excludeNoPrereq]);
+  }, [filteredCandidates, weights, effectiveCapacity, knowledgeMax, quotaRatio, maxPerOrg, excludeNoPrereq, parentOrgCap]);
 
   // 이미 selected/rejected가 있는 cohort라면, 시트 열릴 때 한 번만
   // manualToggles를 현재 DB 상태로 미리 채워서 알고리즘 추천이 덮어쓰지 않게 함.
@@ -215,6 +248,8 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
       totalCapacity,
       withReserve,
       effectiveCapacity,
+      parentOrgCapPct: parentOrgCapEnabled ? 10 : 0,
+      excludedCohortIds: [...excludedCohortIds],
       appliedAt: new Date().toISOString()
     };
     startTransition(async () => {
@@ -294,8 +329,30 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
                   setExcludeNoPrereq(v);
                   setManualToggles(new Map());
                 }}
-                poolSize={candidates.length}
+                poolSize={filteredCandidates.length}
                 selectedCount={effectiveSelectedIds.size}
+              />
+
+              <AdditionalConstraintsPanel
+                availableExclusionCohorts={availableExclusionCohorts}
+                excludedCohortIds={excludedCohortIds}
+                onToggleExclusion={(id) => {
+                  setExcludedCohortIds((prev) => {
+                    const next = new Set(prev);
+                    if (next.has(id)) next.delete(id);
+                    else next.add(id);
+                    return next;
+                  });
+                  setManualToggles(new Map());
+                }}
+                parentOrgCapEnabled={parentOrgCapEnabled}
+                onParentOrgCapChange={(v) => {
+                  setParentOrgCapEnabled(v);
+                  setManualToggles(new Map());
+                }}
+                parentOrgCap={parentOrgCap}
+                effectiveCapacity={effectiveCapacity}
+                excludedCount={candidates.length - filteredCandidates.length}
               />
 
               <DistributionRow
@@ -510,6 +567,83 @@ function WeightPanel({
         />
         <label htmlFor='exclude-no-prereq' className='cursor-pointer'>
           사전학습 미수료자 강제 제외 (부분 수료 포함)
+        </label>
+      </div>
+    </div>
+  );
+}
+
+function AdditionalConstraintsPanel({
+  availableExclusionCohorts,
+  excludedCohortIds,
+  onToggleExclusion,
+  parentOrgCapEnabled,
+  onParentOrgCapChange,
+  parentOrgCap,
+  effectiveCapacity,
+  excludedCount
+}: {
+  availableExclusionCohorts: { id: string; name: string }[];
+  excludedCohortIds: Set<string>;
+  onToggleExclusion: (id: string) => void;
+  parentOrgCapEnabled: boolean;
+  onParentOrgCapChange: (v: boolean) => void;
+  parentOrgCap: number;
+  effectiveCapacity: number;
+  excludedCount: number;
+}) {
+  return (
+    <div className='flex flex-col gap-3 rounded-md border bg-slate-50/40 p-3'>
+      <div className='text-xs font-semibold'>추가 제약</div>
+
+      <div className='flex flex-col gap-2'>
+        <div className='text-muted-foreground text-xs font-medium'>
+          다른 cohort 합격자 제외 — 체크한 cohort에서 status=&apos;selected&apos;인 신청자는 후보 풀에서 빠짐
+        </div>
+        {availableExclusionCohorts.length === 0 ? (
+          <div className='text-muted-foreground text-xs italic'>
+            중복 지원자가 있는 다른 cohort가 없습니다.
+          </div>
+        ) : (
+          <div className='flex max-h-32 flex-col gap-1 overflow-y-auto rounded border bg-white p-2'>
+            {availableExclusionCohorts.map((c) => (
+              <label
+                key={c.id}
+                className='flex cursor-pointer items-center gap-2 rounded px-1.5 py-0.5 text-xs hover:bg-slate-50'
+              >
+                <Checkbox
+                  checked={excludedCohortIds.has(c.id)}
+                  onCheckedChange={() => onToggleExclusion(c.id)}
+                />
+                <span>{c.name}</span>
+              </label>
+            ))}
+          </div>
+        )}
+        {excludedCount > 0 && (
+          <div className='text-xs text-amber-700'>
+            제외된 신청자 {excludedCount}명 (선택한 cohort에서 이미 합격)
+          </div>
+        )}
+      </div>
+
+      <div className='flex items-start gap-2 border-t pt-2'>
+        <Checkbox
+          id='parent-org-cap'
+          checked={parentOrgCapEnabled}
+          onCheckedChange={(v) => onParentOrgCapChange(v === true)}
+          className='mt-0.5'
+        />
+        <label htmlFor='parent-org-cap' className='flex-1 cursor-pointer text-sm'>
+          상위부처 캡 (정원의 10%)
+          <div className='text-muted-foreground text-[11px] font-normal'>
+            기관명 첫 공백 앞 키로 그룹핑 (예: &apos;경찰청 서울특별시경찰청&apos; → &apos;경찰청&apos;).
+            {parentOrgCapEnabled && (
+              <span className='ml-1 font-semibold text-amber-700'>
+                현재 상위부처당 최대 {parentOrgCap}명 (정원 {effectiveCapacity})
+              </span>
+            )}
+          </div>
         </label>
       </div>
     </div>
