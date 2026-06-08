@@ -15,35 +15,15 @@ export default async function AttendanceCheckEntryPage({ params }: Props) {
   const { data: check } = await supabase
     .from('attendance_checks')
     .select(
-      'id, label, opens_at, closes_at, sessions(session_date, title, cohorts(name))'
+      'id, label, sessions(session_date, title, cohorts(name))'
     )
     .eq('share_code', code)
     .maybeSingle();
 
   if (!check) notFound();
 
-  const now = Date.now();
-  if (check.opens_at && new Date(check.opens_at).getTime() > now) {
-    return (
-      <main className='flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 to-blue-50 px-4'>
-        <div className='w-full max-w-sm rounded-2xl border bg-white px-8 py-12 text-center shadow-lg'>
-          <h2 className='text-lg font-bold text-slate-900'>아직 체크인 시간이 아닙니다</h2>
-          <p className='mt-2 text-sm text-slate-500'>
-            {new Date(check.opens_at).toLocaleString('ko-KR')} 이후 가능합니다.
-          </p>
-        </div>
-      </main>
-    );
-  }
-  if (check.closes_at && new Date(check.closes_at).getTime() < now) {
-    return (
-      <main className='flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 to-blue-50 px-4'>
-        <div className='w-full max-w-sm rounded-2xl border bg-white px-8 py-12 text-center shadow-lg'>
-          <h2 className='text-lg font-bold text-slate-900'>체크인 시간이 종료되었습니다</h2>
-        </div>
-      </main>
-    );
-  }
+  // opens_at/closes_at 시간 window 차단 제거 — 학생은 언제든 진입·체크인 가능.
+  // 지각 여부는 criterion_at으로만 판정.
 
   const session = check.sessions as unknown as {
     session_date: string;
