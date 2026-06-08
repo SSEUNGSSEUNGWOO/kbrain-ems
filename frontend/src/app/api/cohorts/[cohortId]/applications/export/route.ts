@@ -227,6 +227,25 @@ export async function GET(
     }
   }
 
+  // 제외 cohort에서 'selected'인 applicant_id 집합 (예: 블루 중복 합격자)
+  const sc = (cohortRow.selection_config ?? {}) as { excludedCohortIds?: string[] };
+  const excludedCohortIds = Array.isArray(sc.excludedCohortIds) ? sc.excludedCohortIds : [];
+  const excludedApplicantIds = new Set<string>();
+  if (excludedCohortIds.length > 0 && applicantIds.length > 0) {
+    for (let i = 0; i < applicantIds.length; i += ID_CHUNK) {
+      const slice = applicantIds.slice(i, i + ID_CHUNK);
+      const { data: hits } = await supabase
+        .from('applications')
+        .select('applicant_id')
+        .in('applicant_id', slice)
+        .in('cohort_id', excludedCohortIds)
+        .eq('status', 'selected');
+      for (const h of hits ?? []) {
+        if (h.applicant_id) excludedApplicantIds.add(h.applicant_id);
+      }
+    }
+  }
+
   // 자동선발 화면과 동일한 가중치(50:50)로 종합점수 계산
   const wSum = DEFAULT_WEIGHTS.knowledge + DEFAULT_WEIGHTS.plan;
   const computeFinalScore = (r: AppRow): number | null => {
@@ -261,7 +280,8 @@ export async function GET(
     decidedAt: r.decided_at,
     rejectedStage: r.rejected_stage,
     priorCerts: priorCertsByApplicant.get(r.applicants?.id ?? '') ?? [],
-    expertCohortLabels: r.applicants?.id ? (expertLabelsByApplicant.get(r.applicants.id) ?? []) : []
+    expertCohortLabels: r.applicants?.id ? (expertLabelsByApplicant.get(r.applicants.id) ?? []) : [],
+    excludedByOtherCohort: r.applicants?.id ? excludedApplicantIds.has(r.applicants.id) : false
   });
 
   // 종합점수 내림차순 정렬 (NULL은 뒤로)

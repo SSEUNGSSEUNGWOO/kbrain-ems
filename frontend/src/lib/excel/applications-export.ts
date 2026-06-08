@@ -51,35 +51,62 @@ export type ExportApplication = {
   priorCerts: PriorCertSummary[];
   // 올해 전문인재 cohort 라벨 (예: "26-1", "26-2"). 없으면 빈 배열.
   expertCohortLabels: string[];
+  // 다른 cohort(블루 등)에 selected라서 제외 정책으로 빠진 경우
+  excludedByOtherCohort?: boolean;
   // 미선발 사유 (buildApplicationsWorkbook에서 자동 채움)
   rejectionReason?: string;
 };
 
 export const REJECTION_REASONS = [
+  '다른 cohort 중복 합격 (제외 정책)',
   '사전학습 미이수',
   '기관별 배정 인원 기준 적용',
+  '상위부처 인원 기준 초과',
   '지식평가 점수 미흡',
   '업무활용 계획 구체성 미흡'
 ] as const;
 export type RejectionReason = (typeof REJECTION_REASONS)[number];
+
+function parentOrgKey(org: string | null | undefined): string {
+  if (!org) return '';
+  const t = org.trim();
+  const i = t.indexOf(' ');
+  return i === -1 ? t : t.slice(0, i);
+}
 
 function classifyRejection(
   r: ExportApplication,
   config: SelectionConfigSummary,
   selected: ExportApplication[]
 ): string {
+  // 0. 다른 cohort 중복 합격 (최우선 제외 정책)
+  if (r.excludedByOtherCohort) {
+    return '다른 cohort 중복 합격 (제외 정책)';
+  }
   // 1. 사전학습 미이수
   if (config.excludeNoPrereq && r.prereqMax > 0 && r.prereqDoneCount < r.prereqMax) {
     return '사전학습 미이수';
   }
-  // 4. 기관별 배정 인원 초과 — 같은 기관 selected가 정원 도달했으면 본인은 정원 정책으로 미선발
+  // 2. 기관별 배정 인원 초과
   if (config.maxPerOrg > 0 && r.organization) {
     const sameOrgSelected = selected.filter((x) => x.organization === r.organization);
     if (sameOrgSelected.length >= config.maxPerOrg) {
       return '기관별 배정 인원 기준 적용';
     }
   }
-  // 2 vs 3: 지식 vs 정성 정규화 비교
+  // 3. 상위부처 인원 초과
+  if (config.parentOrgCap && config.parentOrgCap > 0 && r.organization) {
+    const parent = parentOrgKey(r.organization);
+    if (parent) {
+      const sameParentSelected = selected.filter(
+        (x) => parentOrgKey(x.organization) === parent
+      );
+      if (sameParentSelected.length >= config.parentOrgCap) {
+        return '상위부처 인원 기준 초과';
+      }
+    }
+  }
+  // 4 vs 5: 지식 vs 정성 정규화 비교
   const kTotal = r.knowledgeTotal ?? 0;
   const kNorm = kTotal > 0 && r.knowledgeScore !== null ? r.knowledgeScore / kTotal : null;
   const planNorm = Math.min((r.planCharCount ?? 0) / 100, 1);
@@ -147,6 +174,8 @@ export type SelectionConfigSummary = {
   totalCapacity: number;
   withReserve: boolean;
   effectiveCapacity: number;
+  parentOrgCap?: number; // 상위부처당 최대 인원 (0 = 비활성)
+  excludedCohortIds?: string[]; // 이 cohort들의 selected를 제외
   appliedAt: string;
 };
 
@@ -309,6 +338,17 @@ function buildSummarySheet(
       '사전학습 미수료 제외',
       c.excludeNoPrereq ? '예' : '아니오'
     );
+    if (c.parentOrgCap && c.parentOrgCap > 0) {
+      row = addSummaryRow(ws, row, '상위부처당 최대', `${c.parentOrgCap}명`);
+    }
+    if (c.excludedCohortIds && c.excludedCohortIds.length > 0) {
+      row = addSummaryRow(
+        ws,
+        row,
+        '중복 제외 cohort',
+        `${c.excludedCohortIds.length}개 (해당 cohort에서 합격한 신청자는 제외)`
+      );
+    }
     row = addSummaryRow(ws, row, '적용 시점', fmtDateTime(c.appliedAt));
   }
 
@@ -327,9 +367,12 @@ function buildSummarySheet(
     for (const k of ORDER) {
       const n = reasonCount.get(k) ?? 0;
       if (n === 0) continue;
-      const labelSuffix = k === '기관별 배정 인원 기준 적용' && selectionConfig?.maxPerOrg
-        ? ` (${selectionConfig.maxPerOrg}명 이내)`
-        : '';
+      let labelSuffix = '';
+      if (k === '기관별 배정 인원 기준 적용' && selectionConfig?.maxPerOrg) {
+        labelSuffix = ` (${selectionConfig.maxPerOrg}명 이내)`;
+      } else if (k === '상위부처 인원 기준 초과' && selectionConfig?.parentOrgCap) {
+        labelSuffix = ` (${selectionConfig.parentOrgCap}명 이내)`;
+      }
       const pct = Math.round((n / rejected.length) * 1000) / 10;
       row = addSummaryRow(ws, row, `${k}${labelSuffix}`, `${n}명 (${pct}%)`);
     }

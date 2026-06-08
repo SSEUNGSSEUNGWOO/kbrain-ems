@@ -58,8 +58,8 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
   const [filterCategory, setFilterCategory] = useState<SelectionCategory | null>(null);
   // 다른 cohort에서 status='selected'인 신청자를 후보 풀에서 제외
   const [excludedCohortIds, setExcludedCohortIds] = useState<Set<string>>(new Set());
-  // 상위부처 캡 (정원의 10%)
-  const [parentOrgCapEnabled, setParentOrgCapEnabled] = useState(false);
+  // 상위부처 cap (절대 인원수 직접 입력, 0=비활성)
+  const [parentOrgCapInput, setParentOrgCapInput] = useState(0);
 
   // 110% 선발 시 실제 사용되는 정원 (예: 100 → 110). 미체크면 입력값 그대로.
   const effectiveCapacity = useMemo(
@@ -118,10 +118,7 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
   }, [candidates]);
 
   // 가중치·정원·쿼터 변하면 자동 추천 (수동 토글이 있는 사람은 그 결정을 유지)
-  const parentOrgCap = useMemo(
-    () => (parentOrgCapEnabled ? Math.floor(effectiveCapacity * 0.1) : 0),
-    [parentOrgCapEnabled, effectiveCapacity]
-  );
+  const parentOrgCap = parentOrgCapInput;
   const { scored, autoSelectedIds } = useMemo(() => {
     if (filteredCandidates.length === 0) {
       return { scored: [] as ScoredCandidate[], autoSelectedIds: new Set<string>() };
@@ -248,7 +245,7 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
       totalCapacity,
       withReserve,
       effectiveCapacity,
-      parentOrgCapPct: parentOrgCapEnabled ? 10 : 0,
+      parentOrgCap: parentOrgCapInput,
       excludedCohortIds: [...excludedCohortIds],
       appliedAt: new Date().toISOString()
     };
@@ -345,12 +342,11 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
                   });
                   setManualToggles(new Map());
                 }}
-                parentOrgCapEnabled={parentOrgCapEnabled}
-                onParentOrgCapChange={(v) => {
-                  setParentOrgCapEnabled(v);
+                parentOrgCapInput={parentOrgCapInput}
+                onParentOrgCapInputChange={(v) => {
+                  setParentOrgCapInput(Math.max(0, v));
                   setManualToggles(new Map());
                 }}
-                parentOrgCap={parentOrgCap}
                 effectiveCapacity={effectiveCapacity}
                 excludedCount={candidates.length - filteredCandidates.length}
               />
@@ -577,18 +573,16 @@ function AdditionalConstraintsPanel({
   availableExclusionCohorts,
   excludedCohortIds,
   onToggleExclusion,
-  parentOrgCapEnabled,
-  onParentOrgCapChange,
-  parentOrgCap,
+  parentOrgCapInput,
+  onParentOrgCapInputChange,
   effectiveCapacity,
   excludedCount
 }: {
   availableExclusionCohorts: { id: string; name: string }[];
   excludedCohortIds: Set<string>;
   onToggleExclusion: (id: string) => void;
-  parentOrgCapEnabled: boolean;
-  onParentOrgCapChange: (v: boolean) => void;
-  parentOrgCap: number;
+  parentOrgCapInput: number;
+  onParentOrgCapInputChange: (v: number) => void;
   effectiveCapacity: number;
   excludedCount: number;
 }) {
@@ -627,24 +621,28 @@ function AdditionalConstraintsPanel({
         )}
       </div>
 
-      <div className='flex items-start gap-2 border-t pt-2'>
-        <Checkbox
-          id='parent-org-cap'
-          checked={parentOrgCapEnabled}
-          onCheckedChange={(v) => onParentOrgCapChange(v === true)}
-          className='mt-0.5'
-        />
-        <label htmlFor='parent-org-cap' className='flex-1 cursor-pointer text-sm'>
-          상위부처 캡 (정원의 10%)
-          <div className='text-muted-foreground text-[11px] font-normal'>
-            기관명 첫 공백 앞 키로 그룹핑 (예: &apos;경찰청 서울특별시경찰청&apos; → &apos;경찰청&apos;).
-            {parentOrgCapEnabled && (
-              <span className='ml-1 font-semibold text-amber-700'>
-                현재 상위부처당 최대 {parentOrgCap}명 (정원 {effectiveCapacity})
-              </span>
-            )}
-          </div>
+      <div className='flex flex-col gap-1.5 border-t pt-2'>
+        <label htmlFor='parent-org-cap' className='text-sm font-medium'>
+          상위부처당 최대 인원
+          <span className='ml-1 text-[11px] font-normal text-muted-foreground'>
+            (0 = 비활성)
+          </span>
         </label>
+        <div className='flex items-center gap-2'>
+          <Input
+            id='parent-org-cap'
+            type='number'
+            min={0}
+            max={effectiveCapacity}
+            value={parentOrgCapInput || ''}
+            onChange={(e) => onParentOrgCapInputChange(Number(e.target.value) || 0)}
+            placeholder='예: 7'
+            className='h-8 w-24 tabular-nums'
+          />
+          <span className='text-[11px] text-muted-foreground'>
+            기관명 첫 공백 앞으로 그룹핑 (예: &apos;경찰청 서울특별시경찰청&apos; → &apos;경찰청&apos;)
+          </span>
+        </div>
       </div>
     </div>
   );
