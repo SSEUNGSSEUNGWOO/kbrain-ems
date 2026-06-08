@@ -258,16 +258,22 @@ export function recommendByQuotas(
     }
   }
 
-  // Phase 2: 단방향 흘러내림 — sourceCat의 남은 쿼터를 아래 카테고리들에서 보충
+  // Phase 2: 단방향 흘러내림 — sourceCat의 남은 쿼터를 우선순위 순으로 보충.
+  // 예: 중앙 부족 → local 풀에서 점수순으로 먼저 채우고, 거기서도 모자라면
+  //     public_edu, 그 다음 other 순으로 진행. 단순히 downstream 풀을 한 번에
+  //     섞어 점수만 보면 더 낮은 카테고리(예: other)의 고득점자가 중간
+  //     카테고리(local)보다 먼저 들어와 의도와 다름.
   for (let i = 0; i < SELECTION_CATEGORY_ORDER.length; i++) {
     const sourceCat = SELECTION_CATEGORY_ORDER[i];
     if (quotas[sourceCat] === 0) continue;
-    const downstream = new Set(SELECTION_CATEGORY_ORDER.slice(i + 1));
-    if (downstream.size === 0) continue;
-    for (const c of scored) {
+    for (let j = i + 1; j < SELECTION_CATEGORY_ORDER.length; j++) {
+      const targetCat = SELECTION_CATEGORY_ORDER[j];
       if (quotas[sourceCat] === 0) break;
-      if (!downstream.has(c.category)) continue;
-      if (tryAdd(c)) quotas[sourceCat]--;
+      for (const c of scored) {
+        if (quotas[sourceCat] === 0) break;
+        if (c.category !== targetCat) continue;
+        if (tryAdd(c)) quotas[sourceCat]--;
+      }
     }
   }
 
