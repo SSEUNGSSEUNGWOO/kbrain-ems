@@ -199,6 +199,7 @@ export async function buildApplicationsWorkbook({
   selected,
   rejected,
   selectionConfig,
+  excludedCohortNames,
   startedAt,
   endedAt
 }: {
@@ -207,6 +208,7 @@ export async function buildApplicationsWorkbook({
   selected: ExportApplication[];
   rejected: ExportApplication[];
   selectionConfig: SelectionConfigSummary | null;
+  excludedCohortNames?: string[];
   startedAt?: string | null;
   endedAt?: string | null;
 }): Promise<Buffer> {
@@ -219,7 +221,7 @@ export async function buildApplicationsWorkbook({
   }
 
   const wb = new ExcelJS.Workbook();
-  buildSummarySheet(wb, cohortName, selected, rejected, selectionConfig, period);
+  buildSummarySheet(wb, cohortName, selected, rejected, selectionConfig, period, excludedCohortNames ?? []);
   const selSheetName = period ? `선발 (${period})` : '선발';
   const rejSheetName = period ? `미선발 (${period})` : '미선발';
   buildSheet(wb, selSheetName, cohortName, cohortTrack, selected, SELECTED_COLUMNS, COLOR_HEADER_SELECTED, period);
@@ -234,7 +236,8 @@ function buildSummarySheet(
   selected: ExportApplication[],
   rejected: ExportApplication[],
   selectionConfig: SelectionConfigSummary | null,
-  period: string
+  period: string,
+  excludedCohortNames: string[]
 ) {
   const ws = wb.addWorksheet('요약');
 
@@ -342,11 +345,14 @@ function buildSummarySheet(
       row = addSummaryRow(ws, row, '상위부처당 최대', `${c.parentOrgCap}명`);
     }
     if (c.excludedCohortIds && c.excludedCohortIds.length > 0) {
+      const namesLabel = excludedCohortNames.length > 0
+        ? excludedCohortNames.join(', ')
+        : `${c.excludedCohortIds.length}개 (이름 조회 실패)`;
       row = addSummaryRow(
         ws,
         row,
         '중복 제외 cohort',
-        `${c.excludedCohortIds.length}개 (해당 cohort에서 합격한 신청자는 제외)`
+        `${namesLabel} — 위 cohort들에서 합격한 신청자는 후보에서 제외`
       );
     }
     row = addSummaryRow(ws, row, '적용 시점', fmtDateTime(c.appliedAt));

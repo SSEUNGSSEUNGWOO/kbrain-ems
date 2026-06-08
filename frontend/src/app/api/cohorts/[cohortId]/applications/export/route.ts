@@ -301,12 +301,23 @@ export async function GET(
     return null;
   })();
 
+  // 제외 cohort들 이름 조회 (요약 시트 표시용)
+  let excludedCohortNames: string[] = [];
+  if (excludedCohortIds.length > 0) {
+    const { data: excCohorts } = await supabase
+      .from('cohorts')
+      .select('id, name')
+      .in('id', excludedCohortIds);
+    excludedCohortNames = (excCohorts ?? []).map((c) => c.name);
+  }
+
   const buf = await buildApplicationsWorkbook({
     cohortName: cohortRow.name,
     cohortTrack,
     selected,
     rejected,
     selectionConfig: cohortRow.selection_config as SelectionConfigSummary | null,
+    excludedCohortNames,
     startedAt: sessionStart,
     endedAt: sessionEnd
   });
