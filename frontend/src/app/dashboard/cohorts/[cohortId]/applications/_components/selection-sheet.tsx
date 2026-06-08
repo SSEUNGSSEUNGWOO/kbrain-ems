@@ -106,18 +106,23 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
     );
   }, [candidates, excludedCohortIds]);
 
-  // 다른 cohort 목록 — candidates의 other_applications에서 추출 (cohort_id + name dedup)
-  const availableExclusionCohorts = useMemo(() => {
-    const seen = new Map<string, string>();
-    for (const c of candidates) {
-      for (const o of c.other_applications) {
-        if (!seen.has(o.cohort_id)) seen.set(o.cohort_id, o.cohort_name);
-      }
-    }
-    return [...seen.entries()]
-      .map(([id, name]) => ({ id, name }))
-      .toSorted((a, b) => a.name.localeCompare(b.name, 'ko'));
-  }, [candidates]);
+  // 다른 cohort 목록 — 전체 cohort 중 현재 cohort 제외하고 모두 보여줌
+  // (지원자가 겹치는지 여부와 무관하게 사용자가 선택할 수 있도록)
+  const [allCohorts, setAllCohorts] = useState<{ id: string; name: string }[]>([]);
+  useEffect(() => {
+    if (!open) return;
+    fetch('/api/cohorts-list')
+      .then((r) => r.json())
+      .then((data: { id: string; name: string }[]) => setAllCohorts(data))
+      .catch(() => setAllCohorts([]));
+  }, [open]);
+  const availableExclusionCohorts = useMemo(
+    () =>
+      allCohorts
+        .filter((c) => c.id !== cohortId)
+        .toSorted((a, b) => a.name.localeCompare(b.name, 'ko')),
+    [allCohorts, cohortId]
+  );
 
   // 가중치·정원·쿼터 변하면 자동 추천 (수동 토글이 있는 사람은 그 결정을 유지)
   const parentOrgCap = parentOrgCapInput;
