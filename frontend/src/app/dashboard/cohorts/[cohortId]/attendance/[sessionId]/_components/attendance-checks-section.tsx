@@ -62,8 +62,6 @@ export function AttendanceChecksSection({
   const totalStudents = students.length;
   const [creating, setCreating] = useState(false);
   const [labelInput, setLabelInput] = useState('');
-  const [opensInput, setOpensInput] = useState('');
-  const [closesInput, setClosesInput] = useState('');
   const [criterionInput, setCriterionInput] = useState('');
   const [roleInput, setRoleInput] = useState<'none' | 'arrival' | 'departure'>('none');
   const [message, setMessage] = useState<string | null>(null);
@@ -72,16 +70,12 @@ export function AttendanceChecksSection({
   const [qrTarget, setQrTarget] = useState<{ label: string; url: string } | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editLabel, setEditLabel] = useState('');
-  const [editOpens, setEditOpens] = useState('');
-  const [editCloses, setEditCloses] = useState('');
   const [editCriterion, setEditCriterion] = useState('');
   const [editRole, setEditRole] = useState<'none' | 'arrival' | 'departure'>('none');
 
   const startEdit = (check: Check) => {
     setEditingId(check.id);
     setEditLabel(check.label);
-    setEditOpens(isoToTimeInput(check.opens_at));
-    setEditCloses(isoToTimeInput(check.closes_at));
     setEditCriterion(isoToTimeInput(check.criterion_at));
     setEditRole(
       check.attendance_role === 'arrival' || check.attendance_role === 'departure'
@@ -96,8 +90,8 @@ export function AttendanceChecksSection({
     startTransition(async () => {
       const r = await updateAttendanceCheck(checkId, cohortId, sessionId, {
         label: editLabel,
-        opens_at: combineDateTime(sessionDate, editOpens),
-        closes_at: combineDateTime(sessionDate, editCloses),
+        opens_at: null,
+        closes_at: null,
         criterion_at: combineDateTime(sessionDate, editCriterion),
         attendance_role: editRole === 'none' ? null : editRole
       });
@@ -113,8 +107,6 @@ export function AttendanceChecksSection({
   const handleCreate = () => {
     if (!labelInput.trim()) return;
     setMessage(null);
-    const opensAt = combineDateTime(sessionDate, opensInput);
-    const closesAt = combineDateTime(sessionDate, closesInput);
     const criterionAt = combineDateTime(sessionDate, criterionInput);
     const role = roleInput === 'none' ? null : roleInput;
     startTransition(async () => {
@@ -122,16 +114,14 @@ export function AttendanceChecksSection({
         sessionId,
         cohortId,
         labelInput,
-        opensAt,
-        closesAt,
+        null,
+        null,
         role,
         criterionAt
       );
       if (r.error) setMessage(`오류: ${r.error}`);
       else {
         setLabelInput('');
-        setOpensInput('');
-        setClosesInput('');
         setCriterionInput('');
         setRoleInput('none');
         setCreating(false);
@@ -163,7 +153,7 @@ export function AttendanceChecksSection({
         <div>
           <h2 className='text-lg font-bold text-slate-900'>셀프 출석 체크</h2>
           <p className='mt-0.5 text-xs text-slate-500'>
-            학생이 share 링크로 직접 체크인합니다. 한 세션에 여러 개(예: 오전·점심후·마감) 만들 수 있어요.
+            학생이 share 링크로 직접 체크인합니다. 한 세션에 여러 개(교육 시작/중간/마감) 만들 수 있어요. 학생은 언제든 체크인 가능하고, 지각 기준 시각만 지각 판정에 사용됩니다.
           </p>
         </div>
         {!creating && (
@@ -187,30 +177,6 @@ export function AttendanceChecksSection({
               placeholder='예: 오전 시작, 점심 후, 마감'
               className='w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100'
             />
-          </div>
-          <div className='grid grid-cols-2 gap-3'>
-            <div>
-              <label className='mb-1 block text-xs font-semibold text-slate-600'>
-                체크인 시작 시각 <span className='font-normal text-slate-400'>(선택)</span>
-              </label>
-              <input
-                type='time'
-                value={opensInput}
-                onChange={(e) => setOpensInput(e.target.value)}
-                className='w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100'
-              />
-            </div>
-            <div>
-              <label className='mb-1 block text-xs font-semibold text-slate-600'>
-                체크인 종료 시각 <span className='font-normal text-slate-400'>(선택)</span>
-              </label>
-              <input
-                type='time'
-                value={closesInput}
-                onChange={(e) => setClosesInput(e.target.value)}
-                className='w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100'
-              />
-            </div>
           </div>
           <div>
             <label className='mb-1.5 block text-xs font-semibold text-slate-600'>
@@ -240,7 +206,7 @@ export function AttendanceChecksSection({
           </div>
           <div>
             <label className='mb-1 block text-xs font-semibold text-slate-600'>
-              정시 기준 시각 <span className='font-normal text-slate-400'>(이후 체크인 = 지각 표시 · 역할 무관 · 선택)</span>
+              지각 기준 시각 <span className='font-normal text-slate-400'>(이 시각 이후 체크인 = 지각)</span>
             </label>
             <input
               type='time'
@@ -261,8 +227,6 @@ export function AttendanceChecksSection({
               onClick={() => {
                 setCreating(false);
                 setLabelInput('');
-                setOpensInput('');
-                setClosesInput('');
                 setCriterionInput('');
                 setRoleInput('none');
               }}
@@ -309,14 +273,9 @@ export function AttendanceChecksSection({
                       <span className='rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700'>
                         {check.records.length} / {totalStudents}명
                       </span>
-                      {(check.opens_at || check.closes_at) && (
-                        <span className='rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-700'>
-                          {formatTime(check.opens_at) || '~~'} ~ {formatTime(check.closes_at) || '~~'}
-                        </span>
-                      )}
                       {check.attendance_role === 'arrival' && (
                         <span className='rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700'>
-                          출석/지각 {check.criterion_at ? `(정시 ${formatTime(check.criterion_at)})` : ''}
+                          출석/지각 {check.criterion_at ? `(이후 지각: ${formatTime(check.criterion_at)})` : ''}
                         </span>
                       )}
                       {check.attendance_role === 'departure' && (
@@ -371,32 +330,6 @@ export function AttendanceChecksSection({
                         className='w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100'
                       />
                     </div>
-                    <div className='grid grid-cols-2 gap-3'>
-                      <div>
-                        <label className='mb-1 block text-xs font-semibold text-slate-600'>
-                          체크인 시작 시각{' '}
-                          <span className='font-normal text-slate-400'>(선택)</span>
-                        </label>
-                        <input
-                          type='time'
-                          value={editOpens}
-                          onChange={(e) => setEditOpens(e.target.value)}
-                          className='w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100'
-                        />
-                      </div>
-                      <div>
-                        <label className='mb-1 block text-xs font-semibold text-slate-600'>
-                          체크인 종료 시각{' '}
-                          <span className='font-normal text-slate-400'>(선택)</span>
-                        </label>
-                        <input
-                          type='time'
-                          value={editCloses}
-                          onChange={(e) => setEditCloses(e.target.value)}
-                          className='w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100'
-                        />
-                      </div>
-                    </div>
                     <div>
                       <label className='mb-1.5 block text-xs font-semibold text-slate-600'>
                         출결 자동 반영
@@ -425,10 +358,8 @@ export function AttendanceChecksSection({
                     </div>
                     <div>
                       <label className='mb-1 block text-xs font-semibold text-slate-600'>
-                        정시 기준 시각{' '}
-                        <span className='font-normal text-slate-400'>
-                          (이후 체크인 = 지각 표시 · 선택)
-                        </span>
+                        지각 기준 시각{' '}
+                        <span className='font-normal text-slate-400'>(이 시각 이후 체크인 = 지각)</span>
                       </label>
                       <input
                         type='time'
@@ -438,7 +369,7 @@ export function AttendanceChecksSection({
                       />
                     </div>
                     <p className='text-[11px] text-slate-500'>
-                      기준일: {sessionDate}. 시간 비우면 기존 값 그대로 NULL 저장.
+                      기준일: {sessionDate}. 비우면 지각 판정 안 함.
                     </p>
                     <div className='flex gap-2'>
                       <Button
