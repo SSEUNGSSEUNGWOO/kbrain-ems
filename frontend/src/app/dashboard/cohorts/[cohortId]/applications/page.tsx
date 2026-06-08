@@ -114,16 +114,6 @@ export default async function CohortApplicationsPage({ params, searchParams }: P
     }
   }
 
-  // 검색·필터 적용해 application_id 집합 좁힘
-  let applicantIdFilter: string[] | null = null;
-  if (search) {
-    const q = supabase.from('applicants').select('id');
-    const { data: matchedApplicants } = hidePersonal
-      ? await q.ilike('name', `%${search}%`)
-      : await q.or(`name.ilike.%${search}%,phone.ilike.%${search}%`);
-    applicantIdFilter = (matchedApplicants ?? []).map((a) => a.id);
-  }
-
   const CATEGORY_TO_C2: Record<string, string> = {
     central: '①',
     metro_local: '②',
@@ -140,10 +130,18 @@ export default async function CohortApplicationsPage({ params, searchParams }: P
       .map(([id]) => id);
   }
 
+  // 검색은 embedded resource filter로 처리.
+  // 별도 applicants 쿼리 후 .in('applicant_id', [수많은 UUID])로 거르면 검색어가
+  // 흔할 때 URL 길이가 PostgREST 한계를 넘어 빈 결과가 나옴 (그린처럼 큰 cohort).
+  // applicants!inner + applicants.name=ilike.*pattern* 으로 한 번에 해결.
+  const applicantsSelect = search
+    ? 'applicants!inner(id, name, phone, email, department, job_role, organizations(name))'
+    : 'applicants(id, name, phone, email, department, job_role, organizations(name))';
+
   let rowsQuery = supabase
     .from('applications')
     .select(
-      'id, status, rejected_stage, applied_at, decided_at, knowledge_score, knowledge_correct_count, knowledge_total_count, self_diagnosis_avg, applicants(id, name, phone, email, department, job_role, organizations(name))',
+      `id, status, rejected_stage, applied_at, decided_at, knowledge_score, knowledge_correct_count, knowledge_total_count, self_diagnosis_avg, ${applicantsSelect}`,
       { count: 'exact' }
     )
     .eq('cohort_id', cohortId)
@@ -154,11 +152,15 @@ export default async function CohortApplicationsPage({ params, searchParams }: P
     })
     .range(from, to);
 
-  if (applicantIdFilter !== null) {
-    rowsQuery =
-      applicantIdFilter.length > 0
-        ? rowsQuery.in('applicant_id', applicantIdFilter)
-        : rowsQuery.in('applicant_id', ['__none__']);
+  if (search) {
+    if (hidePersonal) {
+      rowsQuery = rowsQuery.ilike('applicants.name', `%${search}%`);
+    } else {
+      rowsQuery = rowsQuery.or(
+        `name.ilike.%${search}%,phone.ilike.%${search}%`,
+        { foreignTable: 'applicants' }
+      );
+    }
   }
   if (statusFilter) rowsQuery = rowsQuery.eq('status', statusFilter);
   if (categoryFilteredAppIds !== null) {
