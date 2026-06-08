@@ -274,7 +274,7 @@ export function recommendByQuotas(
   // Phase 3: 커트라인 동점자 포함 — 카테고리별로 합격자 중 가장 낮은 점수 튜플
   // (= 그 카테고리의 컷오프)과 동일한 미선발자를 같은 카테고리 안에서만 통과시킨다.
   // 글자수까지 동일하면 알고리즘이 구분할 수 없으니 형평성 차원에서 추가.
-  // 전체 합격자가 아니라 '컷오프' 한 점만 매칭하므로 폭발적 확장 방지.
+  // 단, 기관 cap·상위부처 cap은 동점자라도 그대로 적용 — hard limit.
   const tieKey = (c: ScoredCandidate) =>
     `${c.prereq_done_count}|${c.final_score}|${c.knowledge_score}|${c.plan_char_count}`;
   const cutoffByCategory = new Map<SelectionCategory, string>();
@@ -287,6 +287,13 @@ export function recommendByQuotas(
     if (selectedSet.has(c.application_id)) continue;
     const cutoff = cutoffByCategory.get(c.category);
     if (!cutoff || cutoff !== tieKey(c)) continue;
+    // 동점자 추가도 cap 체크 — 상위부처/기관 cap이 hard limit으로 작동
+    const orgKey = c.organization ?? '';
+    const parent = parentOrgKey(c.organization);
+    if (orgKey && (orgCount.get(orgKey) ?? 0) >= cap) continue;
+    if (parent && (parentCount.get(parent) ?? 0) >= pCap) continue;
+    if (orgKey) orgCount.set(orgKey, (orgCount.get(orgKey) ?? 0) + 1);
+    if (parent) parentCount.set(parent, (parentCount.get(parent) ?? 0) + 1);
     selectedSet.add(c.application_id);
     selectedIds.push(c.application_id);
   }
