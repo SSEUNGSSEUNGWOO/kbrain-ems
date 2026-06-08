@@ -104,10 +104,36 @@ export type SelectionConfigSnapshot = {
   appliedAt: string; // ISO timestamp
 };
 
+// =============================================================
+// 상위부처 그룹핑 매핑 (manual override)
+// =============================================================
+// 기본 그룹핑은 기관명의 첫 공백 prefix를 상위부처 키로 사용한다.
+// 예) "경찰청 서울특별시경찰청" → "경찰청"
+//
+// 그러나 일부 위원회·산하기관은 단독 명칭(공백 없음)이라 기본
+// 그룹핑으론 각자 별도 그룹이 된다. 운영상 같은 부처 산하로 묶고
+// 싶을 때는 아래 PARENT_ORG_OVERRIDES에 매핑을 직접 추가한다.
+//
+// 새 매핑이 필요한 케이스가 누적되면 organizations 테이블에
+// parent_org 컬럼을 두는 옵션 B로 확장할 것. 그때까지는 이 dict.
+//
+// 매핑 결정 출처: 운영진(승우님) 검토 — 자동선발 시 부처별 cap이
+// 같은 상위부처 산하 위원회들에 합산 적용되어야 한다는 의견.
+const PARENT_ORG_OVERRIDES: Record<string, string> = {
+  // 문화체육관광부 산하 위원회
+  '한국문화예술위원회': '문화체육관광부',
+  '영화진흥위원회': '문화체육관광부',
+  '영상물등급위원회': '문화체육관광부',
+  // 농림축산식품부 산하 공공기관
+  '가축위생방역지원본부': '농림축산식품부'
+};
+
 // "경찰청 서울특별시경찰청" → "경찰청" / "한국전력공사" → "한국전력공사" / null → ''
+// PARENT_ORG_OVERRIDES에 정확히 일치하는 항목이 있으면 그 값을 우선 반환.
 export function parentOrgKey(org: string | null | undefined): string {
   if (!org) return '';
   const trimmed = org.trim();
+  if (PARENT_ORG_OVERRIDES[trimmed]) return PARENT_ORG_OVERRIDES[trimmed];
   const idx = trimmed.indexOf(' ');
   return idx === -1 ? trimmed : trimmed.slice(0, idx);
 }
