@@ -32,14 +32,8 @@ export async function checkinByShareCode(
     .maybeSingle();
   if (!check) return { ok: false, error: '잘못된 출석 체크 링크입니다.' };
 
-  const now = Date.now();
-  if (check.opens_at && new Date(check.opens_at).getTime() > now) {
-    return { ok: false, error: '아직 체크인 시간이 아닙니다.' };
-  }
-  if (check.closes_at && new Date(check.closes_at).getTime() < now) {
-    return { ok: false, error: '체크인 시간이 종료되었습니다.' };
-  }
-
+  // opens_at/closes_at 시간 window 차단 제거 — 학생은 언제든 체크인 가능.
+  // 지각 여부는 criterion_at으로만 판정.
   const session = check.sessions as unknown as { cohort_id: string } | null;
   if (!session) return { ok: false, error: '세션 정보를 찾을 수 없습니다.' };
 

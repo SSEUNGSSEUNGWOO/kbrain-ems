@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { checkinByShareCode } from '../_actions';
 
@@ -13,8 +13,14 @@ type Props = {
 
 type Status =
   | { kind: 'idle' }
+  | { kind: 'confirming' }
   | { kind: 'verifying' }
   | { kind: 'success'; studentName: string; checkedAt: string; alreadyChecked: boolean };
+
+function nowHHMM(): string {
+  const d = new Date();
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
 
 export function CheckinForm({ code, label, cohortName, sessionLabel }: Props) {
   const [name, setName] = useState('');
@@ -22,6 +28,15 @@ export function CheckinForm({ code, label, cohortName, sessionLabel }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<Status>({ kind: 'idle' });
   const [, startTransition] = useTransition();
+  const [confirmTime, setConfirmTime] = useState('');
+
+  // 확인 화면에서 매초 시간 업데이트
+  useEffect(() => {
+    if (status.kind !== 'confirming') return;
+    setConfirmTime(nowHHMM());
+    const id = setInterval(() => setConfirmTime(nowHHMM()), 1000);
+    return () => clearInterval(id);
+  }, [status.kind]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,6 +49,10 @@ export function CheckinForm({ code, label, cohortName, sessionLabel }: Props) {
       setError('전화번호 뒷 4자리를 숫자로 입력해주세요.');
       return;
     }
+    setStatus({ kind: 'confirming' });
+  };
+
+  const doCheckin = () => {
     setStatus({ kind: 'verifying' });
     startTransition(async () => {
       const r = await checkinByShareCode(code, name, phoneLast4);
@@ -54,6 +73,56 @@ export function CheckinForm({ code, label, cohortName, sessionLabel }: Props) {
   return (
     <div className='w-full'>
       <AnimatePresence mode='wait'>
+        {status.kind === 'confirming' && (
+          <motion.div
+            key='confirming'
+            initial={{ opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.96 }}
+            transition={{ duration: 0.25 }}
+            className='rounded-2xl border bg-white px-8 py-10 text-center shadow-lg'
+          >
+            <div className='mb-1 text-[11px] font-semibold uppercase tracking-[0.15em] text-slate-400'>
+              {cohortName ? `${cohortName} · ` : ''}출석 체크
+            </div>
+            <h1 className='mb-6 text-lg font-bold text-slate-900'>{label}</h1>
+            <div className='mx-auto mb-3 inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700'>
+              {name}
+            </div>
+            <p className='text-sm text-slate-700'>
+              지금 시각{' '}
+              <motion.span
+                key={confirmTime}
+                initial={{ opacity: 0.4, y: -3 }}
+                animate={{ opacity: 1, y: 0 }}
+                className='font-mono text-2xl font-bold text-slate-900 tabular-nums'
+              >
+                {confirmTime}
+              </motion.span>
+              {' '}에 출석하시겠습니까?
+            </p>
+            <p className='mt-2 text-[11px] text-slate-500'>
+              제출 시각이 기록됩니다. 확인 후 변경할 수 없어요.
+            </p>
+            <div className='mt-7 flex gap-3'>
+              <button
+                type='button'
+                onClick={() => setStatus({ kind: 'idle' })}
+                className='flex-1 rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50'
+              >
+                취소
+              </button>
+              <button
+                type='button'
+                onClick={doCheckin}
+                className='flex-1 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-3 text-sm font-semibold text-white hover:from-emerald-600 hover:to-emerald-700 active:scale-[0.98]'
+              >
+                지금 출석
+              </button>
+            </div>
+          </motion.div>
+        )}
+
         {status.kind === 'verifying' && (
           <motion.div
             key='verifying'
