@@ -391,7 +391,7 @@ export function AttendanceChecksSection({
                   {students.length === 0 ? (
                     <p className='text-center text-xs text-slate-400'>학생이 없습니다.</p>
                   ) : (
-                    <div className='flex flex-wrap gap-1.5'>
+                    <div className='grid grid-cols-3 gap-1.5 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-9'>
                       {students.map((s) => {
                         const checkedAt = recordByStudent.get(s.id);
                         const isLate =
@@ -401,7 +401,7 @@ export function AttendanceChecksSection({
                         return (
                           <div
                             key={s.id}
-                            className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs ring-1 ${
+                            className={`flex items-center justify-between gap-1 rounded-lg px-2.5 py-1 text-xs ring-1 ${
                               checkedAt
                                 ? isLate
                                   ? 'bg-white text-slate-900 ring-orange-300'
@@ -409,24 +409,23 @@ export function AttendanceChecksSection({
                                 : 'bg-transparent text-slate-400 ring-slate-200'
                             }`}
                           >
-                            <span className={`font-medium ${checkedAt ? '' : 'line-through'}`}>
+                            <span
+                              className={`truncate font-medium ${checkedAt ? '' : 'line-through'}`}
+                              title={s.name}
+                            >
                               {s.name}
                             </span>
                             {checkedAt ? (
-                              <>
-                                <span className={isLate ? 'text-orange-600' : 'text-emerald-600'}>
-                                  {new Date(checkedAt).toLocaleTimeString('ko-KR', {
-                                    hour: '2-digit',
-                                    minute: '2-digit',
-                                    hour12: false
-                                  })}
-                                </span>
-                                {isLate && (
-                                  <span className='rounded bg-orange-100 px-1.5 py-0 text-[10px] font-bold text-orange-700'>
-                                    지각
-                                  </span>
-                                )}
-                              </>
+                              <span
+                                className={`font-bold tabular-nums ${isLate ? 'text-orange-600' : 'text-emerald-600'}`}
+                                title={isLate ? '지각' : '정시'}
+                              >
+                                {new Date(checkedAt).toLocaleTimeString('ko-KR', {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                  hour12: false
+                                })}
+                              </span>
                             ) : (
                               <span className='text-[10px] text-slate-400'>대기</span>
                             )}
