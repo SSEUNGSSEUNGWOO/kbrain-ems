@@ -63,7 +63,9 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
 
   // 110% 선발 시 실제 사용되는 정원 (예: 100 → 110). 미체크면 입력값 그대로.
   const effectiveCapacity = useMemo(
-    () => (withReserve ? Math.ceil(totalCapacity * 1.1) : totalCapacity),
+    // 100 * 1.1 = 110.00000000000001 (부동소수점) → Math.ceil이면 111로 잘못 올림.
+    // Math.round로 110 정상 처리. 80→88, 60→66은 둘 다 동일하게 정상.
+    () => (withReserve ? Math.round(totalCapacity * 1.1) : totalCapacity),
     [totalCapacity, withReserve]
   );
   const [manualToggles, setManualToggles] = useState<Map<string, boolean>>(new Map());
