@@ -24,6 +24,7 @@ export default async function SessionAttendancePage({
     id: string;
     name: string;
     phone: string | null;
+    applicant_id: string | null;
     organizations: { name: string } | null;
     applicants: { category: string | null } | null;
   };
@@ -44,7 +45,7 @@ export default async function SessionAttendancePage({
     }[];
   };
 
-  const [sessionRes, studentRes, recordRes, checkRes] = await Promise.all([
+  const [sessionRes, studentRes, recordRes, checkRes, appRes] = await Promise.all([
     supabase
       .from('sessions')
       .select(
@@ -54,7 +55,7 @@ export default async function SessionAttendancePage({
       .limit(1),
     supabase
       .from('students')
-      .select('id, name, phone, organizations(name), applicants(category)')
+      .select('id, name, phone, applicant_id, organizations(name), applicants(category)')
       .eq('cohort_id', cohortId)
       .order('name', { ascending: true })
       .returns<StudentRow[]>(),
@@ -69,18 +70,33 @@ export default async function SessionAttendancePage({
       )
       .eq('session_id', sessionId)
       .order('display_order', { ascending: true })
-      .returns<CheckRow[]>()
+      .returns<CheckRow[]>(),
+    supabase
+      .from('applications')
+      .select('applicant_id, status')
+      .eq('cohort_id', cohortId)
   ]);
 
   if (sessionRes.error) throw new Error(sessionRes.error.message);
   if (studentRes.error) throw new Error(studentRes.error.message);
   if (recordRes.error) throw new Error(recordRes.error.message);
   if (checkRes.error) throw new Error(checkRes.error.message);
+  if (appRes.error) throw new Error(appRes.error.message);
 
   const session = sessionRes.data?.[0];
   if (!session) notFound();
 
-  const studentRows = studentRes.data ?? [];
+  // 취하·탈락된 신청자만 명단에서 제외. application 자체가 없는 학생
+  // (테스트·수동등록 등)은 통과. 매칭 키는 students.applicant_id ↔ applications.applicant_id.
+  const appStatusByApplicant = new Map(
+    (appRes.data ?? []).map((a) => [a.applicant_id, a.status])
+  );
+  const studentRows = (studentRes.data ?? []).filter((s) => {
+    if (!s.applicant_id) return true;
+    const status = appStatusByApplicant.get(s.applicant_id);
+    if (!status) return true;
+    return status === 'selected';
+  });
   const recordRows = recordRes.data ?? [];
 
   // 테스트 학생(이름이 '테스트'로 시작)은 실제 학생 뒤로 정렬

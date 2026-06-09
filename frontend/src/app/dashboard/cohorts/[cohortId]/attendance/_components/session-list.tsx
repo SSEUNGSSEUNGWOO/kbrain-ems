@@ -97,11 +97,20 @@ export function SessionList({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [bulkDeleteError, setBulkDeleteError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const [pending, startTransition] = useTransition();
   const router = useRouter();
   const { isDeveloper } = useAuth();
 
-  const allIds = sessions.map((s) => s.id);
+  const q = searchQuery.trim().toLowerCase();
+  const filteredSessions = q
+    ? sessions.filter((s) => {
+        const dateLabel = formatDate(s.session_date).toLowerCase();
+        const hay = `${s.session_date} ${dateLabel} ${(s.title ?? '').toLowerCase()}`;
+        return hay.includes(q);
+      })
+    : sessions;
+  const allIds = filteredSessions.map((s) => s.id);
   const isAllSelected = allIds.length > 0 && allIds.every((id) => selected.has(id));
   const isIndeterminate = selected.size > 0 && !isAllSelected;
 
@@ -166,6 +175,21 @@ export function SessionList({
         </div>
       )}
 
+      <div className='mb-3 flex items-center gap-2'>
+        <Input
+          placeholder='날짜·제목 검색'
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className='h-9 w-full sm:w-72'
+        />
+        {searchQuery && (
+          <Button variant='ghost' size='sm' className='h-9' onClick={() => setSearchQuery('')}>
+            초기화
+          </Button>
+        )}
+        <span className='text-muted-foreground ml-auto text-sm'>{filteredSessions.length}개</span>
+      </div>
+
       <div className='overflow-x-auto rounded-md border'>
         <table className='w-full text-sm'>
           <thead>
@@ -193,7 +217,7 @@ export function SessionList({
             </tr>
           </thead>
           <tbody>
-            {sessions.map((s, i) => {
+            {filteredSessions.map((s, i) => {
               const records = s.attendance_records ?? [];
               const byStatus = (status: string) =>
                 records.filter((r) => r.status === status).map((r) => getStudentName(r.students)).filter(Boolean);
@@ -222,7 +246,7 @@ export function SessionList({
 
               return (
               <Fragment key={s.id}>
-                {i === pastStartIndex && pastStartIndex > 0 && pastStartIndex < sessions.length && (
+                {!q && i === pastStartIndex && pastStartIndex > 0 && pastStartIndex < sessions.length && (
                   <tr>
                     <td colSpan={9} className='px-4 py-2'>
                       <div className='text-muted-foreground flex items-center gap-2 text-xs'>

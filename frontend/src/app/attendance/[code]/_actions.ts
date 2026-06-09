@@ -45,7 +45,7 @@ export async function checkinByShareCode(
 
   const { data: students } = await supabase
     .from('students')
-    .select('id, name, phone')
+    .select('id, name, phone, applicant_id')
     .eq('cohort_id', session.cohort_id);
   const normName = normalizeName(name);
   const matches = (students ?? []).filter(
@@ -61,6 +61,23 @@ export async function checkinByShareCode(
     return { ok: false, error: '동명이인이 있어 자동 매칭이 불가합니다. 관리자에게 문의해주세요.' };
   }
   const student = matches[0];
+
+  // 취하·탈락 등 selected 상태가 아닌 신청자만 차단. application 자체가 없는 학생
+  // (테스트·수동등록 등)은 통과. 매칭 키는 students.applicant_id ↔ applications.applicant_id.
+  if (student.applicant_id) {
+    const { data: app } = await supabase
+      .from('applications')
+      .select('status')
+      .eq('applicant_id', student.applicant_id)
+      .eq('cohort_id', session.cohort_id)
+      .maybeSingle();
+    if (app && app.status !== 'selected') {
+      return {
+        ok: false,
+        error: '현재 출석 대상자가 아닙니다. 관리자에게 문의해주세요.'
+      };
+    }
+  }
 
   // 3) 이미 체크인했는지 확인
   const { data: existing } = await supabase

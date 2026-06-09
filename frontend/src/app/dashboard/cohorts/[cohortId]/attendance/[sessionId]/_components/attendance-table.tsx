@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -13,7 +13,6 @@ import {
 import { Badge } from '@/components/ui/badge';
 import {
   categoryFromLabel,
-  classifyOrganization,
   ORGANIZATION_CATEGORY_LABEL,
   type OrganizationCategory
 } from '@/lib/organization-category';
@@ -105,8 +104,8 @@ type Student = {
   category: string | null;
 };
 
-function resolveCategory(student: Student, orgName: string): OrganizationCategory {
-  return categoryFromLabel(student.category) ?? classifyOrganization(orgName);
+function resolveCategory(student: Student): OrganizationCategory {
+  return categoryFromLabel(student.category) ?? 'unknown';
 }
 
 type RecordMap = Record<string, {
@@ -160,16 +159,32 @@ export function AttendanceTable({
   const [filter, setFilter] = useState<string>('all');
   const [pending, startTransition] = useTransition();
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const [savedRecently, setSavedRecently] = useState(false);
+
+  // 미저장 변경이 있을 때 새로고침·탭 닫기 차단 (브라우저 표준 경고)
+  useEffect(() => {
+    if (!dirty) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [dirty]);
+
+  const markDirty = () => {
+    setDirty(true);
+    setSavedRecently(false);
+  };
 
   const handleMarkAllPresent = () => {
     setStatuses(Object.fromEntries(students.map((s) => [s.id, 'present'])));
-    setSaved(false);
+    markDirty();
   };
 
   const handleSave = () => {
     setSaveError(null);
-    setSaved(false);
     startTransition(async () => {
       const records = students.filter((s) => statuses[s.id] && statuses[s.id] !== 'none').map((s) => {
         const status = statuses[s.id];
@@ -186,7 +201,12 @@ export function AttendanceTable({
         };
       });
       const result = await saveAttendance(sessionId, cohortId, records);
-      if (result?.error) { setSaveError(result.error); } else { setSaved(true); }
+      if (result?.error) {
+        setSaveError(result.error);
+      } else {
+        setDirty(false);
+        setSavedRecently(true);
+      }
     });
   };
 
@@ -235,8 +255,9 @@ export function AttendanceTable({
             전체 출석
           </Button>
           {saveError && <span className='text-destructive text-sm'>{saveError}</span>}
-          {saved && <span className='text-sm text-green-600'>저장 완료</span>}
-          <Button onClick={handleSave} disabled={pending}>
+          {dirty && <span className='text-sm text-amber-600'>● 미저장 변경 있음</span>}
+          {savedRecently && !dirty && <span className='text-sm text-green-600'>저장 완료</span>}
+          <Button onClick={handleSave} disabled={pending || !dirty} className={dirty ? '' : ''}>
             {pending ? '저장 중...' : '전체 저장'}
           </Button>
         </div>
@@ -272,7 +293,7 @@ export function AttendanceTable({
                   <td className='px-4 py-2'>
                     {(() => {
                       const orgName = getOrgName(s.organizations);
-                      const category = resolveCategory(s, orgName);
+                      const category = resolveCategory(s);
                       return (
                         <div className='flex min-w-0 items-center gap-2'>
                           <Badge variant='outline' className={`min-w-[6rem] shrink-0 justify-center text-center ${CATEGORY_CLASS[category]}`}>
@@ -288,7 +309,7 @@ export function AttendanceTable({
                       value={status}
                       onValueChange={(v) => {
                         setStatuses((prev) => ({ ...prev, [s.id]: v }));
-                        setSaved(false);
+                        markDirty();
                       }}
                     >
                       <SelectTrigger className={`w-24 ${STATUS_CLASS[status] ?? ''}`}>
@@ -311,7 +332,7 @@ export function AttendanceTable({
                         value={arrivalTimes[s.id]}
                         onChange={(e) => {
                           setArrivalTimes((prev) => ({ ...prev, [s.id]: e.target.value }));
-                          setSaved(false);
+                          markDirty();
                         }}
                         className='h-8 w-28 text-sm text-orange-500'
                       />
@@ -323,7 +344,7 @@ export function AttendanceTable({
                         value={departureTimes[s.id]}
                         onChange={(e) => {
                           setDepartureTimes((prev) => ({ ...prev, [s.id]: e.target.value }));
-                          setSaved(false);
+                          markDirty();
                         }}
                         className='h-8 w-28 text-sm text-amber-500'
                       />
@@ -349,7 +370,7 @@ export function AttendanceTable({
                       value={notes[s.id]}
                       onChange={(e) => {
                         setNotes((prev) => ({ ...prev, [s.id]: e.target.value }));
-                        setSaved(false);
+                        markDirty();
                       }}
                       className='h-8 text-sm'
                     />
@@ -363,7 +384,7 @@ export function AttendanceTable({
 
       <div className='flex justify-end gap-2'>
         {saveError && <span className='text-destructive text-sm'>{saveError}</span>}
-        {saved && <span className='text-sm text-green-600'>저장 완료</span>}
+        {savedRecently && !dirty && <span className="text-sm text-green-600">저장 완료</span>}
         <Button onClick={handleSave} disabled={pending}>
           {pending ? '저장 중...' : '전체 저장'}
         </Button>
