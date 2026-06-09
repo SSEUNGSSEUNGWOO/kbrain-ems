@@ -41,10 +41,27 @@ function stdev(nums: number[]): number {
   return Math.sqrt(variance);
 }
 
+type AnswerOpts = { correct?: string; correct_keywords?: string[] };
+
+// submit RPC 와 동일한 채점 규칙 — short_text 는 correct_keywords 어느 하나라도 부분 포함하면 정답.
+function isAnswerCorrect(answer: string, opts: AnswerOpts): boolean {
+  const a = answer.trim();
+  if (!a) return false;
+  if (opts.correct && a === opts.correct) return true;
+  const kws = opts.correct_keywords ?? [];
+  if (kws.length > 0) {
+    const lower = a.toLowerCase();
+    for (const kw of kws) {
+      if (kw && lower.includes(kw.trim().toLowerCase())) return true;
+    }
+  }
+  return false;
+}
+
 function correctRate(
   responses: Response[],
   questionNo: number,
-  correctAnswer: string
+  opts: AnswerOpts
 ): { correct: number; total: number; rate: number } {
   let correct = 0;
   let total = 0;
@@ -53,7 +70,7 @@ function correctRate(
     const ans = r.responses?.[String(questionNo)];
     if (ans == null || ans === '') continue;
     total++;
-    if (ans === correctAnswer) correct++;
+    if (isAnswerCorrect(String(ans), opts)) correct++;
   }
   return { correct, total, rate: total > 0 ? (correct / total) * 100 : 0 };
 }
@@ -115,10 +132,11 @@ export function PrePostComparison({ preResponses, postResponses, questions }: Pr
   };
   const questionStats: QuestionStat[] = [];
   for (const q of questions) {
-    const correct = (q.options as { correct?: string } | null)?.correct;
-    if (!correct) continue; // short_text 제외
-    const pre = correctRate(preSubmitted, q.question_no, correct);
-    const post = correctRate(postSubmitted, q.question_no, correct);
+    const opts = (q.options as AnswerOpts | null) ?? {};
+    const hasGrading = !!opts.correct || (opts.correct_keywords?.length ?? 0) > 0;
+    if (!hasGrading) continue; // 정답 정의 안 된 문항만 제외
+    const pre = correctRate(preSubmitted, q.question_no, opts);
+    const post = correctRate(postSubmitted, q.question_no, opts);
     questionStats.push({
       no: q.question_no,
       text: q.text,
@@ -232,7 +250,13 @@ export function PrePostComparison({ preResponses, postResponses, questions }: Pr
                   <td className='px-3 py-2 text-slate-500 tabular-nums'>{q.no}</td>
                   <td className='px-3 py-2 text-slate-700'>{q.text}</td>
                   <td className='px-3 py-2 text-center text-xs text-slate-500'>
-                    {q.type === 'multiple_choice' ? '객관식' : q.type === 'ox' ? 'OX' : q.type}
+                    {q.type === 'multiple_choice'
+                      ? '객관식'
+                      : q.type === 'ox'
+                        ? 'OX'
+                        : q.type === 'short_text'
+                          ? '주관식'
+                          : q.type}
                   </td>
                   <td className='px-3 py-2 text-right text-blue-700 tabular-nums'>
                     {q.preRate.toFixed(0)}%
