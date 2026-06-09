@@ -1,9 +1,10 @@
 'use client';
 
-import { useTransition } from 'react';
+import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
   Table,
   TableBody,
@@ -27,6 +28,7 @@ type Props = {
 export function InstructorTable({ instructors }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const [searchQuery, setSearchQuery] = useState('');
 
   const handleDelete = (id: string, name: string) => {
     if (!confirm(`강사 "${name}"을(를) 삭제하시겠습니까?`)) return;
@@ -48,9 +50,32 @@ export function InstructorTable({ instructors }: Props) {
     );
   }
 
+  const q = searchQuery.trim().toLowerCase();
+  const filtered = q
+    ? instructors.filter((i) => {
+        const hay = `${i.name} ${i.affiliation ?? ''} ${i.specialty ?? ''} ${i.email ?? ''} ${i.phone ?? ''}`.toLowerCase();
+        return hay.includes(q);
+      })
+    : instructors;
+
   return (
-    <div className='rounded-xl border bg-card'>
-      <Table>
+    <div className='space-y-3'>
+      <div className='flex items-center gap-2'>
+        <Input
+          placeholder='이름·소속·전문분야 검색'
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className='h-9 w-full sm:w-72'
+        />
+        {searchQuery && (
+          <Button variant='ghost' size='sm' className='h-9' onClick={() => setSearchQuery('')}>
+            초기화
+          </Button>
+        )}
+        <span className='text-muted-foreground ml-auto text-sm'>{filtered.length}명</span>
+      </div>
+      <div className='rounded-xl border bg-card'>
+        <Table>
         <TableHeader>
           <TableRow>
             <TableHead>이름</TableHead>
@@ -62,7 +87,7 @@ export function InstructorTable({ instructors }: Props) {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {instructors.map((i) => (
+          {filtered.map((i) => (
             <TableRow key={i.id}>
               <TableCell className='font-medium'>
                 <Link
@@ -107,6 +132,7 @@ export function InstructorTable({ instructors }: Props) {
           ))}
         </TableBody>
       </Table>
+      </div>
     </div>
   );
 }

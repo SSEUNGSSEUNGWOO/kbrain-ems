@@ -1,14 +1,23 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList
+} from '@/components/ui/command';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   categoryFromLabel,
-  classifyOrganization,
   ORGANIZATION_CATEGORY_LABEL,
   type OrganizationCategory
 } from '@/lib/organization-category';
@@ -48,9 +57,9 @@ function getOrgName(org: Student['organizations']): string {
   return org.name;
 }
 
-/** 신청서 응답(applicants.category) 우선, 없으면 기관명으로 자동 분류 fallback. */
+/** 신청자가 응답한 분류(applicants.category) 만 사용. 응답 없으면 '미분류'. */
 function resolveCategory(student: Student): OrganizationCategory {
-  return categoryFromLabel(student.category) ?? classifyOrganization(getOrgName(student.organizations));
+  return categoryFromLabel(student.category) ?? 'unknown';
 }
 
 const CATEGORY_CLASS: Record<OrganizationCategory, string> = {
@@ -73,6 +82,9 @@ export function StudentTable({
 }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [categoryFilter, setCategoryFilter] = useState<OrganizationCategory | 'all'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [orgFilter, setOrgFilter] = useState<string | null>(null);
+  const [orgPopoverOpen, setOrgPopoverOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Student | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
@@ -95,9 +107,26 @@ export function StudentTable({
     { value: 'education', label: ORGANIZATION_CATEGORY_LABEL.education, count: categoryCounts.education ?? 0 },
     ...((categoryCounts.unknown ?? 0) > 0 ? [{ value: 'unknown' as const, label: ORGANIZATION_CATEGORY_LABEL.unknown, count: categoryCounts.unknown ?? 0 }] : [])
   ];
-  const filteredStudents = categoryFilter === 'all'
-    ? students
-    : students.filter((student) => resolveCategory(student) === categoryFilter);
+  const orgOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const s of students) {
+      const name = getOrgName(s.organizations);
+      if (name !== '-') set.add(name);
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'ko'));
+  }, [students]);
+
+  const normalizedQuery = searchQuery.trim().toLowerCase();
+  const filteredStudents = students.filter((student) => {
+    if (categoryFilter !== 'all' && resolveCategory(student) !== categoryFilter) return false;
+    if (orgFilter && getOrgName(student.organizations) !== orgFilter) return false;
+    if (normalizedQuery) {
+      const orgName = getOrgName(student.organizations).toLowerCase();
+      const haystack = `${student.name.toLowerCase()} ${orgName} ${(student.department ?? '').toLowerCase()} ${(student.job_title ?? '').toLowerCase()} ${(student.job_role ?? '').toLowerCase()}`;
+      if (!haystack.includes(normalizedQuery)) return false;
+    }
+    return true;
+  });
   const visibleIds = filteredStudents.map((s) => s.id);
   const visibleSelectedCount = visibleIds.filter((id) => selected.has(id)).length;
   const isAllSelected = visibleIds.length > 0 && visibleIds.every((id) => selected.has(id));
@@ -171,6 +200,75 @@ export function StudentTable({
         </div>
       )}
 
+      <div className='mb-3 flex flex-wrap items-center gap-2'>
+        <Input
+          placeholder='이름·소속·부서·직급으로 검색'
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className='h-9 w-full sm:w-72'
+        />
+        <Popover open={orgPopoverOpen} onOpenChange={setOrgPopoverOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              variant='outline'
+              role='combobox'
+              aria-expanded={orgPopoverOpen}
+              className='h-9 w-full justify-between sm:w-64'
+            >
+              <span className='truncate'>{orgFilter ?? '전체 부처'}</span>
+              <Icons.chevronDown className='ml-2 h-4 w-4 shrink-0 opacity-50' />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className='w-72 p-0' align='start'>
+            <Command>
+              <CommandInput placeholder='부처 검색...' />
+              <CommandList>
+                <CommandEmpty>검색 결과 없음</CommandEmpty>
+                <CommandGroup>
+                  <CommandItem
+                    value='__all__'
+                    onSelect={() => {
+                      setOrgFilter(null);
+                      setOrgPopoverOpen(false);
+                    }}
+                  >
+                    전체 부처
+                  </CommandItem>
+                  {orgOptions.map((name) => (
+                    <CommandItem
+                      key={name}
+                      value={name}
+                      onSelect={() => {
+                        setOrgFilter(name);
+                        setOrgPopoverOpen(false);
+                      }}
+                    >
+                      {name}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
+        {(searchQuery || orgFilter) && (
+          <Button
+            variant='ghost'
+            size='sm'
+            className='h-9'
+            onClick={() => {
+              setSearchQuery('');
+              setOrgFilter(null);
+            }}
+          >
+            초기화
+          </Button>
+        )}
+        <span className='text-muted-foreground ml-auto text-sm'>
+          {filteredStudents.length}명
+        </span>
+      </div>
+
       <div className='mb-3 flex flex-wrap gap-1'>
         {categoryFilters.map((filter) => (
           <button
@@ -205,8 +303,8 @@ export function StudentTable({
                 </th>
               )}
               <th className='px-4 py-3 text-left font-medium'>이름</th>
+              <th className='w-28 px-4 py-3 text-left font-medium'>분류</th>
               <th className='px-4 py-3 text-left font-medium'>소속</th>
-              <th className='whitespace-nowrap px-4 py-3 text-left font-medium'>생년월일</th>
               {!hidePersonal && <th className='px-4 py-3 text-left font-medium'>전화번호</th>}
               {!hidePersonal && <th className='px-4 py-3 text-left font-medium'>이메일</th>}
               <th className='w-28 px-4 py-3 text-left font-medium'>출석률</th>
@@ -234,14 +332,11 @@ export function StudentTable({
                   )}
                   <td className='px-4 py-3 font-medium'>{s.name}</td>
                   <td className='px-4 py-3'>
-                    <div className='flex min-w-0 items-center gap-2'>
-                      <Badge variant='outline' className={`min-w-[6rem] shrink-0 justify-center text-center ${CATEGORY_CLASS[category]}`}>
-                        {ORGANIZATION_CATEGORY_LABEL[category]}
-                      </Badge>
-                      <span className='text-muted-foreground truncate'>{orgName}</span>
-                    </div>
+                    <Badge variant='outline' className={`min-w-[6rem] justify-center text-center ${CATEGORY_CLASS[category]}`}>
+                      {ORGANIZATION_CATEGORY_LABEL[category]}
+                    </Badge>
                   </td>
-                  <td className='text-muted-foreground whitespace-nowrap px-4 py-3'>{s.birth_date ?? '-'}</td>
+                  <td className='text-muted-foreground px-4 py-3 truncate'>{orgName}</td>
                   {!hidePersonal && (
                     <td className='text-muted-foreground px-4 py-3'>{s.phone ?? '-'}</td>
                   )}
