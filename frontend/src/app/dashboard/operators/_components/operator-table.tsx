@@ -57,6 +57,7 @@ export function OperatorTable() {
   const [addOpen, setAddOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<Operator | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Operator | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -121,12 +122,18 @@ export function OperatorTable() {
 
   const onDelete = () => {
     if (!deleteTarget) return;
+    setDeleteError(null);
     startTransition(async () => {
-      await fetch('/api/operators', {
+      const res = await fetch('/api/operators', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: deleteTarget.id })
       });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ error: '삭제에 실패했습니다.' }));
+        setDeleteError(data.error ?? '삭제에 실패했습니다.');
+        return;
+      }
       setDeleteTarget(null);
       fetchOps();
     });
@@ -285,7 +292,15 @@ export function OperatorTable() {
       </Sheet>
 
       {/* 삭제 확인 */}
-      <AlertDialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) setDeleteTarget(null); }}>
+      <AlertDialog
+        open={!!deleteTarget}
+        onOpenChange={(o) => {
+          if (!o) {
+            setDeleteTarget(null);
+            setDeleteError(null);
+          }
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>운영자 삭제</AlertDialogTitle>
@@ -293,6 +308,7 @@ export function OperatorTable() {
               <strong>{deleteTarget?.name}</strong>을(를) 삭제하시겠습니까? 인증 계정도 함께 삭제되어 로그인할 수 없게 됩니다.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {deleteError && <div className='text-destructive px-1 text-sm'>{deleteError}</div>}
           <AlertDialogFooter>
             <AlertDialogCancel disabled={pending}>취소</AlertDialogCancel>
             <AlertDialogAction
