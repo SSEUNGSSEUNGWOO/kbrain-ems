@@ -52,6 +52,8 @@ function isoToTimeInput(iso: string | null): string {
   return `${hh}:${mm}`;
 }
 
+const isTestStudent = (name: string) => name.startsWith('테스트');
+
 export function AttendanceChecksSection({
   cohortId,
   sessionId,
@@ -59,7 +61,10 @@ export function AttendanceChecksSection({
   students,
   checks
 }: Props) {
-  const totalStudents = students.length;
+  const realStudents = students.filter((s) => !isTestStudent(s.name));
+  const testStudents = students.filter((s) => isTestStudent(s.name));
+  const realIds = new Set(realStudents.map((s) => s.id));
+  const testIds = new Set(testStudents.map((s) => s.id));
   const [creating, setCreating] = useState(false);
   const [labelInput, setLabelInput] = useState('');
   const [criterionInput, setCriterionInput] = useState('');
@@ -257,12 +262,18 @@ export function AttendanceChecksSection({
         </div>
       ) : (
         <>
-          <CheckpointSummaryTable students={students} checks={checks} />
+          <CheckpointSummaryTable
+            realStudents={realStudents}
+            testStudents={testStudents}
+            checks={checks}
+          />
           <div className='space-y-3'>
           {checks.map((check) => {
             const url = check.share_code ? `${origin}/attendance/${check.share_code}` : '';
             const recordByStudent = new Map<string, string>();
             for (const r of check.records) recordByStudent.set(r.student_id, r.checked_at);
+            const realCheckedIn = check.records.filter((r) => realIds.has(r.student_id)).length;
+            const testCheckedIn = check.records.filter((r) => testIds.has(r.student_id)).length;
 
             return (
               <div key={check.id} className='rounded-xl border bg-white'>
@@ -271,8 +282,13 @@ export function AttendanceChecksSection({
                     <div className='flex flex-wrap items-center gap-2'>
                       <h3 className='font-semibold text-slate-900'>{check.label}</h3>
                       <span className='rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700'>
-                        {check.records.length} / {totalStudents}명
+                        {realCheckedIn} / {realStudents.length}명
                       </span>
+                      {testStudents.length > 0 && (
+                        <span className='rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600'>
+                          테스트 {testCheckedIn} / {testStudents.length}
+                        </span>
+                      )}
                       {check.attendance_role === 'arrival' && (
                         <span className='rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700'>
                           출석/지각 {check.criterion_at ? `(이후 지각: ${formatTime(check.criterion_at)})` : ''}
@@ -387,52 +403,30 @@ export function AttendanceChecksSection({
                 )}
 
                 {/* 명단 — 항상 표시. 체크인 안 한 학생은 회색, 한 학생은 시각 표시 */}
-                <div className='border-t bg-slate-50 px-4 py-3'>
+                <div className='space-y-3 border-t bg-slate-50 px-4 py-3'>
                   {students.length === 0 ? (
                     <p className='text-center text-xs text-slate-400'>학생이 없습니다.</p>
                   ) : (
-                    <div className='grid grid-cols-3 gap-1.5 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-9'>
-                      {students.map((s) => {
-                        const checkedAt = recordByStudent.get(s.id);
-                        const isLate =
-                          checkedAt &&
-                          check.criterion_at &&
-                          new Date(checkedAt) > new Date(check.criterion_at);
-                        return (
-                          <div
-                            key={s.id}
-                            className={`flex items-center justify-between gap-1 rounded-lg px-2.5 py-1 text-xs ring-1 ${
-                              checkedAt
-                                ? isLate
-                                  ? 'bg-white text-slate-900 ring-orange-300'
-                                  : 'bg-white text-slate-900 ring-emerald-200'
-                                : 'bg-transparent text-slate-400 ring-slate-200'
-                            }`}
-                          >
-                            <span
-                              className={`truncate font-medium ${checkedAt ? '' : 'line-through'}`}
-                              title={s.name}
-                            >
-                              {s.name}
-                            </span>
-                            {checkedAt ? (
-                              <span
-                                className={`font-bold tabular-nums ${isLate ? 'text-orange-600' : 'text-emerald-600'}`}
-                                title={isLate ? '지각' : '정시'}
-                              >
-                                {new Date(checkedAt).toLocaleTimeString('ko-KR', {
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                                  hour12: false
-                                })}
-                              </span>
-                            ) : (
-                              <span className='text-[10px] text-slate-400'>대기</span>
-                            )}
+                    <>
+                      <CheckpointNameGrid
+                        students={realStudents}
+                        recordByStudent={recordByStudent}
+                        criterionAt={check.criterion_at}
+                      />
+                      {testStudents.length > 0 && (
+                        <div className='space-y-1.5'>
+                          <div className='flex items-center gap-2'>
+                            <span className='text-[11px] font-semibold text-slate-500'>테스트</span>
+                            <div className='h-px flex-1 bg-slate-200' />
                           </div>
-                        );
-                      })}
-                    </div>
+                          <CheckpointNameGrid
+                            students={testStudents}
+                            recordByStudent={recordByStudent}
+                            criterionAt={check.criterion_at}
+                          />
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               </div>
@@ -445,14 +439,70 @@ export function AttendanceChecksSection({
   );
 }
 
-function CheckpointSummaryTable({
+function CheckpointNameGrid({
   students,
-  checks
+  recordByStudent,
+  criterionAt
 }: {
   students: { id: string; name: string }[];
+  recordByStudent: Map<string, string>;
+  criterionAt: string | null;
+}) {
+  return (
+    <div className='grid grid-cols-3 gap-1.5 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-9'>
+      {students.map((s) => {
+        const checkedAt = recordByStudent.get(s.id);
+        const isLate =
+          checkedAt && criterionAt && new Date(checkedAt) > new Date(criterionAt);
+        return (
+          <div
+            key={s.id}
+            className={`flex items-center justify-between gap-1 rounded-lg px-2.5 py-1 text-xs ring-1 ${
+              checkedAt
+                ? isLate
+                  ? 'bg-white text-slate-900 ring-orange-300'
+                  : 'bg-white text-slate-900 ring-emerald-200'
+                : 'bg-transparent text-slate-400 ring-slate-200'
+            }`}
+          >
+            <span
+              className={`truncate font-medium ${checkedAt ? '' : 'line-through'}`}
+              title={s.name}
+            >
+              {s.name}
+            </span>
+            {checkedAt ? (
+              <span
+                className={`font-bold tabular-nums ${isLate ? 'text-orange-600' : 'text-emerald-600'}`}
+                title={isLate ? '지각' : '정시'}
+              >
+                {new Date(checkedAt).toLocaleTimeString('ko-KR', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  hour12: false
+                })}
+              </span>
+            ) : (
+              <span className='text-[10px] text-slate-400'>대기</span>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function CheckpointSummaryTable({
+  realStudents,
+  testStudents,
+  checks
+}: {
+  realStudents: { id: string; name: string }[];
+  testStudents: { id: string; name: string }[];
   checks: Check[];
 }) {
-  if (students.length === 0) return null;
+  if (realStudents.length === 0 && testStudents.length === 0) return null;
+  const colSpan = checks.length + 1;
   return (
     <div className='mb-4 overflow-hidden rounded-xl border bg-white'>
       <div className='border-b bg-slate-50 px-4 py-2 text-xs font-semibold text-slate-700'>
@@ -476,25 +526,50 @@ function CheckpointSummaryTable({
             </tr>
           </thead>
           <tbody className='divide-y'>
-            {students.map((s) => (
-              <tr key={s.id}>
-                <td className='sticky left-0 bg-white px-3 py-2 font-medium text-slate-900'>
-                  {s.name}
+            {realStudents.map((s) => (
+              <SummaryRow key={s.id} student={s} checks={checks} />
+            ))}
+            {testStudents.length > 0 && (
+              <tr className='bg-slate-100'>
+                <td
+                  colSpan={colSpan}
+                  className='sticky left-0 px-3 py-1.5 text-[11px] font-semibold text-slate-500'
+                >
+                  테스트
                 </td>
-                {checks.map((c) => {
-                  const record = c.records.find((r) => r.student_id === s.id);
-                  return (
-                    <td key={c.id} className='whitespace-nowrap border-l px-3 py-2'>
-                      <CellStatus checkedAt={record?.checked_at} criterionAt={c.criterion_at} />
-                    </td>
-                  );
-                })}
               </tr>
+            )}
+            {testStudents.map((s) => (
+              <SummaryRow key={s.id} student={s} checks={checks} />
             ))}
           </tbody>
         </table>
       </div>
     </div>
+  );
+}
+
+function SummaryRow({
+  student,
+  checks
+}: {
+  student: { id: string; name: string };
+  checks: Check[];
+}) {
+  return (
+    <tr>
+      <td className='sticky left-0 bg-white px-3 py-2 font-medium text-slate-900'>
+        {student.name}
+      </td>
+      {checks.map((c) => {
+        const record = c.records.find((r) => r.student_id === student.id);
+        return (
+          <td key={c.id} className='whitespace-nowrap border-l px-3 py-2'>
+            <CellStatus checkedAt={record?.checked_at} criterionAt={c.criterion_at} />
+          </td>
+        );
+      })}
+    </tr>
   );
 }
 

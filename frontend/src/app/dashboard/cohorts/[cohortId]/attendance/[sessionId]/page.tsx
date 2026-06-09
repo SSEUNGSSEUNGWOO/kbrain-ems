@@ -82,8 +82,16 @@ export default async function SessionAttendancePage({
   const studentRows = studentRes.data ?? [];
   const recordRows = recordRes.data ?? [];
 
+  // 테스트 학생(이름이 '테스트'로 시작)은 실제 학생 뒤로 정렬
+  const sortedStudentRows = [...studentRows].sort((a, b) => {
+    const aTest = a.name.startsWith('테스트');
+    const bTest = b.name.startsWith('테스트');
+    if (aTest !== bTest) return aTest ? 1 : -1;
+    return a.name.localeCompare(b.name, 'ko');
+  });
+
   // Map students to expected shape: organizations as { name: string } | null
-  const mappedStudents = studentRows.map((s) => ({
+  const mappedStudents = sortedStudentRows.map((s) => ({
     id: s.id,
     name: s.name,
     organizations: s.organizations ? { name: s.organizations.name } : null,
