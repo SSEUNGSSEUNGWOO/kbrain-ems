@@ -5,6 +5,16 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Textarea } from '@/components/ui/textarea';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
+} from '@/components/ui/alert-dialog';
 import { Icons } from '@/components/icons';
 import { toast } from 'sonner';
 import {
@@ -33,6 +43,7 @@ export function StageActionPopover({
   sentNotificationIds
 }: Props) {
   const [open, setOpen] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
   const [channels, setChannels] = useState<DispatchChannel[]>(['email', 'sms']);
   const [note, setNote] = useState('');
   const [pending, start] = useTransition();
@@ -42,20 +53,42 @@ export function StageActionPopover({
 
   if (sentNotificationIds.length > 0) {
     return (
-      <Button
-        variant='ghost'
-        size='sm'
-        disabled={pending}
-        onClick={() =>
-          start(async () => {
-            const res = await unmarkStagesSent(sentNotificationIds, cohortId);
-            if (!res.ok) toast.error(res.error);
-            else toast.success(`${stageLabel} 발송 기록을 취소했습니다`);
-          })
-        }
-      >
-        <Icons.close className='size-4' /> 취소
-      </Button>
+      <AlertDialog open={cancelOpen} onOpenChange={setCancelOpen}>
+        <Button
+          variant='ghost'
+          size='sm'
+          disabled={pending}
+          onClick={() => setCancelOpen(true)}
+        >
+          <Icons.close className='size-4' /> 취소
+        </Button>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{stageLabel} 발송 기록 취소</AlertDialogTitle>
+            <AlertDialogDescription>
+              발송 완료 표시를 되돌립니다. 기록은 감사 로그로 보존되며 미발송 상태로 돌아갑니다.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={pending}>닫기</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={pending}
+              onClick={() =>
+                start(async () => {
+                  const res = await unmarkStagesSent(sentNotificationIds, cohortId);
+                  if (!res.ok) toast.error(res.error);
+                  else {
+                    toast.success(`${stageLabel} 발송 기록을 취소했습니다`);
+                    setCancelOpen(false);
+                  }
+                })
+              }
+            >
+              {pending ? '처리 중...' : '취소 처리'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     );
   }
 

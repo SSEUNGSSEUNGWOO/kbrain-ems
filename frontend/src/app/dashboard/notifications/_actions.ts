@@ -312,8 +312,13 @@ export async function unmarkStagesSent(notificationIds: string[], cohortId: stri
   const op = await getOperator();
   if (!op) return { ok: false as const, error: '로그인 정보가 없습니다.' };
 
+  // 발송 기록은 감사 로그 — 삭제하지 않고 status='cancelled' 로 마킹.
+  // dispatch-stages 는 status='sent' 만 본다 → 자동으로 미발송 상태로 복귀.
   const supabase = createAdminClient();
-  const { error } = await supabase.from('notifications').delete().in('id', notificationIds);
+  const { error } = await supabase
+    .from('notifications')
+    .update({ status: 'cancelled' })
+    .in('id', notificationIds);
   if (error) return { ok: false as const, error: error.message };
 
   revalidatePath('/dashboard/notifications');

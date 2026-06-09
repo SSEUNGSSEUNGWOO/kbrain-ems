@@ -56,11 +56,7 @@ export async function saveSurveyDraft(
     }
   }
 
-  // 기존 문항 전체 삭제 (미발행 + 응답 없음 가정)
-  const { error: delErr } = await supabase.from('survey_questions').delete().eq('survey_id', surveyId);
-  if (delErr) return { error: delErr.message };
-
-  // 새로 삽입
+  // 새로 삽입할 row 준비
   const rows: TablesInsert<'survey_questions'>[] = [];
   let questionNo = 1;
   sections.forEach((section, sectionIdx) => {
@@ -84,8 +80,33 @@ export async function saveSurveyDraft(
     });
   });
 
+  // 기존 문항 백업 → delete → insert. insert 실패시 백업으로 복구해 데이터 유실 방지.
+  // (survey_id, question_no) UNIQUE 때문에 delete 없이 insert 불가 → 백업/롤백 패턴.
+  const { data: backup, error: bkErr } = await supabase
+    .from('survey_questions')
+    .select('*')
+    .eq('survey_id', surveyId);
+  if (bkErr) return { error: bkErr.message };
+
+  const { error: delErr } = await supabase
+    .from('survey_questions')
+    .delete()
+    .eq('survey_id', surveyId);
+  if (delErr) return { error: delErr.message };
+
   const { error: insErr } = await supabase.from('survey_questions').insert(rows);
-  if (insErr) return { error: insErr.message };
+  if (insErr) {
+    if (backup && backup.length > 0) {
+      const { error: rbErr } = await supabase.from('survey_questions').insert(backup);
+      if (rbErr) {
+        return {
+          error: `저장 실패: ${insErr.message}. 기존 문항 복구도 실패: ${rbErr.message}. 즉시 개발자에게 알려주세요.`
+        };
+      }
+      return { error: `저장 실패: ${insErr.message}. 기존 문항은 복구되었습니다.` };
+    }
+    return { error: insErr.message };
+  }
 
   revalidatePath(`/dashboard/cohorts/${cohortId}/surveys/${surveyId}/edit`);
   revalidatePath(`/dashboard/cohorts/${cohortId}/surveys/${surveyId}/preview`);
