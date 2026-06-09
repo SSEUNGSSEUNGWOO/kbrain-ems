@@ -2,12 +2,52 @@
 
 import { useState, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
+} from '@/components/ui/tooltip';
 import { QrDialog } from '@/components/qr-dialog';
 import {
   createAttendanceCheck,
   deleteAttendanceCheck,
   updateAttendanceCheck
 } from '../_actions';
+
+type StudentInfo = {
+  id: string;
+  name: string;
+  phone: string | null;
+  org_name: string | null;
+};
+
+function formatPhone(phone: string | null): string {
+  if (!phone) return '';
+  const digits = phone.replace(/\D/g, '');
+  if (digits.length === 11) return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
+  if (digits.length === 10) return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
+  return phone;
+}
+
+function StudentNameTooltip({
+  student,
+  children
+}: {
+  student: StudentInfo;
+  children: React.ReactNode;
+}) {
+  if (!student.org_name && !student.phone) return <>{children}</>;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{children}</TooltipTrigger>
+      <TooltipContent side='top' className='space-y-0.5 text-xs'>
+        {student.org_name && <div>{student.org_name}</div>}
+        {student.phone && <div className='tabular-nums opacity-90'>{formatPhone(student.phone)}</div>}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
 
 type Check = {
   id: string;
@@ -24,7 +64,7 @@ type Props = {
   cohortId: string;
   sessionId: string;
   sessionDate: string;
-  students: { id: string; name: string }[];
+  students: StudentInfo[];
   checks: Check[];
 };
 
@@ -153,6 +193,7 @@ export function AttendanceChecksSection({
   };
 
   return (
+    <TooltipProvider delayDuration={150}>
     <div className='rounded-2xl border bg-white p-6 shadow-sm'>
       <div className='mb-4 flex items-center justify-between'>
         <div>
@@ -436,6 +477,7 @@ export function AttendanceChecksSection({
         </>
       )}
     </div>
+    </TooltipProvider>
   );
 }
 
@@ -444,7 +486,7 @@ function CheckpointNameGrid({
   recordByStudent,
   criterionAt
 }: {
-  students: { id: string; name: string }[];
+  students: StudentInfo[];
   recordByStudent: Map<string, string>;
   criterionAt: string | null;
 }) {
@@ -465,12 +507,11 @@ function CheckpointNameGrid({
                 : 'bg-transparent text-slate-400 ring-slate-200'
             }`}
           >
-            <span
-              className={`truncate font-medium ${checkedAt ? '' : 'line-through'}`}
-              title={s.name}
-            >
-              {s.name}
-            </span>
+            <StudentNameTooltip student={s}>
+              <span className={`truncate font-medium ${checkedAt ? '' : 'line-through'}`}>
+                {s.name}
+              </span>
+            </StudentNameTooltip>
             {checkedAt ? (
               <span
                 className={`font-bold tabular-nums ${isLate ? 'text-orange-600' : 'text-emerald-600'}`}
@@ -497,8 +538,8 @@ function CheckpointSummaryTable({
   testStudents,
   checks
 }: {
-  realStudents: { id: string; name: string }[];
-  testStudents: { id: string; name: string }[];
+  realStudents: StudentInfo[];
+  testStudents: StudentInfo[];
   checks: Check[];
 }) {
   if (realStudents.length === 0 && testStudents.length === 0) return null;
@@ -553,13 +594,15 @@ function SummaryRow({
   student,
   checks
 }: {
-  student: { id: string; name: string };
+  student: StudentInfo;
   checks: Check[];
 }) {
   return (
     <tr>
       <td className='sticky left-0 bg-white px-3 py-2 font-medium text-slate-900'>
-        {student.name}
+        <StudentNameTooltip student={student}>
+          <span className='cursor-default'>{student.name}</span>
+        </StudentNameTooltip>
       </td>
       {checks.map((c) => {
         const record = c.records.find((r) => r.student_id === student.id);

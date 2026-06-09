@@ -23,6 +23,7 @@ export default async function SessionAttendancePage({
   type StudentRow = {
     id: string;
     name: string;
+    phone: string | null;
     organizations: { name: string } | null;
     applicants: { category: string | null } | null;
   };
@@ -53,7 +54,7 @@ export default async function SessionAttendancePage({
       .limit(1),
     supabase
       .from('students')
-      .select('id, name, organizations(name), applicants(category)')
+      .select('id, name, phone, organizations(name), applicants(category)')
       .eq('cohort_id', cohortId)
       .order('name', { ascending: true })
       .returns<StudentRow[]>(),
@@ -94,6 +95,7 @@ export default async function SessionAttendancePage({
   const mappedStudents = sortedStudentRows.map((s) => ({
     id: s.id,
     name: s.name,
+    phone: s.phone,
     organizations: s.organizations ? { name: s.organizations.name } : null,
     category: s.applicants?.category ?? null
   }));
@@ -145,7 +147,12 @@ export default async function SessionAttendancePage({
           cohortId={cohortId}
           sessionId={sessionId}
           sessionDate={session.session_date}
-          students={mappedStudents.map((s) => ({ id: s.id, name: s.name }))}
+          students={mappedStudents.map((s) => ({
+            id: s.id,
+            name: s.name,
+            phone: s.phone,
+            org_name: s.organizations?.name ?? null
+          }))}
           checks={checks}
         />
         <AttendanceTable
