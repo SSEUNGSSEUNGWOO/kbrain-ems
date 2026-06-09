@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Icons } from '@/components/icons';
 import { createAdminClient } from '@/lib/supabase/server';
 import { DiagnosisCard } from './_components/diagnosis-card';
+import { PrePostComparison } from './_components/pre-post-comparison';
 import { QuestionsPreviewButton } from './_components/questions-preview-button';
 
 type Props = {
@@ -50,12 +51,13 @@ export default async function DiagnosesPage({ params }: Props) {
     token: string;
     submitted_at: string | null;
     total_score: number | null;
+    responses: Record<string, string> | null;
     students: { name: string } | null;
   };
   const { data: responses } = await supabase
     .from('diagnosis_responses')
     .select(
-      'id, diagnosis_id, student_id, token, submitted_at, total_score, students(name)'
+      'id, diagnosis_id, student_id, token, submitted_at, total_score, responses, students(name)'
     )
     .in(
       'diagnosis_id',
@@ -63,8 +65,13 @@ export default async function DiagnosesPage({ params }: Props) {
     )
     .returns<Resp[]>();
 
+  // 테스트 학생(이름 prefix '테스트')은 응답·분석에서 제외. student_id 가 없는 익명 응답은 유지.
+  const isTestStudent = (name: string | null | undefined) =>
+    (name ?? '').trim().startsWith('테스트');
+  const filteredResponses = (responses ?? []).filter((r) => !isTestStudent(r.students?.name));
+
   const responsesByDiag = new Map<string, Resp[]>();
-  for (const r of responses ?? []) {
+  for (const r of filteredResponses) {
     const arr = responsesByDiag.get(r.diagnosis_id) ?? [];
     arr.push(r);
     responsesByDiag.set(r.diagnosis_id, arr);
@@ -86,11 +93,12 @@ export default async function DiagnosesPage({ params }: Props) {
     .order('question_no', { ascending: true })
     .returns<Question[]>();
 
-  // cohort 의 student 수
+  // cohort 의 student 수 (테스트 학생 제외)
   const { count: studentCount } = await supabase
     .from('students')
     .select('id', { count: 'exact', head: true })
-    .eq('cohort_id', cohortId);
+    .eq('cohort_id', cohortId)
+    .not('name', 'ilike', '테스트%');
 
   // cohort 의 세션들 + 그 안의 attendance_checks (출석 연동 옵션용)
   type AttnCheckOpt = {
@@ -144,6 +152,18 @@ export default async function DiagnosesPage({ params }: Props) {
             attendanceCheckOptions={attendanceCheckOptions}
           />
         ))}
+        {(() => {
+          const pre = diagnoses.find((d) => d.type === 'pre');
+          const post = diagnoses.find((d) => d.type === 'post');
+          if (!pre || !post) return null;
+          return (
+            <PrePostComparison
+              preResponses={responsesByDiag.get(pre.id) ?? []}
+              postResponses={responsesByDiag.get(post.id) ?? []}
+              questions={previewQuestions ?? []}
+            />
+          );
+        })()}
       </div>
     </PageContainer>
   );
