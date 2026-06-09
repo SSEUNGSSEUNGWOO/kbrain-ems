@@ -13,7 +13,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { todayKst } from '@/lib/format';
 import {
-  classifyOrganization,
+  categoryFromLabel,
   ORGANIZATION_CATEGORY_LABEL,
   type OrganizationCategory
 } from '@/lib/organization-category';
@@ -44,6 +44,7 @@ type Student = {
   id: string;
   name: string;
   organizations: { name: string }[] | { name: string } | null;
+  category: string | null;
 };
 
 type RecordMap = Record<string, {
@@ -212,7 +213,8 @@ export function AssignmentSubmissionTable({
                   <td className='px-4 py-2'>
                     {(() => {
                       const orgName = getOrgName(student.organizations);
-                      const category = classifyOrganization(orgName);
+                      const category: OrganizationCategory =
+                        categoryFromLabel(student.category) ?? 'unknown';
                       return (
                         <div className='flex min-w-0 items-center gap-2'>
                           <Badge variant='outline' className={`min-w-[6rem] shrink-0 justify-center text-center ${CATEGORY_CLASS[category]}`}>

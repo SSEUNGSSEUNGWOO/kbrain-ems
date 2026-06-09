@@ -33,6 +33,7 @@ export default async function AssignmentDetailPage({
     id: string;
     name: string;
     organizations: { name: string } | null;
+    applicants: { category: string | null } | null;
   };
 
   const [assignmentRes, studentRes, submissionRes] = await Promise.all([
@@ -45,7 +46,7 @@ export default async function AssignmentDetailPage({
       .returns<AssignmentRow[]>(),
     supabase
       .from('students')
-      .select('id, name, organizations(name)')
+      .select('id, name, organizations(name), applicants(category)')
       .eq('cohort_id', cohortId)
       .order('name', { ascending: true })
       .returns<StudentRow[]>(),
@@ -71,7 +72,8 @@ export default async function AssignmentDetailPage({
   const mappedStudents = studentRows.map((s) => ({
     id: s.id,
     name: s.name,
-    organizations: s.organizations ? { name: s.organizations.name } : null
+    organizations: s.organizations ? { name: s.organizations.name } : null,
+    category: s.applicants?.category ?? null
   }));
 
   const recordMap = Object.fromEntries(

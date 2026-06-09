@@ -108,7 +108,7 @@ const { data, error } = await supabase.from('cohorts').select('*');
 | `tracks` | 트랙 (자가진단 추천·세분) | unique `(cohort_id, code)` |
 | `applicants` | 지원자 마스터 | FK target: `students.id` references this |
 | `applications` | 지원 이력 (× 기수) | unique `(applicant_id, cohort_id)`, self_diagnosis jsonb, recommended_track_id, application_file_path/name/size (PDF) |
-| `students` | 교육생 마스터 (applicant 승격) | `id` FK → `applicants` (CASCADE), assigned_track_id |
+| `students` | 교육생 마스터 (applicant 승격) | 독립 `id`, `applicant_id` FK → `applicants` (nullable; 수동 등록·테스트 학생은 NULL), assigned_track_id |
 | `locations` | 수업 장소 | unique `name` (public.locations로 명시, auth.sessions와 충돌 방지) |
 | `sessions` | 수업 회차 | FK → `cohorts` (CASCADE), `location_id` FK → `locations` |
 | `attendance_records` | 회차×학생 출결 | unique `(session_id, student_id)` |

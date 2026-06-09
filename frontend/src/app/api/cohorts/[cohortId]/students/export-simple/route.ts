@@ -4,7 +4,6 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { isViewer } from '@/lib/auth';
 import {
   categoryFromLabel,
-  classifyOrganization,
   ORGANIZATION_CATEGORY_LABEL
 } from '@/lib/organization-category';
 
@@ -93,8 +92,7 @@ export async function GET(
 
   filtered.forEach((s, idx) => {
     const orgName = s.organizations?.name ?? '';
-    const categoryKey =
-      categoryFromLabel(s.applicants?.category ?? null) ?? classifyOrganization(orgName);
+    const categoryKey = categoryFromLabel(s.applicants?.category ?? null) ?? 'unknown';
     const categoryLabel = ORGANIZATION_CATEGORY_LABEL[categoryKey];
     const vals = hidePersonal
       ? [idx + 1, s.name, categoryLabel, orgName]

@@ -24,11 +24,6 @@ import {
 } from '@/components/ui/table';
 import { Icons } from '@/components/icons';
 import { useDebouncedCallback } from '@/hooks/use-debounced-callback';
-import {
-  classifyOrganization,
-  ORGANIZATION_CATEGORY_LABEL,
-  type OrganizationCategory
-} from '@/lib/organization-category';
 import { cn } from '@/lib/utils';
 import { updateApplicationStatus } from '../_actions';
 
@@ -38,6 +33,7 @@ export type ApplicationRow = {
   name: string;
   organization: string | null;
   c2_choice: string | null;
+  applicant_category: string | null;
   status: string;
   rejected_stage: string | null;
   knowledge_score: number | null;
@@ -74,14 +70,6 @@ const STATUS_TONE: Record<string, string> = {
   withdrawn: 'bg-slate-50 text-slate-500 border-slate-200'
 };
 
-const CATEGORY_TONE: Record<OrganizationCategory, string> = {
-  central: 'bg-blue-50 text-blue-700 border-blue-200',
-  metro_local: 'bg-cyan-50 text-cyan-700 border-cyan-200',
-  basic_local: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  education: 'bg-violet-50 text-violet-700 border-violet-200',
-  public: 'bg-amber-50 text-amber-700 border-amber-200',
-  unknown: 'bg-slate-50 text-slate-500 border-slate-200'
-};
 
 type Props = {
   rows: ApplicationRow[];
@@ -265,11 +253,15 @@ export function ApplicantsTable({
             </TableHeader>
             <TableBody>
               {rows.map((r) => {
-                // C2 응답 우선, 없으면 organization 이름 기반 자동 분류 폴백
+                // c2 응답 우선. 신청서에 C2 문항이 없는 cohort(전문인재 등)는 운영자가
+                // applicants.category 한글 라벨에 직접 입력한 값을 fallback 으로 사용.
                 const c2 = r.c2_choice ? C2_CATEGORY[r.c2_choice] : null;
-                const fallbackCat = classifyOrganization(r.organization);
-                const catLabel = c2?.label ?? ORGANIZATION_CATEGORY_LABEL[fallbackCat];
-                const catTone = c2?.tone ?? CATEGORY_TONE[fallbackCat];
+                const fallback = r.applicant_category
+                  ? Object.values(C2_CATEGORY).find((v) => v.label === r.applicant_category)
+                  : null;
+                const catLabel = c2?.label ?? fallback?.label ?? '미분류';
+                const catTone =
+                  c2?.tone ?? fallback?.tone ?? 'border-border bg-muted text-muted-foreground';
                 return (
                   <TableRow key={r.id} className='group hover:bg-muted/50'>
                     <TableCell>

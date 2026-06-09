@@ -59,6 +59,7 @@ export default async function CohortApplicationsPage({ params, searchParams }: P
       email: string | null;
       department: string | null;
       job_role: string | null;
+      category: string | null;
       organizations: { name: string } | null;
     } | null;
   };
@@ -68,6 +69,7 @@ export default async function CohortApplicationsPage({ params, searchParams }: P
     status: string;
     knowledge_score: number | null;
     self_diagnosis_avg: number | null;
+    applicants: { category: string | null } | null;
   };
 
   // 1단계: 코호트 전체의 status·questions·C2 응답 (facet count + 필터링용)
@@ -85,7 +87,7 @@ export default async function CohortApplicationsPage({ params, searchParams }: P
       .returns<AppQuestion[]>(),
     supabase
       .from('applications')
-      .select('id, status, knowledge_score, self_diagnosis_avg')
+      .select('id, status, knowledge_score, self_diagnosis_avg, applicants(category)')
       .eq('cohort_id', cohortId)
       .returns<StatsRowQ[]>()
   ]);
@@ -122,12 +124,37 @@ export default async function CohortApplicationsPage({ params, searchParams }: P
     education: '⑤',
     other: '⑥'
   };
+  const CATEGORY_TO_LABEL: Record<string, string> = {
+    central: '중앙부처',
+    metro_local: '광역지자체',
+    basic_local: '기초지자체',
+    public: '공공기관',
+    education: '교육행정기관',
+    other: '기타'
+  };
+  // 전문인재처럼 신청서 C2 문항이 없는 cohort는 운영자가 직접 applicants.category 에
+  // 한글 라벨을 입력해둠 → c2 응답 없을 때 fallback 으로 사용.
+  const applicantCategoryByAppId = new Map<string, string>();
+  for (const r of statsRows ?? []) {
+    const cat = r.applicants?.category;
+    if (cat) applicantCategoryByAppId.set(r.id, cat);
+  }
+  const resolveCategoryKey = (appId: string): string | null => {
+    const c2 = c2ChoiceMap.get(appId);
+    if (c2) {
+      for (const [k, v] of Object.entries(CATEGORY_TO_C2)) if (v === c2) return k;
+    }
+    const label = applicantCategoryByAppId.get(appId);
+    if (label) {
+      for (const [k, v] of Object.entries(CATEGORY_TO_LABEL)) if (v === label) return k;
+    }
+    return null;
+  };
   let categoryFilteredAppIds: string[] | null = null;
-  if (categoryFilter && CATEGORY_TO_C2[categoryFilter]) {
-    const target = CATEGORY_TO_C2[categoryFilter];
-    categoryFilteredAppIds = [...c2ChoiceMap.entries()]
-      .filter(([, k]) => k === target)
-      .map(([id]) => id);
+  if (categoryFilter) {
+    categoryFilteredAppIds = (statsRows ?? [])
+      .map((r) => r.id)
+      .filter((id) => resolveCategoryKey(id) === categoryFilter);
   }
 
   // 검색은 embedded resource filter로 처리.
@@ -135,8 +162,8 @@ export default async function CohortApplicationsPage({ params, searchParams }: P
   // 흔할 때 URL 길이가 PostgREST 한계를 넘어 빈 결과가 나옴 (그린처럼 큰 cohort).
   // applicants!inner + applicants.name=ilike.*pattern* 으로 한 번에 해결.
   const applicantsSelect = search
-    ? 'applicants!inner(id, name, phone, email, department, job_role, organizations(name))'
-    : 'applicants(id, name, phone, email, department, job_role, organizations(name))';
+    ? 'applicants!inner(id, name, phone, email, department, job_role, category, organizations(name))'
+    : 'applicants(id, name, phone, email, department, job_role, category, organizations(name))';
 
   let rowsQuery = supabase
     .from('applications')
@@ -229,7 +256,7 @@ export default async function CohortApplicationsPage({ params, searchParams }: P
     return done;
   };
 
-  // facet counts (필터 적용 전 코호트 전체 기준)
+  // facet counts (필터 적용 전 코호트 전체 기준) — c2 응답 우선, 없으면 applicants.category
   const categoryCounts: Record<string, number> = {
     central: 0,
     metro_local: 0,
@@ -238,17 +265,9 @@ export default async function CohortApplicationsPage({ params, searchParams }: P
     education: 0,
     other: 0
   };
-  const C2_TO_CATEGORY: Record<string, string> = {
-    '①': 'central',
-    '②': 'metro_local',
-    '③': 'basic_local',
-    '④': 'public',
-    '⑤': 'education',
-    '⑥': 'other'
-  };
-  for (const k of c2ChoiceMap.values()) {
-    const cat = C2_TO_CATEGORY[k];
-    if (cat) categoryCounts[cat]++;
+  for (const r of statsRows ?? []) {
+    const cat = resolveCategoryKey(r.id);
+    if (cat && cat in categoryCounts) categoryCounts[cat]++;
   }
   const statusCounts: Record<string, number> = {
     applied: 0,
@@ -267,6 +286,7 @@ export default async function CohortApplicationsPage({ params, searchParams }: P
     name: a.applicants?.name ?? '(이름 없음)',
     organization: a.applicants?.organizations?.name ?? null,
     c2_choice: c2ChoiceMap.get(a.id) ?? null,
+    applicant_category: a.applicants?.category ?? null,
     status: a.status,
     rejected_stage: a.rejected_stage,
     knowledge_score: a.knowledge_score,
