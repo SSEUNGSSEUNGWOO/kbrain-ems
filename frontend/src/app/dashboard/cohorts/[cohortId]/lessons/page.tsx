@@ -1,17 +1,8 @@
 import PageContainer from '@/components/layout/page-container';
 import { Button } from '@/components/ui/button';
-import { Icons } from '@/components/icons';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow
-} from '@/components/ui/table';
 import { createAdminClient } from '@/lib/supabase/server';
 import Link from 'next/link';
-import { LessonRowActions } from './_components/lesson-row-actions';
+import { LessonsTable, type LessonRow } from './_components/lessons-table';
 
 type Props = {
   params: Promise<{ cohortId: string }>;
@@ -46,10 +37,10 @@ export default async function LessonsPage({ params, searchParams }: Props) {
     }[];
   };
 
-  const rows = (sessions ?? []) as unknown as SessionRow[];
+  const rawRows = (sessions ?? []) as unknown as SessionRow[];
 
   // 출결 입력 진척률 + 과제 유무 — 모든 session_id 일괄 fetch
-  const sessionIds = rows.map((s) => s.id);
+  const sessionIds = rawRows.map((s) => s.id);
   const progressBySessionId = new Map<string, { filled: number; total: number }>();
   const assignmentCountBySessionId = new Map<string, number>();
   if (sessionIds.length > 0) {
@@ -72,6 +63,28 @@ export default async function LessonsPage({ params, searchParams }: Props) {
     }
   }
 
+  const rows: LessonRow[] = rawRows.map((s) => {
+    const instructorNames =
+      s.session_instructors
+        .filter((si) => si.instructors)
+        .map((si) => si.instructors!.name)
+        .join(', ') || '—';
+    const prog = progressBySessionId.get(s.id);
+    const isComplete = prog ? prog.total > 0 && prog.filled === prog.total : false;
+    const pct = prog && prog.total > 0 ? Math.round((prog.filled / prog.total) * 100) : 0;
+    return {
+      id: s.id,
+      session_date: s.session_date,
+      title: s.title,
+      locationName: s.locations?.name ?? null,
+      instructorNames,
+      isComplete,
+      pct,
+      prog,
+      assignmentCount: assignmentCountBySessionId.get(s.id) ?? 0
+    };
+  });
+
   return (
     <PageContainer
       pageTitle='수업'
@@ -83,133 +96,12 @@ export default async function LessonsPage({ params, searchParams }: Props) {
       }
     >
       {rows.length === 0 ? (
-        <div className='rounded-xl border bg-card px-6 py-12 text-center text-muted-foreground'>
-          등록된 수업이 없습니다. 우상단 "+ 새 수업" 버튼으로 추가하세요.
+        <div className='text-muted-foreground rounded-xl border bg-card px-6 py-12 text-center'>
+          등록된 수업이 없습니다. 우상단 &quot;+ 새 수업&quot; 버튼으로 추가하세요.
         </div>
       ) : (
-        <div className='rounded-xl border bg-card'>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className='w-12 text-center'>완료</TableHead>
-                <TableHead className='w-12 text-center'>과제</TableHead>
-                <TableHead className='w-32'>
-                  <Link
-                    href={`?order=${ascending ? 'desc' : 'asc'}`}
-                    scroll={false}
-                    className='inline-flex items-center gap-1 select-none hover:text-foreground'
-                    title='클릭하여 정렬'
-                  >
-                    날짜
-                    <span className='text-[10px] tabular-nums text-muted-foreground'>
-                      {ascending ? '↑' : '↓'}
-                    </span>
-                  </Link>
-                </TableHead>
-                <TableHead>제목</TableHead>
-                <TableHead className='w-40'>장소</TableHead>
-                <TableHead>강사</TableHead>
-                <TableHead className='w-28 text-right'>관리</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rows.map((s) => {
-                const instructorNames =
-                  s.session_instructors
-                    .filter((si) => si.instructors)
-                    .map((si) => si.instructors!.name)
-                    .join(', ') || '—';
-                const prog = progressBySessionId.get(s.id);
-                const isComplete = prog ? prog.total > 0 && prog.filled === prog.total : false;
-                const pct = prog && prog.total > 0 ? Math.round((prog.filled / prog.total) * 100) : 0;
-                const assignmentCount = assignmentCountBySessionId.get(s.id) ?? 0;
-                const detailHref = `/dashboard/cohorts/${cohortId}/lessons/${s.id}`;
-                return (
-                  <TableRow key={s.id} className='hover:bg-muted/40'>
-                    <TableCell className='text-center'>
-                      <ProgressIndicator complete={isComplete} pct={pct} prog={prog} />
-                    </TableCell>
-                    <TableCell className='text-center'>
-                      <AssignmentIndicator count={assignmentCount} />
-                    </TableCell>
-                    <TableCell className='font-mono text-sm'>
-                      <Link href={detailHref} className='hover:underline'>
-                        {s.session_date}
-                      </Link>
-                    </TableCell>
-                    <TableCell className='font-medium'>
-                      <Link href={detailHref} className='hover:underline'>
-                        {s.title ?? '—'}
-                      </Link>
-                    </TableCell>
-                    <TableCell className='text-sm text-muted-foreground'>
-                      {s.locations?.name ?? '—'}
-                    </TableCell>
-                    <TableCell className='text-sm text-muted-foreground'>{instructorNames}</TableCell>
-                    <TableCell className='text-right'>
-                      <LessonRowActions cohortId={cohortId} sessionId={s.id} />
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </div>
+        <LessonsTable cohortId={cohortId} rows={rows} ascending={ascending} />
       )}
     </PageContainer>
-  );
-}
-
-function AssignmentIndicator({ count }: { count: number }) {
-  if (count === 0) {
-    return (
-      <span
-        title='연결된 과제 없음'
-        className='inline-flex h-5 w-5 items-center justify-center rounded-full border border-muted-foreground/30 text-[10px] text-muted-foreground/40'
-      >
-        −
-      </span>
-    );
-  }
-  return (
-    <span
-      title={`연결된 과제 ${count}개`}
-      className='inline-flex items-center justify-center gap-0.5'
-    >
-      <Icons.circleCheck className='h-5 w-5 text-amber-600 dark:text-amber-400' />
-      {count > 1 && (
-        <span className='text-[10px] font-bold text-amber-700 dark:text-amber-400'>{count}</span>
-      )}
-    </span>
-  );
-}
-
-function ProgressIndicator({
-  complete,
-  pct,
-  prog
-}: {
-  complete: boolean;
-  pct: number;
-  prog: { filled: number; total: number } | undefined;
-}) {
-  const title = prog
-    ? `출결 입력 ${prog.filled}/${prog.total} (${pct}%)`
-    : '출결 데이터 없음';
-
-  if (complete) {
-    return (
-      <span title={title} className='inline-flex items-center justify-center'>
-        <Icons.circleCheck className='h-5 w-5 text-emerald-600 dark:text-emerald-400' />
-      </span>
-    );
-  }
-  return (
-    <span
-      title={title}
-      className='inline-flex h-5 w-5 items-center justify-center rounded-full border border-muted-foreground/40 text-[9px] font-bold text-muted-foreground'
-    >
-      {pct > 0 ? `${pct}` : ''}
-    </span>
   );
 }
