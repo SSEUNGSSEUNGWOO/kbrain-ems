@@ -214,33 +214,51 @@ export default async function CohortApplicationsPage({ params, searchParams }: P
     }
   }
 
-  // 사전학습 수료 매칭 — cohort에 prereq 과목이 있을 때만 lms_completions 조회
+  // 사전학습 수료 매칭 — cohort에 prereq 과목이 있을 때만 lms_completions 조회.
+  // 페이지에 보이는 신청자(20명)의 phone/email만 in()으로 좁혀 조회한다.
+  // 전체 chunked range로 lms_completions 23,000+ 행을 매번 끌어오면 카테고리 필터 클릭
+  // 같은 가벼운 인터랙션에서도 수 초 지연이 생긴다 (이전 구현).
+  // lms phone은 하이픈 없는 raw digits 형식이라 applicant phone을 정규화 후 in 매칭.
   const prereqCodes = (cohort?.prereq_course_codes ?? []) as string[];
   const prereqMax = prereqCodes.length;
   const phonesByCourse = new Map<string, Set<string>>();
   const emailsByCourse = new Map<string, Set<string>>();
-  if (prereqMax > 0) {
+  if (prereqMax > 0 && (applications?.length ?? 0) > 0) {
+    const pagePhones = new Set<string>();
+    const pageEmails = new Set<string>();
+    for (const a of applications ?? []) {
+      const p = (a.applicants?.phone ?? '').replace(/[^\d]/g, '');
+      if (p) pagePhones.add(p);
+      const e = (a.applicants?.email ?? '').trim().toLowerCase();
+      if (e) pageEmails.add(e);
+    }
     type LmsRow = { course_code: string; phone: string | null; email: string | null };
-    const chunk = 1000;
-    for (let offset = 0; offset < 1_000_000; offset += chunk) {
-      const res = (await supabase
+    const merged: LmsRow[] = [];
+    if (pagePhones.size > 0) {
+      const r = (await supabase
         // @ts-expect-error supabase types.ts에 lms_completions 미반영
         .from('lms_completions')
         .select('course_code, phone, email')
         .in('course_code', prereqCodes)
-        .range(offset, offset + chunk - 1)) as unknown as {
-        data: LmsRow[] | null;
-      };
-      const batch = res.data ?? [];
-      for (const r of batch) {
-        if (!phonesByCourse.has(r.course_code)) {
-          phonesByCourse.set(r.course_code, new Set());
-          emailsByCourse.set(r.course_code, new Set());
-        }
-        if (r.phone) phonesByCourse.get(r.course_code)!.add(r.phone.replace(/[^\d]/g, ''));
-        if (r.email) emailsByCourse.get(r.course_code)!.add(r.email.trim().toLowerCase());
+        .in('phone', [...pagePhones])) as unknown as { data: LmsRow[] | null };
+      if (r.data) merged.push(...r.data);
+    }
+    if (pageEmails.size > 0) {
+      const r = (await supabase
+        // @ts-expect-error supabase types.ts에 lms_completions 미반영
+        .from('lms_completions')
+        .select('course_code, phone, email')
+        .in('course_code', prereqCodes)
+        .in('email', [...pageEmails])) as unknown as { data: LmsRow[] | null };
+      if (r.data) merged.push(...r.data);
+    }
+    for (const r of merged) {
+      if (!phonesByCourse.has(r.course_code)) {
+        phonesByCourse.set(r.course_code, new Set());
+        emailsByCourse.set(r.course_code, new Set());
       }
-      if (batch.length < chunk) break;
+      if (r.phone) phonesByCourse.get(r.course_code)!.add(r.phone.replace(/[^\d]/g, ''));
+      if (r.email) emailsByCourse.get(r.course_code)!.add(r.email.trim().toLowerCase());
     }
   }
   const computePrereqDone = (phone: string | null, email: string | null): number => {
