@@ -145,7 +145,7 @@ for (let i = 0; i < lmsRows.length; i += 100) {
   // 중복 회피: 같은 (course_code, phone) 이미 있으면 스킵하기 위해 사전 조회
   const phones = batch.map(r => r.phone);
   const { data: existing } = await s
-    // @ts-expect-error lms_completions 미반영
+    // @ts-ignore lms_completions 미반영
     .from('lms_completions')
     .select('course_code, phone')
     .in('phone', phones)
@@ -158,7 +158,7 @@ for (let i = 0; i < lmsRows.length; i += 100) {
   lmsSkipped += batch.length - toInsert.length;
   if (toInsert.length > 0) {
     const { error } = await s
-      // @ts-expect-error lms_completions 미반영
+      // @ts-ignore lms_completions 미반영
       .from('lms_completions').insert(toInsert);
     if (error) { console.error(error); process.exit(1); }
     lmsInserted += toInsert.length;
