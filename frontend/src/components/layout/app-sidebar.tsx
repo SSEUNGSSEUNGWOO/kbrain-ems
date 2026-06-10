@@ -54,6 +54,7 @@ const DOMAINS = [
   { slug: 'completion', label: '수료', icon: 'badgeCheck' as const, color: 'text-violet-500' },
   { slug: 'instructors', label: '강사', icon: 'user2' as const, color: 'text-rose-500' },
   { slug: 'diagnoses', label: '사전·사후 진단', icon: 'checks' as const, color: 'text-cyan-500' },
+  { slug: 'pretraining', label: '사전 세팅 체크', icon: 'circleCheck' as const, color: 'text-lime-500' },
   { slug: 'reports', label: '결과보고서', icon: 'fileTypeDoc' as const, color: 'text-orange-500' },
   { slug: 'notifications', label: '알림 발송', icon: 'notification' as const, color: 'text-yellow-600' },
   { slug: 'dashboard', label: '누적 통계', icon: 'trendingUp' as const, color: 'text-indigo-500' }
