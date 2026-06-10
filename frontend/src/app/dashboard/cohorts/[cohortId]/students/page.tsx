@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { StudentSheet } from './_components/student-sheet';
 import { StudentTable } from './_components/student-table';
 import { ApplicantsTable } from './_components/applicants-table';
+import { RosterDownloadDialog } from './_components/roster-download-dialog';
 
 export default async function StudentsPage({
   params
@@ -160,9 +161,7 @@ export default async function StudentsPage({
         pageDescription={`${cohort.name} · 총 ${mapped.length}명`}
         pageHeaderAction={
           <div className='flex gap-2'>
-            <Button asChild variant='outline'>
-              <a href={`/api/cohorts/${cohortId}/students/export-simple`}>간이 명단</a>
-            </Button>
+            <RosterDownloadDialog cohortId={cohortId} hidePersonal={hidePersonal} />
             <Button asChild variant='outline'>
               <a href={`/api/cohorts/${cohortId}/students/export`}>전체 엑셀</a>
             </Button>

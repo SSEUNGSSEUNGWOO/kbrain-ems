@@ -6,14 +6,25 @@ import {
   categoryFromLabel,
   ORGANIZATION_CATEGORY_LABEL
 } from '@/lib/organization-category';
+import {
+  ROSTER_COLUMNS,
+  filterForViewer,
+  parseRosterColumns,
+  type RosterColumnKey
+} from '@/lib/roster-columns';
 
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ cohortId: string }> }
 ) {
   const { cohortId } = await params;
   const supabase = createAdminClient();
   const hidePersonal = await isViewer();
+
+  const url = new URL(req.url);
+  const requested = parseRosterColumns(url.searchParams.get('cols'));
+  const cols = filterForViewer(requested, hidePersonal);
+  const colMeta = new Map(ROSTER_COLUMNS.map((c) => [c.key, c]));
 
   const { data: cohort } = await supabase
     .from('cohorts')
@@ -28,13 +39,20 @@ export async function GET(
     phone: string | null;
     email: string | null;
     personal_email: string | null;
+    department: string | null;
+    job_title: string | null;
+    job_role: string | null;
+    birth_date: string | null;
+    notes: string | null;
     organizations: { name: string } | null;
     applicants: { category: string | null } | null;
   };
 
   const { data: studentRows, error } = await supabase
     .from('students')
-    .select('applicant_id, name, phone, email, personal_email, organizations(name), applicants(category)')
+    .select(
+      'applicant_id, name, phone, email, personal_email, department, job_title, job_role, birth_date, notes, organizations(name), applicants(category)'
+    )
     .eq('cohort_id', cohortId)
     .order('name', { ascending: true })
     .returns<StudentRow[]>();
@@ -54,16 +72,41 @@ export async function GET(
   }
   const filtered = (studentRows ?? []).filter((s) => selectedSet.has(s.applicant_id));
 
+  function cellValue(s: StudentRow, key: RosterColumnKey): string {
+    switch (key) {
+      case 'category': {
+        const k = categoryFromLabel(s.applicants?.category ?? null) ?? 'unknown';
+        return ORGANIZATION_CATEGORY_LABEL[k];
+      }
+      case 'organization':
+        return s.organizations?.name ?? '';
+      case 'department':
+        return s.department ?? '';
+      case 'job_title':
+        return s.job_title ?? '';
+      case 'job_role':
+        return s.job_role ?? '';
+      case 'phone':
+        return s.phone ?? '';
+      case 'email':
+        return s.email ?? '';
+      case 'personal_email':
+        return s.personal_email ?? '';
+      case 'birth_date':
+        return s.birth_date ?? '';
+      case 'notes':
+        return s.notes ?? '';
+    }
+  }
+
   // Excel
   const wb = new ExcelJS.Workbook();
   wb.creator = 'kbrain-ems';
   wb.created = new Date();
   const ws = wb.addWorksheet(`${cohort.name} 명단`);
 
-  const headers = hidePersonal
-    ? ['NO', '교육생 이름', '소속기관구분', '소속기관']
-    : ['NO', '교육생 이름', '소속기관구분', '소속기관', '연락처', '공공 이메일', '개인 이메일'];
-  const widths = hidePersonal ? [6, 14, 14, 30] : [6, 14, 14, 30, 18, 26, 26];
+  const headers = ['NO', '교육생 이름', ...cols.map((k) => colMeta.get(k)!.label)];
+  const widths = [6, 14, ...cols.map((k) => colMeta.get(k)!.width)];
 
   const headerRow = ws.addRow(headers);
   headerRow.height = 28;
@@ -93,20 +136,7 @@ export async function GET(
   });
 
   filtered.forEach((s, idx) => {
-    const orgName = s.organizations?.name ?? '';
-    const categoryKey = categoryFromLabel(s.applicants?.category ?? null) ?? 'unknown';
-    const categoryLabel = ORGANIZATION_CATEGORY_LABEL[categoryKey];
-    const vals = hidePersonal
-      ? [idx + 1, s.name, categoryLabel, orgName]
-      : [
-          idx + 1,
-          s.name,
-          categoryLabel,
-          orgName,
-          s.phone ?? '',
-          s.email ?? '',
-          s.personal_email ?? ''
-        ];
+    const vals = [idx + 1, s.name, ...cols.map((k) => cellValue(s, k))];
     const row = ws.addRow(vals);
     row.eachCell((cell, col) => {
       cell.font = { name: 'Arial', size: 10 };
@@ -127,7 +157,7 @@ export async function GET(
 
   const buf = await wb.xlsx.writeBuffer();
   const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-  const filename = `${cohort.name} 간이명단 ${today}.xlsx`;
+  const filename = `${cohort.name} 명단 ${today}.xlsx`;
   const encoded = encodeURIComponent(filename);
 
   return new NextResponse(new Uint8Array(buf), {
