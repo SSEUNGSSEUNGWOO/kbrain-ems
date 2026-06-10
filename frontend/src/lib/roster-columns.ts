@@ -10,7 +10,6 @@ export type RosterColumnKey =
   | 'phone'
   | 'email'
   | 'personal_email'
-  | 'birth_date'
   | 'notes';
 
 export type RosterColumnSpec = {
@@ -30,7 +29,6 @@ export const ROSTER_COLUMNS: RosterColumnSpec[] = [
   { key: 'phone', label: '연락처', width: 18, personal: true },
   { key: 'email', label: '공공 이메일', width: 26, personal: true },
   { key: 'personal_email', label: '개인 이메일', width: 26, personal: true },
-  { key: 'birth_date', label: '생년월일', width: 14, personal: true },
   { key: 'notes', label: '비고', width: 26, personal: false }
 ];
 

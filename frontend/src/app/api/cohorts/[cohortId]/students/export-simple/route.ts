@@ -42,7 +42,6 @@ export async function GET(
     department: string | null;
     job_title: string | null;
     job_role: string | null;
-    birth_date: string | null;
     notes: string | null;
     organizations: { name: string } | null;
     applicants: { category: string | null } | null;
@@ -51,7 +50,7 @@ export async function GET(
   const { data: studentRows, error } = await supabase
     .from('students')
     .select(
-      'applicant_id, name, phone, email, personal_email, department, job_title, job_role, birth_date, notes, organizations(name), applicants(category)'
+      'applicant_id, name, phone, email, personal_email, department, job_title, job_role, notes, organizations(name), applicants(category)'
     )
     .eq('cohort_id', cohortId)
     .order('name', { ascending: true })
@@ -92,8 +91,6 @@ export async function GET(
         return s.email ?? '';
       case 'personal_email':
         return s.personal_email ?? '';
-      case 'birth_date':
-        return s.birth_date ?? '';
       case 'notes':
         return s.notes ?? '';
     }
