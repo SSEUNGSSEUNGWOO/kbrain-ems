@@ -1,5 +1,6 @@
 import PageContainer from '@/components/layout/page-container';
 import { Button } from '@/components/ui/button';
+import { PrintButton } from '@/components/print-button';
 import { createAdminClient } from '@/lib/supabase/server';
 import { buildDisplayNoMap, computeFollowUpMap } from '@/lib/survey-display';
 import Link from 'next/link';
@@ -255,6 +256,12 @@ export default async function SurveyResultsPage({ params }: Props) {
       };
     });
 
+  const printedAt = new Date().toLocaleDateString('ko-KR', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
+
   return (
     <PageContainer
       pageTitle='설문 결과'
@@ -267,10 +274,22 @@ export default async function SurveyResultsPage({ params }: Props) {
           <Link href={`/dashboard/cohorts/${cohortId}/surveys`}>
             <Button variant='outline'>← 목록</Button>
           </Link>
+          <PrintButton />
         </div>
       }
     >
-      <div className='max-w-4xl space-y-6'>
+      <div className='max-w-4xl space-y-6 print:max-w-none print:space-y-3'>
+        {/* 인쇄용 보고서 메타 헤더 — 화면에서는 숨김 */}
+        <div className='hidden border-b pb-3 print:block'>
+          <div className='text-xs text-slate-500'>{cohortRes.data.name}</div>
+          <div className='mt-0.5 text-base font-bold text-slate-900'>
+            {survey.title} · 만족도 조사 결과보고
+          </div>
+          <div className='mt-0.5 text-[11px] text-slate-500'>
+            응답률 {responseRate}% ({submitted.length} / {totalStudents}명) · 출력일 {printedAt}
+          </div>
+        </div>
+
         {/* KPI */}
         <div className='grid grid-cols-2 gap-3 sm:grid-cols-4'>
           <Kpi
@@ -305,7 +324,7 @@ export default async function SurveyResultsPage({ params }: Props) {
 
         {/* 섹션별 평균 */}
         {sectionChartData.length > 0 && (
-          <section className='rounded-xl border bg-card px-6 py-5 shadow-sm'>
+          <section className='rounded-xl border bg-card px-6 py-5 shadow-sm print:rounded-none print:border-0 print:px-0 print:py-2 print:shadow-none print:break-inside-avoid-page'>
             <h2 className='mb-1 text-sm font-bold'>섹션별 평균</h2>
             <p className='mb-4 text-xs text-muted-foreground'>각 섹션의 척도 문항 평균 (10점 만점)</p>
             <SectionAverageChart data={sectionChartData} />
@@ -314,7 +333,7 @@ export default async function SurveyResultsPage({ params }: Props) {
 
         {/* 문항별 분포 — 섹션별 그룹핑 */}
         {likertQuestions.length > 0 && (
-          <section className='rounded-xl border bg-card px-6 py-5 shadow-sm'>
+          <section className='rounded-xl border bg-card px-6 py-5 shadow-sm print:rounded-none print:border-0 print:px-0 print:py-2 print:shadow-none print:break-inside-avoid-page'>
             <h2 className='mb-1 text-sm font-bold'>문항별 응답 분포</h2>
             <p className='mb-5 text-xs text-muted-foreground'>섹션별로 묶은 척도 문항 결과</p>
             <div className='space-y-6'>
@@ -373,7 +392,7 @@ export default async function SurveyResultsPage({ params }: Props) {
 
         {/* 강사 비교 */}
         {instructorCards.length > 0 && (
-          <section className='rounded-xl border bg-card px-6 py-5 shadow-sm'>
+          <section className='rounded-xl border bg-card px-6 py-5 shadow-sm print:rounded-none print:border-0 print:px-0 print:py-2 print:shadow-none print:break-inside-avoid-page'>
             <h2 className='mb-4 text-sm font-bold'>강사 만족도 비교</h2>
             <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
               {instructorCards.map((i) => (
@@ -385,7 +404,7 @@ export default async function SurveyResultsPage({ params }: Props) {
 
         {/* 서술형 응답 */}
         {narrativeQuestions.length > 0 && (
-          <section className='rounded-xl border bg-card px-6 py-5 shadow-sm'>
+          <section className='rounded-xl border bg-card px-6 py-5 shadow-sm print:rounded-none print:border-0 print:px-0 print:py-2 print:shadow-none print:break-inside-avoid-page'>
             <h2 className='mb-4 text-sm font-bold'>서술형 응답</h2>
             <div className='space-y-5'>
               {narrativeQuestions.map((q) => {
@@ -418,7 +437,7 @@ export default async function SurveyResultsPage({ params }: Props) {
 
         {/* follow-up 사유 */}
         {followUpQuestions.length > 0 && (
-          <section className='rounded-xl border bg-card px-6 py-5 shadow-sm'>
+          <section className='rounded-xl border bg-card px-6 py-5 shadow-sm print:rounded-none print:border-0 print:px-0 print:py-2 print:shadow-none print:break-inside-avoid-page'>
             <h2 className='mb-1 text-sm font-bold'>불만족·개선 사유 (조건부 응답)</h2>
             <p className='mb-4 text-xs text-muted-foreground'>
               직전 척도 점수가 낮을 때만 노출된 사유 응답
@@ -464,8 +483,10 @@ export default async function SurveyResultsPage({ params }: Props) {
           </section>
         )}
 
-        {/* 개별 응답 */}
-        <IndividualResponses rows={individualRows} questions={individualQuestions} />
+        {/* 개별 응답 — Sheet 기반 클라이언트 컴포넌트라 인쇄에서는 제외 */}
+        <div className='print:hidden'>
+          <IndividualResponses rows={individualRows} questions={individualQuestions} />
+        </div>
       </div>
     </PageContainer>
   );
