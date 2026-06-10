@@ -1,6 +1,5 @@
 import PageContainer from '@/components/layout/page-container';
 import { Button } from '@/components/ui/button';
-import { PrintButton } from '@/components/print-button';
 import { createAdminClient } from '@/lib/supabase/server';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -44,7 +43,6 @@ export default async function SurveyResultsPage({ params }: Props) {
             surveyId={surveyId}
             initialCode={survey.results_share_code ?? null}
           />
-          <PrintButton />
         </div>
       }
     >
