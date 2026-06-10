@@ -12,6 +12,150 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      pretraining_checklists: {
+        Row: {
+          id: string;
+          cohort_id: string;
+          title: string;
+          description: string | null;
+          guide_url: string | null;
+          share_code: string | null;
+          opens_at: string | null;
+          closes_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          cohort_id: string;
+          title: string;
+          description?: string | null;
+          guide_url?: string | null;
+          share_code?: string | null;
+          opens_at?: string | null;
+          closes_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          cohort_id?: string;
+          title?: string;
+          description?: string | null;
+          guide_url?: string | null;
+          share_code?: string | null;
+          opens_at?: string | null;
+          closes_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'pretraining_checklists_cohort_id_fkey';
+            columns: ['cohort_id'];
+            referencedRelation: 'cohorts';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+
+      pretraining_checklist_items: {
+        Row: {
+          id: string;
+          checklist_id: string;
+          question_no: string;
+          text: string;
+          guide_url: string | null;
+          parent_id: string | null;
+          parent_answer: string | null;
+          no_hint: string | null;
+          display_order: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          checklist_id: string;
+          question_no: string;
+          text: string;
+          guide_url?: string | null;
+          parent_id?: string | null;
+          parent_answer?: string | null;
+          no_hint?: string | null;
+          display_order?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          checklist_id?: string;
+          question_no?: string;
+          text?: string;
+          guide_url?: string | null;
+          parent_id?: string | null;
+          parent_answer?: string | null;
+          no_hint?: string | null;
+          display_order?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'pretraining_checklist_items_checklist_id_fkey';
+            columns: ['checklist_id'];
+            referencedRelation: 'pretraining_checklists';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'pretraining_checklist_items_parent_id_fkey';
+            columns: ['parent_id'];
+            referencedRelation: 'pretraining_checklist_items';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+
+      pretraining_checklist_responses: {
+        Row: {
+          id: string;
+          checklist_id: string;
+          name: string;
+          organization: string | null;
+          phone: string | null;
+          answers: Json;
+          submitted_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          checklist_id: string;
+          name: string;
+          organization?: string | null;
+          phone?: string | null;
+          answers?: Json;
+          submitted_at?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          checklist_id?: string;
+          name?: string;
+          organization?: string | null;
+          phone?: string | null;
+          answers?: Json;
+          submitted_at?: string | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'pretraining_checklist_responses_checklist_id_fkey';
+            columns: ['checklist_id'];
+            referencedRelation: 'pretraining_checklists';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+
       activity_logs: {
         Row: {
           id: string;
