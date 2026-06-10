@@ -28,17 +28,19 @@ export default async function PretrainingPublicPage({ params }: Props) {
     .maybeSingle();
   if (!checklist) notFound();
 
-  // cohort 카테고리에 따라 운영팀 연락처 안내 — 추후 다른 카테고리 번호 받으면 매핑 확장
+  // cohort 카테고리에 따라 운영팀 연락처 안내 — 한 카테고리에 여러 번호 가능
   const { data: cohortRow } = await supabase
     .from('cohorts')
     .select('category')
     .eq('id', checklist.cohort_id)
     .maybeSingle();
-  const INQUIRY_PHONE_BY_CATEGORY: Record<string, string> = {
-    general: '[비공개]'
+  const INQUIRY_PHONES_BY_CATEGORY: Record<string, string[]> = {
+    general: ['[비공개]'],
+    champion: ['[비공개]', '[비공개]']
   };
-  const inquiryPhone =
-    (cohortRow?.category && INQUIRY_PHONE_BY_CATEGORY[cohortRow.category]) ?? null;
+  const inquiryPhones: string[] | null = cohortRow?.category
+    ? INQUIRY_PHONES_BY_CATEGORY[cohortRow.category] ?? null
+    : null;
   if (checklist.closes_at && new Date(checklist.closes_at) <= new Date()) {
     return (
       <div className='rounded-xl border bg-white px-6 py-12 text-center text-muted-foreground shadow-sm'>
@@ -78,7 +80,7 @@ export default async function PretrainingPublicPage({ params }: Props) {
       <ChecklistForm
         checklistId={checklist.id}
         items={items ?? []}
-        inquiryPhone={inquiryPhone}
+        inquiryPhones={inquiryPhones}
       />
     </div>
   );

@@ -19,7 +19,7 @@ type Item = {
 type Props = {
   checklistId: string;
   items: Item[];
-  inquiryPhone: string | null;
+  inquiryPhones: string[] | null;
 };
 
 type Student = {
@@ -29,7 +29,7 @@ type Student = {
   phone: string | null;
 };
 
-export function ChecklistForm({ checklistId, items, inquiryPhone }: Props) {
+export function ChecklistForm({ checklistId, items, inquiryPhones }: Props) {
   const [student, setStudent] = useState<Student | null>(null);
 
   if (!student) {
@@ -37,7 +37,7 @@ export function ChecklistForm({ checklistId, items, inquiryPhone }: Props) {
       <VerifyStep
         checklistId={checklistId}
         onMatch={setStudent}
-        inquiryPhone={inquiryPhone}
+        inquiryPhones={inquiryPhones}
       />
     );
   }
@@ -54,11 +54,11 @@ export function ChecklistForm({ checklistId, items, inquiryPhone }: Props) {
 function VerifyStep({
   checklistId,
   onMatch,
-  inquiryPhone
+  inquiryPhones
 }: {
   checklistId: string;
   onMatch: (s: Student) => void;
-  inquiryPhone: string | null;
+  inquiryPhones: string[] | null;
 }) {
   const [name, setName] = useState('');
   const [last4, setLast4] = useState('');
@@ -112,9 +112,20 @@ function VerifyStep({
       {error && (
         <div className='mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700'>
           {error}
-          {inquiryPhone && (
+          {inquiryPhones && inquiryPhones.length > 0 && (
             <div className='mt-1.5 text-xs text-red-800'>
-              📞 운영팀 문의: <a href={`tel:${inquiryPhone.replace(/-/g, '')}`} className='font-semibold underline'>{inquiryPhone}</a>
+              📞 운영팀 문의:{' '}
+              {inquiryPhones.map((p, i) => (
+                <span key={p}>
+                  {i > 0 && <span className='mx-1 opacity-50'>·</span>}
+                  <a
+                    href={`tel:${p.replace(/-/g, '')}`}
+                    className='font-semibold underline'
+                  >
+                    {p}
+                  </a>
+                </span>
+              ))}
             </div>
           )}
         </div>
