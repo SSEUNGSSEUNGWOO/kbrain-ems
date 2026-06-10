@@ -1208,6 +1208,7 @@ export type Database = {
           type: string;
           scope: string | null;
           share_code: string | null;
+          results_share_code: string | null;
           share_subtitle: string | null;
           opens_at: string | null;
           closes_at: string | null;
@@ -1223,6 +1224,7 @@ export type Database = {
           type: string;
           scope?: string | null;
           share_code?: string | null;
+          results_share_code?: string | null;
           share_subtitle?: string | null;
           opens_at?: string | null;
           closes_at?: string | null;
@@ -1238,6 +1240,7 @@ export type Database = {
           type?: string;
           scope?: string | null;
           share_code?: string | null;
+          results_share_code?: string | null;
           share_subtitle?: string | null;
           opens_at?: string | null;
           closes_at?: string | null;
