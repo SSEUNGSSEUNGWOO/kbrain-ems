@@ -119,6 +119,7 @@ export type Database = {
         Row: {
           id: string;
           checklist_id: string;
+          student_id: string | null;
           name: string;
           organization: string | null;
           phone: string | null;
@@ -129,6 +130,7 @@ export type Database = {
         Insert: {
           id?: string;
           checklist_id: string;
+          student_id?: string | null;
           name: string;
           organization?: string | null;
           phone?: string | null;
@@ -139,6 +141,7 @@ export type Database = {
         Update: {
           id?: string;
           checklist_id?: string;
+          student_id?: string | null;
           name?: string;
           organization?: string | null;
           phone?: string | null;
