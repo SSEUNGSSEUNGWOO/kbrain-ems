@@ -2,6 +2,7 @@
 
 import { createAdminClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
+import { logActivity } from '@/lib/activity-log';
 import {
   type AppQuestion,
   type ParsedRow,
@@ -24,11 +25,27 @@ export async function updateApplicationStatus(
   const supabase = createAdminClient();
   const today = new Date().toISOString().slice(0, 10);
   const decidedAt = newStatus === 'selected' || newStatus === 'rejected' ? today : null;
+  const { data: appRow } = await supabase
+    .from('applications')
+    .select('applicants(name)')
+    .eq('id', applicationId)
+    .maybeSingle<{ applicants: { name: string } | null }>();
   const { error } = await supabase
     .from('applications')
     .update({ status: newStatus, decided_at: decidedAt })
     .eq('id', applicationId);
   if (error) return { error: error.message };
+
+  const STATUS_KO: Record<string, string> = {
+    applied: '신청', pending: '심사중', selected: '선발', rejected: '탈락', withdrawn: '취하'
+  };
+  await logActivity({
+    actionType: 'update',
+    resourceType: 'application',
+    resourceId: applicationId,
+    cohortId,
+    summary: `${appRow?.applicants?.name ?? '신청자'} → ${STATUS_KO[newStatus] ?? newStatus}`
+  });
 
   revalidatePath(`/dashboard/cohorts/${cohortId}/applications`);
   return {};
@@ -288,6 +305,12 @@ export async function resetSelections(
       .in('status', ['selected', 'rejected', 'pending'])
       .select('id');
     if (error) throw new Error(error.message);
+    await logActivity({
+      actionType: 'update',
+      resourceType: 'application',
+      cohortId,
+      summary: `선발 결과 초기화: ${data?.length ?? 0}건`
+    });
     revalidatePath(`/dashboard/cohorts/${cohortId}/applications`);
     return { resetCount: data?.length ?? 0 };
   } catch (e) {
@@ -325,6 +348,13 @@ export async function applySelections(
     if (cfgErr) throw new Error(cfgErr.message);
 
     const result = (data ?? {}) as { selected_count?: number; rejected_count?: number };
+
+    await logActivity({
+      actionType: 'auto_select',
+      resourceType: 'application',
+      cohortId,
+      summary: `자동선발 적용: 선발 ${result.selected_count ?? 0}명${rejectOthers ? `, 탈락 ${result.rejected_count ?? 0}명` : ''}`
+    });
 
     revalidatePath(`/dashboard/cohorts/${cohortId}/applications`);
     return {
@@ -560,6 +590,13 @@ export async function importApplicationsXls(
         stats.answersWritten += answerRows.length;
       }
     }
+
+    await logActivity({
+      actionType: 'upload',
+      resourceType: 'application',
+      cohortId,
+      summary: `응답 엑셀 업로드: 신규 지원자 ${stats.newApplicants}명·갱신 ${stats.updatedApplicants}명·응답 ${stats.answersWritten}개`
+    });
 
     revalidatePath(`/dashboard/cohorts/${cohortId}/applications`);
     revalidatePath('/dashboard/applicants');

@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/lib/supabase/types';
 import { revalidatePath } from 'next/cache';
+import { logActivity } from '@/lib/activity-log';
 
 type ActionResult = { error?: string };
 
@@ -46,21 +47,32 @@ export async function createApplicant(
     String(formData.get('organization') ?? '')
   );
 
-  const { error } = await supabase.from('applicants').insert({
-    name,
-    organization_id,
-    email: formValue(formData, 'email'),
-    personal_email: formValue(formData, 'personal_email'),
-    phone: formValue(formData, 'phone'),
-    department: formValue(formData, 'department'),
-    job_title: formValue(formData, 'job_title'),
-    job_role: formValue(formData, 'job_role'),
-    birth_date: formValue(formData, 'birth_date'),
-    notes: formValue(formData, 'notes'),
-    // @ts-expect-error supabase types.ts에 applicants.category 미반영
-    category: formValue(formData, 'category')
-  });
+  const { data: created, error } = await supabase
+    .from('applicants')
+    .insert({
+      name,
+      organization_id,
+      email: formValue(formData, 'email'),
+      personal_email: formValue(formData, 'personal_email'),
+      phone: formValue(formData, 'phone'),
+      department: formValue(formData, 'department'),
+      job_title: formValue(formData, 'job_title'),
+      job_role: formValue(formData, 'job_role'),
+      birth_date: formValue(formData, 'birth_date'),
+      notes: formValue(formData, 'notes'),
+      // @ts-expect-error supabase types.ts에 applicants.category 미반영
+      category: formValue(formData, 'category')
+    })
+    .select('id')
+    .single();
   if (error) return { error: error.message };
+
+  await logActivity({
+    actionType: 'create',
+    resourceType: 'applicant',
+    resourceId: created?.id ?? null,
+    summary: `지원자 추가: ${name}`
+  });
 
   revalidatePath('/dashboard/applicants');
   return {};
@@ -108,6 +120,13 @@ export async function updateApplicant(
     .eq('applicant_id', id);
   if (studentError) return { error: studentError.message };
 
+  await logActivity({
+    actionType: 'update',
+    resourceType: 'applicant',
+    resourceId: id,
+    summary: `지원자 정보 수정: ${name}`
+  });
+
   revalidatePath('/dashboard/applicants');
   revalidatePath(`/dashboard/applicants/${id}`);
   return {};
@@ -115,8 +134,20 @@ export async function updateApplicant(
 
 export async function deleteApplicant(id: string): Promise<ActionResult> {
   const supabase = createAdminClient();
+  const { data: target } = await supabase
+    .from('applicants')
+    .select('name')
+    .eq('id', id)
+    .maybeSingle();
   const { error } = await supabase.from('applicants').delete().eq('id', id);
   if (error) return { error: error.message };
+
+  await logActivity({
+    actionType: 'delete',
+    resourceType: 'applicant',
+    resourceId: id,
+    summary: `지원자 삭제: ${target?.name ?? id}`
+  });
 
   revalidatePath('/dashboard/applicants');
   return {};
@@ -128,6 +159,12 @@ export async function deleteApplicants(ids: string[]): Promise<ActionResult> {
   const supabase = createAdminClient();
   const { error } = await supabase.from('applicants').delete().in('id', ids);
   if (error) return { error: error.message };
+
+  await logActivity({
+    actionType: 'delete',
+    resourceType: 'applicant',
+    summary: `지원자 일괄 삭제: ${ids.length}명`
+  });
 
   revalidatePath('/dashboard/applicants');
   return {};

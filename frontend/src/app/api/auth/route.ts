@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { getOperator } from '@/lib/auth';
+import { logActivity } from '@/lib/activity-log';
 import { NextResponse } from 'next/server';
 
 /**
@@ -14,6 +15,11 @@ export async function POST() {
       { status: 401 }
     );
   }
+  await logActivity({
+    actionType: 'login',
+    summary: `${operator.name}${operator.title ? ` (${operator.title})` : ''} 로그인`,
+    operator: { id: operator.id, name: operator.name }
+  });
   return NextResponse.json(operator);
 }
 
