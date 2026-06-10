@@ -45,6 +45,7 @@ type Student = {
   job_role: string | null;
   birth_date: string | null;
   email?: string | null;
+  personal_email?: string | null;
   phone?: string | null;
   notes: string | null;
   attendedSessions: number;
@@ -368,7 +369,12 @@ export function StudentTable({
                       {isDeveloper && (
                         <StudentSheet
                           cohortId={cohortId}
-                          student={{ ...s, email: s.email ?? null, phone: s.phone ?? null }}
+                          student={{
+                            ...s,
+                            email: s.email ?? null,
+                            personal_email: s.personal_email ?? null,
+                            phone: s.phone ?? null
+                          }}
                           trigger={
                             <Button variant='ghost' size='icon' className='h-7 w-7'>
                               <Icons.edit className='h-3.5 w-3.5' />

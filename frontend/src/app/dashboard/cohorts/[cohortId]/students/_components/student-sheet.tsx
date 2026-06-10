@@ -25,6 +25,7 @@ type Student = {
   job_role: string | null;
   birth_date: string | null;
   email: string | null;
+  personal_email: string | null;
   phone: string | null;
   notes: string | null;
 };
@@ -96,8 +97,24 @@ export function StudentSheet({ cohortId, student, trigger }: StudentSheetProps) 
             <Input id='birth_date' name='birth_date' type='date' defaultValue={student?.birth_date ?? ''} />
           </div>
           <div className='grid gap-2'>
-            <Label htmlFor='email'>이메일</Label>
-            <Input id='email' name='email' type='email' defaultValue={student?.email ?? ''} />
+            <Label htmlFor='email'>공공 이메일</Label>
+            <Input
+              id='email'
+              name='email'
+              type='email'
+              placeholder='예: hong@go.kr'
+              defaultValue={student?.email ?? ''}
+            />
+          </div>
+          <div className='grid gap-2'>
+            <Label htmlFor='personal_email'>개인 이메일</Label>
+            <Input
+              id='personal_email'
+              name='personal_email'
+              type='email'
+              placeholder='예: hong@gmail.com'
+              defaultValue={student?.personal_email ?? ''}
+            />
           </div>
           <div className='grid gap-2'>
             <Label htmlFor='phone'>연락처</Label>
