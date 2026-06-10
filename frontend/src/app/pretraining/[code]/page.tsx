@@ -31,7 +31,7 @@ export default async function PretrainingPublicPage({ params }: Props) {
   // cohort 카테고리에 따라 운영팀 연락처 안내 — 한 카테고리에 여러 번호 가능
   const { data: cohortRow } = await supabase
     .from('cohorts')
-    .select('category')
+    .select('name, category')
     .eq('id', checklist.cohort_id)
     .maybeSingle();
   const INQUIRY_PHONES_BY_CATEGORY: Record<string, string[]> = {
@@ -59,6 +59,11 @@ export default async function PretrainingPublicPage({ params }: Props) {
   return (
     <div className='flex flex-col gap-5'>
       <header className='rounded-xl border bg-white px-6 py-5 shadow-sm'>
+        {cohortRow?.name && (
+          <div className='mb-1.5 inline-flex items-center rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-semibold tracking-tight text-blue-700'>
+            {cohortRow.name}
+          </div>
+        )}
         <h1 className='text-lg font-bold text-slate-900'>{checklist.title}</h1>
         {checklist.description && (
           <p className='mt-2 whitespace-pre-line text-sm text-slate-600'>
