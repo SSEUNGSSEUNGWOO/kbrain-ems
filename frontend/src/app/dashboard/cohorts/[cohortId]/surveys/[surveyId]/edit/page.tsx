@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/server';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { SurveyBuilder } from './_components/survey-builder';
+import { LinkedCohorts } from './_components/linked-cohorts';
 import type { SectionDraft } from './_actions';
 
 type Props = {
@@ -14,21 +15,32 @@ export default async function SurveyEditPage({ params }: Props) {
   const { cohortId, surveyId } = await params;
   const supabase = createAdminClient();
 
-  const [surveyRes, questionsRes, instructorsRes] = await Promise.all([
-    supabase
-      .from('surveys')
-      .select('id, title, share_code, opens_at, cohort_id')
-      .eq('id', surveyId)
-      .maybeSingle(),
-    supabase
-      .from('survey_questions')
-      .select(
-        'id, question_no, type, text, required, section_no, section_title, instructor_id, options'
-      )
-      .eq('survey_id', surveyId)
-      .order('question_no', { ascending: true }),
-    supabase.from('instructors').select('id, name, affiliation').eq('kind', 'main').order('name')
-  ]);
+  const [surveyRes, questionsRes, instructorsRes, primaryCohortRes, otherCohortsRes] =
+    await Promise.all([
+      supabase
+        .from('surveys')
+        .select('id, title, share_code, opens_at, cohort_id, additional_cohort_ids')
+        .eq('id', surveyId)
+        .maybeSingle(),
+      supabase
+        .from('survey_questions')
+        .select(
+          'id, question_no, type, text, required, section_no, section_title, instructor_id, options'
+        )
+        .eq('survey_id', surveyId)
+        .order('question_no', { ascending: true }),
+      supabase
+        .from('instructors')
+        .select('id, name, affiliation')
+        .eq('kind', 'main')
+        .order('name'),
+      supabase.from('cohorts').select('name').eq('id', cohortId).maybeSingle(),
+      supabase
+        .from('cohorts')
+        .select('id, name, category')
+        .neq('id', cohortId)
+        .order('name', { ascending: false })
+    ]);
 
   if (!surveyRes.data) notFound();
   if (surveyRes.data.cohort_id !== cohortId) notFound();
@@ -75,14 +87,23 @@ export default async function SurveyEditPage({ params }: Props) {
         </div>
       }
     >
-      <SurveyBuilder
-        cohortId={cohortId}
-        surveyId={surveyId}
-        initialSections={initialSections}
-        instructors={instructorsRes.data ?? []}
-        published={published}
-        publishedAt={surveyRes.data.opens_at}
-      />
+      <div className='space-y-6'>
+        <LinkedCohorts
+          cohortId={cohortId}
+          surveyId={surveyId}
+          primaryCohortName={primaryCohortRes.data?.name ?? ''}
+          initialLinked={surveyRes.data.additional_cohort_ids ?? []}
+          availableCohorts={otherCohortsRes.data ?? []}
+        />
+        <SurveyBuilder
+          cohortId={cohortId}
+          surveyId={surveyId}
+          initialSections={initialSections}
+          instructors={instructorsRes.data ?? []}
+          published={published}
+          publishedAt={surveyRes.data.opens_at}
+        />
+      </div>
     </PageContainer>
   );
 }

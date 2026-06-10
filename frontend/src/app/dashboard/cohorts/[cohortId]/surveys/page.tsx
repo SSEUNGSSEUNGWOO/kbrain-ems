@@ -12,24 +12,30 @@ export default async function SurveysPage({ params }: Props) {
   const { cohortId } = await params;
   const supabase = createAdminClient();
 
-  // 학생 수
-  const { count: studentCount } = await supabase
-    .from('students')
-    .select('id', { count: 'exact', head: true })
-    .eq('cohort_id', cohortId);
-
-  // 설문 목록
+  // 설문 목록 — 이 cohort 가 primary 이거나 additional_cohort_ids 에 포함된 설문 모두
   const { data: surveys } = await supabase
     .from('surveys')
-    .select('id, title, share_code, opens_at, respondent_total, created_at')
-    .eq('cohort_id', cohortId)
+    .select(
+      'id, title, share_code, opens_at, respondent_total, created_at, cohort_id, additional_cohort_ids'
+    )
+    .or(`cohort_id.eq.${cohortId},additional_cohort_ids.cs.{${cohortId}}`)
     .order('created_at', { ascending: false });
-
-  const totalStudents = studentCount ?? 0;
 
   // 각 설문 통계
   const cards = await Promise.all(
     (surveys ?? []).map(async (s) => {
+      // 적용 cohort 학생 수 합 (테스트 학생 제외) — 통합 설문(여러 cohort 연결)
+      // 시 분모 자동 합산. respondent_total 이 직접 설정돼 있으면 그걸 우선.
+      const appliedCohortIds = Array.from(
+        new Set([s.cohort_id, ...(s.additional_cohort_ids ?? [])])
+      );
+      const { count: appliedCount } = await supabase
+        .from('students')
+        .select('id', { count: 'exact', head: true })
+        .in('cohort_id', appliedCohortIds)
+        .not('name', 'ilike', '테스트%');
+      const appliedTotal = appliedCount ?? 0;
+
       const [questionsRes, responsesRes] = await Promise.all([
         supabase
           .from('survey_questions')
@@ -71,9 +77,10 @@ export default async function SurveysPage({ params }: Props) {
         publishedAt: s.opens_at,
         issuedCount: responses.length,
         submittedCount: submitted.length,
-        totalStudents: s.respondent_total ?? totalStudents,
+        totalStudents: s.respondent_total ?? appliedTotal,
         avgScore: avg,
-        scaleQuestionCount: scaleIds.size
+        scaleQuestionCount: scaleIds.size,
+        linkedCohortCount: appliedCohortIds.length
       };
     })
   );

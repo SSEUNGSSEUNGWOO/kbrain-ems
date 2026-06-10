@@ -42,7 +42,9 @@ export async function ResultsView({
   const [surveyRes, questionsRes, responsesRes, cohortRes] = await Promise.all([
     supabase
       .from('surveys')
-      .select('id, title, share_code, opens_at, respondent_total, cohort_id')
+      .select(
+        'id, title, share_code, opens_at, respondent_total, cohort_id, additional_cohort_ids'
+      )
       .eq('id', surveyId)
       .maybeSingle(),
     supabase
@@ -60,19 +62,25 @@ export async function ResultsView({
   ]);
 
   if (!surveyRes.data || !questionsRes.data || !cohortRes.data) notFound();
-  if (surveyRes.data.cohort_id !== cohortId) notFound();
-
   const survey = surveyRes.data;
+  // 이 설문이 적용되는 cohort 집합 — primary + additional. 통합 설문이면 어느
+  // 쪽 cohort URL 로 들어와도 접근 허용.
+  const appliedCohortIds = Array.from(
+    new Set([survey.cohort_id, ...(survey.additional_cohort_ids ?? [])])
+  );
+  if (!appliedCohortIds.includes(cohortId)) notFound();
+
   const questions = questionsRes.data;
   const submitted = responsesRes.data ?? [];
 
-  // 분모
+  // 분모 — survey.respondent_total 직접 설정값 우선, 없으면 적용 cohort 학생 합 (테스트 제외)
   let totalStudents = survey.respondent_total ?? null;
   if (totalStudents === null) {
     const { count } = await supabase
       .from('students')
       .select('id', { count: 'exact', head: true })
-      .eq('cohort_id', cohortId);
+      .in('cohort_id', appliedCohortIds)
+      .not('name', 'ilike', '테스트%');
     totalStudents = count ?? 0;
   }
 

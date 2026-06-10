@@ -147,3 +147,33 @@ export async function publishSurvey(
   revalidatePath(`/dashboard/cohorts/${cohortId}/surveys/${surveyId}/edit`);
   return {};
 }
+
+/**
+ * 설문을 다른 cohort 에도 연결 (예: 1기·2기 통합 설문).
+ * primary cohort_id 는 그대로 두고, additional_cohort_ids 만 갱신.
+ */
+export async function updateLinkedCohorts(
+  cohortId: string,
+  surveyId: string,
+  additionalCohortIds: string[]
+): Promise<ActionResult> {
+  const supabase = createAdminClient();
+
+  // primary cohort 가 additional 에 포함되면 안 됨
+  const sanitized = Array.from(new Set(additionalCohortIds.filter((id) => id !== cohortId)));
+
+  const { error } = await supabase
+    .from('surveys')
+    .update({ additional_cohort_ids: sanitized })
+    .eq('id', surveyId)
+    .eq('cohort_id', cohortId);
+  if (error) return { error: error.message };
+
+  // 연결되는 모든 cohort 의 만족도 메뉴·결과 캐시 무효화
+  for (const id of [cohortId, ...sanitized]) {
+    revalidatePath(`/dashboard/cohorts/${id}/surveys`);
+    revalidatePath(`/dashboard/cohorts/${id}/surveys/${surveyId}/results`);
+  }
+  revalidatePath(`/dashboard/cohorts/${cohortId}/surveys/${surveyId}/edit`);
+  return {};
+}
