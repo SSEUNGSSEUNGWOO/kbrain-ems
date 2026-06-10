@@ -19,6 +19,7 @@ type Item = {
 type Props = {
   checklistId: string;
   items: Item[];
+  inquiryPhone: string | null;
 };
 
 type Student = {
@@ -28,11 +29,17 @@ type Student = {
   phone: string | null;
 };
 
-export function ChecklistForm({ checklistId, items }: Props) {
+export function ChecklistForm({ checklistId, items, inquiryPhone }: Props) {
   const [student, setStudent] = useState<Student | null>(null);
 
   if (!student) {
-    return <VerifyStep checklistId={checklistId} onMatch={setStudent} />;
+    return (
+      <VerifyStep
+        checklistId={checklistId}
+        onMatch={setStudent}
+        inquiryPhone={inquiryPhone}
+      />
+    );
   }
   return (
     <AnswerStep
@@ -46,10 +53,12 @@ export function ChecklistForm({ checklistId, items }: Props) {
 
 function VerifyStep({
   checklistId,
-  onMatch
+  onMatch,
+  inquiryPhone
 }: {
   checklistId: string;
   onMatch: (s: Student) => void;
+  inquiryPhone: string | null;
 }) {
   const [name, setName] = useState('');
   const [last4, setLast4] = useState('');
@@ -101,7 +110,14 @@ function VerifyStep({
       </div>
 
       {error && (
-        <div className='mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700'>{error}</div>
+        <div className='mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700'>
+          {error}
+          {inquiryPhone && (
+            <div className='mt-1.5 text-xs text-red-800'>
+              📞 운영팀 문의: <a href={`tel:${inquiryPhone.replace(/-/g, '')}`} className='font-semibold underline'>{inquiryPhone}</a>
+            </div>
+          )}
+        </div>
       )}
 
       <Button type='submit' disabled={pending || !name.trim() || last4.length !== 4} className='mt-5 h-11 w-full text-base'>

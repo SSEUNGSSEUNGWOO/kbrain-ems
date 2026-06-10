@@ -23,10 +23,22 @@ export default async function PretrainingPublicPage({ params }: Props) {
 
   const { data: checklist } = await supabase
     .from('pretraining_checklists')
-    .select('id, title, description, guide_url, share_code, closes_at')
+    .select('id, title, description, guide_url, share_code, closes_at, cohort_id')
     .eq('share_code', code)
     .maybeSingle();
   if (!checklist) notFound();
+
+  // cohort 카테고리에 따라 운영팀 연락처 안내 — 추후 다른 카테고리 번호 받으면 매핑 확장
+  const { data: cohortRow } = await supabase
+    .from('cohorts')
+    .select('category')
+    .eq('id', checklist.cohort_id)
+    .maybeSingle();
+  const INQUIRY_PHONE_BY_CATEGORY: Record<string, string> = {
+    general: '[비공개]'
+  };
+  const inquiryPhone =
+    (cohortRow?.category && INQUIRY_PHONE_BY_CATEGORY[cohortRow.category]) ?? null;
   if (checklist.closes_at && new Date(checklist.closes_at) <= new Date()) {
     return (
       <div className='rounded-xl border bg-white px-6 py-12 text-center text-muted-foreground shadow-sm'>
@@ -63,7 +75,11 @@ export default async function PretrainingPublicPage({ params }: Props) {
         )}
       </header>
 
-      <ChecklistForm checklistId={checklist.id} items={items ?? []} />
+      <ChecklistForm
+        checklistId={checklist.id}
+        items={items ?? []}
+        inquiryPhone={inquiryPhone}
+      />
     </div>
   );
 }
