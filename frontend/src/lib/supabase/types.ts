@@ -12,6 +12,56 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      activity_logs: {
+        Row: {
+          id: string;
+          operator_id: string | null;
+          operator_name: string | null;
+          action_type: string;
+          resource_type: string | null;
+          resource_id: string | null;
+          cohort_id: string | null;
+          summary: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          operator_id?: string | null;
+          operator_name?: string | null;
+          action_type: string;
+          resource_type?: string | null;
+          resource_id?: string | null;
+          cohort_id?: string | null;
+          summary?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          operator_id?: string | null;
+          operator_name?: string | null;
+          action_type?: string;
+          resource_type?: string | null;
+          resource_id?: string | null;
+          cohort_id?: string | null;
+          summary?: string | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'activity_logs_operator_id_fkey';
+            columns: ['operator_id'];
+            referencedRelation: 'operators';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'activity_logs_cohort_id_fkey';
+            columns: ['cohort_id'];
+            referencedRelation: 'cohorts';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+
       survey_completions: {
         Row: {
           id: string;

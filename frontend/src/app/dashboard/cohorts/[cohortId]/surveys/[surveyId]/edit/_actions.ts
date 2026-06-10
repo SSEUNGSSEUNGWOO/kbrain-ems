@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { LIKERT10_LABELS, SCALE_OPTIONS } from '@/lib/survey-templates/satisfaction';
 import type { Json, TablesInsert } from '@/lib/supabase/types';
 import { revalidatePath } from 'next/cache';
+import { logActivity } from '@/lib/activity-log';
 
 export type QuestionDraft = {
   type: 'likert10' | 'text' | 'choice';
@@ -143,6 +144,19 @@ export async function publishSurvey(
     .eq('id', surveyId);
   if (upErr) return { error: upErr.message };
 
+  const { data: meta } = await supabase
+    .from('surveys')
+    .select('title')
+    .eq('id', surveyId)
+    .maybeSingle();
+  await logActivity({
+    actionType: 'publish',
+    resourceType: 'survey',
+    resourceId: surveyId,
+    cohortId,
+    summary: `만족도 설문 발행: ${meta?.title ?? surveyId}`
+  });
+
   revalidatePath(`/dashboard/cohorts/${cohortId}/surveys`);
   revalidatePath(`/dashboard/cohorts/${cohortId}/surveys/${surveyId}/edit`);
   return {};
@@ -168,6 +182,14 @@ export async function updateLinkedCohorts(
     .eq('id', surveyId)
     .eq('cohort_id', cohortId);
   if (error) return { error: error.message };
+
+  await logActivity({
+    actionType: 'update',
+    resourceType: 'survey',
+    resourceId: surveyId,
+    cohortId,
+    summary: `만족도 설문 적용 cohort 변경 (추가 ${sanitized.length}개)`
+  });
 
   // 연결되는 모든 cohort 의 만족도 메뉴·결과 캐시 무효화
   for (const id of [cohortId, ...sanitized]) {

@@ -3,6 +3,7 @@
 import { createAdminClient } from '@/lib/supabase/server';
 import { getOperator } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
+import { logActivity } from '@/lib/activity-log';
 
 type ActionResult = { error?: string };
 
@@ -121,16 +122,28 @@ export async function createCohort(formData: FormData): Promise<ActionResult> {
     if (dup) return { error: '이미 사용 중인 모집 코드(slug)입니다.' };
   }
 
-  const { error } = await supabase.from('cohorts').insert({
-    name,
-    started_at: val(formData, 'started_at') || null,
-    ended_at: val(formData, 'ended_at') || null,
-    recruiting_slug: recruitingSlug || null,
-    application_start_at: val(formData, 'application_start_at') || null,
-    application_end_at: val(formData, 'application_end_at') || null,
-    max_capacity: nullableInt(val(formData, 'max_capacity'))
-  });
+  const { data: created, error } = await supabase
+    .from('cohorts')
+    .insert({
+      name,
+      started_at: val(formData, 'started_at') || null,
+      ended_at: val(formData, 'ended_at') || null,
+      recruiting_slug: recruitingSlug || null,
+      application_start_at: val(formData, 'application_start_at') || null,
+      application_end_at: val(formData, 'application_end_at') || null,
+      max_capacity: nullableInt(val(formData, 'max_capacity'))
+    })
+    .select('id')
+    .single();
   if (error) return { error: error.message };
+
+  await logActivity({
+    actionType: 'create',
+    resourceType: 'cohort',
+    resourceId: created?.id ?? null,
+    cohortId: created?.id ?? null,
+    summary: `기수 생성: ${name}`
+  });
 
   revalidatePath('/dashboard/cohorts');
   return {};
@@ -182,12 +195,25 @@ export async function updateCohort(id: string, formData: FormData): Promise<Acti
     .eq('id', id);
   if (error) return { error: error.message };
 
+  await logActivity({
+    actionType: 'update',
+    resourceType: 'cohort',
+    resourceId: id,
+    cohortId: id,
+    summary: `기수 정보 수정: ${name}`
+  });
+
   revalidatePath('/dashboard/cohorts');
   return {};
 }
 
 export async function deleteCohort(id: string): Promise<ActionResult> {
   const supabase = createAdminClient();
+  const { data: target } = await supabase
+    .from('cohorts')
+    .select('name')
+    .eq('id', id)
+    .maybeSingle();
   const { error } = await supabase.from('cohorts').delete().eq('id', id);
   if (error) {
     const message = error.message;
@@ -196,6 +222,13 @@ export async function deleteCohort(id: string): Promise<ActionResult> {
     }
     return { error: message };
   }
+
+  await logActivity({
+    actionType: 'delete',
+    resourceType: 'cohort',
+    resourceId: id,
+    summary: `기수 삭제: ${target?.name ?? id}`
+  });
 
   revalidatePath('/dashboard/cohorts');
   return {};

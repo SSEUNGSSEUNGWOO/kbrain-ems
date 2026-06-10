@@ -3,6 +3,7 @@
 import { randomBytes } from 'node:crypto';
 import { createAdminClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
+import { logActivity } from '@/lib/activity-log';
 
 type ActionResult = { error?: string; code?: string | null };
 
@@ -35,6 +36,13 @@ export async function issueResultsShareCode(
       .eq('id', surveyId)
       .eq('cohort_id', cohortId);
     if (!error) {
+      await logActivity({
+        actionType: 'share_issue',
+        resourceType: 'survey',
+        resourceId: surveyId,
+        cohortId,
+        summary: '만족도 결과 공유 링크 발급'
+      });
       revalidatePath(`/dashboard/cohorts/${cohortId}/surveys/${surveyId}/results`);
       return { code };
     }
@@ -57,6 +65,15 @@ export async function revokeResultsShareCode(
     .eq('id', surveyId)
     .eq('cohort_id', cohortId);
   if (error) return { error: error.message };
+
+  await logActivity({
+    actionType: 'share_revoke',
+    resourceType: 'survey',
+    resourceId: surveyId,
+    cohortId,
+    summary: '만족도 결과 공유 링크 회수'
+  });
+
   revalidatePath(`/dashboard/cohorts/${cohortId}/surveys/${surveyId}/results`);
   return { code: null };
 }

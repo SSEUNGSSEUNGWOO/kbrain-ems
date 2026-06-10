@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/lib/supabase/types';
 import { revalidatePath } from 'next/cache';
+import { logActivity } from '@/lib/activity-log';
 
 type ActionResult = { error?: string };
 
@@ -89,6 +90,14 @@ export async function createStudent(
     .insert({ applicant_id: applicantId, cohort_id: cohortId, ...fields });
   if (studentError) return { error: studentError.message };
 
+  await logActivity({
+    actionType: 'create',
+    resourceType: 'student',
+    resourceId: applicantId,
+    cohortId,
+    summary: `교육생 추가: ${name}`
+  });
+
   revalidatePath(`/dashboard/cohorts/${cohortId}/students`);
   revalidatePath('/dashboard/applicants');
   return {};
@@ -142,6 +151,14 @@ export async function updateStudent(
     .eq('id', applicantId);
   if (applicantError) return { error: applicantError.message };
 
+  await logActivity({
+    actionType: 'update',
+    resourceType: 'student',
+    resourceId: id,
+    cohortId,
+    summary: `교육생 정보 수정: ${name}`
+  });
+
   revalidatePath(`/dashboard/cohorts/${cohortId}/students`);
   revalidatePath('/dashboard/applicants');
   revalidatePath(`/dashboard/applicants/${applicantId}`);
@@ -154,10 +171,10 @@ export async function deleteStudent(
 ): Promise<ActionResult> {
   const supabase = createAdminClient();
 
-  // 삭제 전 applicant_id 확보 — applications 'withdrew' 처리에 필요
+  // 삭제 전 applicant_id + 이름 확보 — applications 'withdrew' 처리 / 로그
   const { data: stu } = await supabase
     .from('students')
-    .select('applicant_id')
+    .select('applicant_id, name')
     .eq('id', id)
     .maybeSingle();
   const applicantId = stu?.applicant_id;
@@ -168,6 +185,14 @@ export async function deleteStudent(
     .delete()
     .eq('id', id);
   if (delError) return { error: delError.message };
+
+  await logActivity({
+    actionType: 'delete',
+    resourceType: 'student',
+    resourceId: id,
+    cohortId,
+    summary: `교육생 삭제: ${stu?.name ?? id}`
+  });
 
   // 합격 기록은 보존하되 'withdrew'(철회)로 변경
   const { data: apps } = await supabase
