@@ -2,6 +2,7 @@ import PageContainer from '@/components/layout/page-container';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { SectionCard } from '@/components/report/section-card';
+import { PrintButton } from '@/components/print-button';
 import { createAdminClient } from '@/lib/supabase/server';
 import type { ReportSection } from '@/lib/reports/generate-session';
 import Link from 'next/link';
@@ -32,17 +33,37 @@ export default async function ReportDetailPage({ params }: Props) {
   const sections = content.sections ?? [];
   const cohortName = (report as unknown as { cohorts: { name: string } | null }).cohorts?.name ?? '';
 
+  const printedAt = new Date().toLocaleDateString('ko-KR', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
+  const reportTitle = report.title ?? '결과보고서';
+  const draftDate = report.draft_at ? report.draft_at.slice(0, 10) : null;
+
   return (
     <PageContainer
-      pageTitle={report.title ?? '결과보고서'}
-      pageDescription={`${cohortName}${content.model ? ` · ${content.model}` : ''}${report.draft_at ? ` · ${report.draft_at.slice(0, 10)}` : ''}`}
+      pageTitle={reportTitle}
+      pageDescription={`${cohortName}${content.model ? ` · ${content.model}` : ''}${draftDate ? ` · ${draftDate}` : ''}`}
       pageHeaderAction={
-        <Button variant='outline' size='sm' asChild>
-          <Link href={`/dashboard/cohorts/${cohortId}/reports`}>← 회차 목록</Link>
-        </Button>
+        <div className='flex items-center gap-2'>
+          <Button variant='outline' size='sm' asChild>
+            <Link href={`/dashboard/cohorts/${cohortId}/reports`}>← 회차 목록</Link>
+          </Button>
+          <PrintButton />
+        </div>
       }
     >
       <div className='flex flex-col gap-4'>
+        {/* 인쇄용 보고서 메타 헤더 — 화면에서는 숨김 (PageContainer 헤더가 인쇄 시 사라지므로 별도 제공) */}
+        <div className='hidden border-b pb-3 print:block'>
+          <div className='text-xs text-slate-500'>{cohortName}</div>
+          <div className='mt-0.5 text-base font-bold text-slate-900'>{reportTitle}</div>
+          <div className='mt-0.5 text-[11px] text-slate-500'>
+            {draftDate ? `작성일 ${draftDate} · ` : ''}출력일 {printedAt}
+          </div>
+        </div>
+
         {sections.length === 0 ? (
           <Card>
             <CardContent className='text-muted-foreground py-12 text-center'>
@@ -51,11 +72,12 @@ export default async function ReportDetailPage({ params }: Props) {
           </Card>
         ) : (
           <>
-            <Card>
+            <Card className='print:hidden'>
               <CardContent className='py-3'>
                 <p className='text-muted-foreground text-xs'>
                   각 섹션의 <span className='font-medium'>섹션 전체 복사</span> 버튼을 누르면 본문과 표가 함께 클립보드에 들어갑니다. 표가 별도로 필요하면 표 아래의{' '}
-                  <span className='font-medium'>이 표만 복사</span>를 사용하세요. 한글 워드프로세서에 붙여넣으면 표는 자동으로 인식됩니다.
+                  <span className='font-medium'>이 표만 복사</span>를 사용하세요. 한글 워드프로세서에 붙여넣으면 표는 자동으로 인식됩니다.{' '}
+                  <span className='font-medium'>PDF로 저장 (인쇄)</span> 버튼을 누르면 복사 컨트롤이 빠진 보고서가 인쇄됩니다.
                 </p>
               </CardContent>
             </Card>

@@ -4,7 +4,7 @@
 // total_score 만 활용. 객관식·OX(16문항)는 문항별 정답률 비교 표시.
 
 import { PrePostCharts } from './pre-post-charts';
-import { PrintButton } from './print-button';
+import { PrintButton } from '@/components/print-button';
 
 type Response = {
   id: string;

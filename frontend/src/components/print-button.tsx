@@ -3,7 +3,11 @@
 import { Button } from '@/components/ui/button';
 import { Icons } from '@/components/icons';
 
-export function PrintButton() {
+type Props = {
+  label?: string;
+};
+
+export function PrintButton({ label = 'PDF로 저장 (인쇄)' }: Props) {
   return (
     <Button
       type='button'
@@ -13,7 +17,7 @@ export function PrintButton() {
       className='print:hidden'
     >
       <Icons.download className='mr-1.5' />
-      PDF로 저장 (인쇄)
+      {label}
     </Button>
   );
 }
