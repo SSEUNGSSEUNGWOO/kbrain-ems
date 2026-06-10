@@ -15,10 +15,15 @@ export type NoticeRosterRow = {
   personalEmail: string | null;
 };
 
+export type NoticeRosterSheet = {
+  /** 워크시트 탭 이름 (예: '선발자', '미선발자') */
+  title: string;
+  rows: NoticeRosterRow[];
+};
+
 type BuildArgs = {
   cohortName: string;
-  statusLabel: string;
-  rows: NoticeRosterRow[];
+  sheets: NoticeRosterSheet[];
 };
 
 function styleHeader(cell: ExcelJS.Cell, primary: boolean) {
@@ -53,17 +58,7 @@ function styleData(cell: ExcelJS.Cell) {
   };
 }
 
-export async function buildNoticeRosterWorkbook({
-  cohortName,
-  statusLabel,
-  rows
-}: BuildArgs): Promise<ArrayBuffer> {
-  const wb = new ExcelJS.Workbook();
-  wb.creator = 'kbrain-ems';
-  wb.created = new Date();
-
-  const ws = wb.addWorksheet(`${statusLabel}`);
-
+function fillSheet(ws: ExcelJS.Worksheet, sheet: NoticeRosterSheet) {
   const headers = [
     'NO',
     '이름',
@@ -80,7 +75,7 @@ export async function buildNoticeRosterWorkbook({
   headerRow.eachCell((cell, col) => styleHeader(cell, col === 1));
   widths.forEach((w, i) => (ws.getColumn(i + 1).width = w));
 
-  const sorted = rows.toSorted((a, b) => a.name.localeCompare(b.name, 'ko'));
+  const sorted = sheet.rows.toSorted((a, b) => a.name.localeCompare(b.name, 'ko'));
   sorted.forEach((r, idx) => {
     const vals = [
       idx + 1,
@@ -99,6 +94,20 @@ export async function buildNoticeRosterWorkbook({
   });
 
   ws.views = [{ state: 'frozen', xSplit: 2, ySplit: 1 }];
+}
+
+export async function buildNoticeRosterWorkbook({
+  cohortName,
+  sheets
+}: BuildArgs): Promise<ArrayBuffer> {
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'kbrain-ems';
+  wb.created = new Date();
+
+  for (const s of sheets) {
+    const ws = wb.addWorksheet(s.title);
+    fillSheet(ws, s);
+  }
 
   // 메타 정보 — 파일명에 들어가지 못하는 컨텍스트
   void cohortName;

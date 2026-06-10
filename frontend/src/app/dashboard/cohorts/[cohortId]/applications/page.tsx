@@ -383,16 +383,15 @@ export default async function CohortApplicationsPage({ params, searchParams }: P
           선발결과 엑셀
         </a>
       </Button>
-      <Button variant='outline' size='sm' asChild disabled={stats.selected === 0}>
-        <a href={`/api/cohorts/${cohortId}/applications/notice-export?status=selected`}>
+      <Button
+        variant='outline'
+        size='sm'
+        asChild
+        disabled={stats.selected === 0 && stats.rejected === 0}
+      >
+        <a href={`/api/cohorts/${cohortId}/applications/notice-export`}>
           <Icons.download className='mr-1.5' />
-          선발자 명단
-        </a>
-      </Button>
-      <Button variant='outline' size='sm' asChild disabled={stats.rejected === 0}>
-        <a href={`/api/cohorts/${cohortId}/applications/notice-export?status=rejected`}>
-          <Icons.download className='mr-1.5' />
-          미선발자 명단
+          통보 명단
         </a>
       </Button>
       <ResetSelectionButton cohortId={cohortId} disabled={stats.total === 0} />

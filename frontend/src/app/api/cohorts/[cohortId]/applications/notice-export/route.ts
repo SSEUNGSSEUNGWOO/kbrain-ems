@@ -7,8 +7,7 @@ import {
   type NoticeRosterRow
 } from '@/lib/excel/notice-roster-export';
 
-// 분류 매핑 — applications/page.tsx 와 동일. 운영자가 직접 입력한 한글 라벨 ↔
-// 신청서 C2 응답(①~⑥) ↔ 카테고리 key.
+// 분류 매핑 — applications/page.tsx 와 동일. 신청서 C2 응답(①~⑥) → 한글 라벨.
 const CATEGORY_LABEL_BY_C2: Record<string, string> = {
   '①': '중앙부처',
   '②': '광역지자체',
@@ -18,23 +17,11 @@ const CATEGORY_LABEL_BY_C2: Record<string, string> = {
   '⑥': '기타'
 };
 
-const STATUS_LABEL: Record<string, string> = {
-  selected: '선발자',
-  rejected: '미선발자'
-};
-
 export async function GET(
-  req: Request,
+  _req: Request,
   { params }: { params: Promise<{ cohortId: string }> }
 ) {
   const { cohortId } = await params;
-  const url = new URL(req.url);
-  const status = url.searchParams.get('status') ?? '';
-  if (status !== 'selected' && status !== 'rejected') {
-    return new NextResponse('Invalid status', { status: 400 });
-  }
-  const statusLabel = STATUS_LABEL[status];
-
   const supabase = createAdminClient();
   const hidePersonal = await isViewer();
 
@@ -65,7 +52,7 @@ export async function GET(
       'id, status, applicants(id, name, phone, email, personal_email, category, organizations(name))'
     )
     .eq('cohort_id', cohortId)
-    .eq('status', status)
+    .in('status', ['selected', 'rejected'])
     .returns<AppRow[]>();
   if (appError) return new NextResponse(appError.message, { status: 500 });
 
@@ -93,33 +80,41 @@ export async function GET(
     }
   }
 
-  const exportRows: NoticeRosterRow[] = rows
-    .filter((r) => r.applicants && !isTestStudent(r.applicants.name))
-    .map((r) => {
-      const a = r.applicants!;
-      // C2 응답 우선 → 한글 라벨. 없으면 applicants.category 그대로 (전문인재처럼
-      // C2 문항이 없는 cohort 는 운영자가 한글 라벨을 직접 넣어둠).
-      const c2 = c2ChoiceByApp.get(r.id);
-      const categoryLabel =
-        (c2 && CATEGORY_LABEL_BY_C2[c2]) ?? a.category ?? '미분류';
-      return {
-        name: a.name,
-        categoryLabel,
-        organizationName: a.organizations?.name ?? null,
-        phone: hidePersonal ? null : a.phone,
-        email: hidePersonal ? null : a.email,
-        personalEmail: hidePersonal ? null : a.personal_email
-      };
-    });
+  function toExportRow(r: AppRow): NoticeRosterRow | null {
+    if (!r.applicants || isTestStudent(r.applicants.name)) return null;
+    const a = r.applicants;
+    const c2 = c2ChoiceByApp.get(r.id);
+    const categoryLabel =
+      (c2 && CATEGORY_LABEL_BY_C2[c2]) ?? a.category ?? '미분류';
+    return {
+      name: a.name,
+      categoryLabel,
+      organizationName: a.organizations?.name ?? null,
+      phone: hidePersonal ? null : a.phone,
+      email: hidePersonal ? null : a.email,
+      personalEmail: hidePersonal ? null : a.personal_email
+    };
+  }
+
+  const selectedRows: NoticeRosterRow[] = [];
+  const rejectedRows: NoticeRosterRow[] = [];
+  for (const r of rows) {
+    const exp = toExportRow(r);
+    if (!exp) continue;
+    if (r.status === 'selected') selectedRows.push(exp);
+    else if (r.status === 'rejected') rejectedRows.push(exp);
+  }
 
   const buf = await buildNoticeRosterWorkbook({
     cohortName: cohortRow.name,
-    statusLabel,
-    rows: exportRows
+    sheets: [
+      { title: '선발자', rows: selectedRows },
+      { title: '미선발자', rows: rejectedRows }
+    ]
   });
 
   const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-  const filename = `${cohortRow.name} ${statusLabel} 통보명단 ${today}.xlsx`;
+  const filename = `${cohortRow.name} 통보명단 ${today}.xlsx`;
   const encoded = encodeURIComponent(filename);
 
   return new NextResponse(new Uint8Array(buf), {
