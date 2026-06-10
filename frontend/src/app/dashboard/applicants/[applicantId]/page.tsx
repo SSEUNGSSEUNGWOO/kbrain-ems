@@ -27,6 +27,7 @@ export default async function ApplicantDetailPage({
     job_role: string | null;
     birth_date: string | null;
     email?: string | null;
+    personal_email?: string | null;
     phone?: string | null;
     notes: string | null;
     organizations: { name: string } | null;
@@ -34,7 +35,7 @@ export default async function ApplicantDetailPage({
 
   const selectCols = hidePersonal
     ? 'id, name, category, department, job_title, job_role, birth_date, notes, organizations(name)'
-    : 'id, name, category, department, job_title, job_role, birth_date, email, phone, notes, organizations(name)';
+    : 'id, name, category, department, job_title, job_role, birth_date, email, personal_email, phone, notes, organizations(name)';
   const { data: applicantRows, error: applicantError } = await supabase
     .from('applicants')
     .select(selectCols)
@@ -56,6 +57,7 @@ export default async function ApplicantDetailPage({
     job_role: row.job_role,
     birth_date: row.birth_date,
     email: row.email ?? null,
+    personal_email: row.personal_email ?? null,
     phone: row.phone ?? null,
     notes: row.notes
   };
@@ -129,7 +131,8 @@ export default async function ApplicantDetailPage({
             <Field label='직렬' value={applicant.job_role} />
             <Field label='생년월일' value={applicant.birth_date} />
             {!hidePersonal && <Field label='연락처' value={applicant.phone} />}
-            {!hidePersonal && <Field label='이메일' value={applicant.email} />}
+            {!hidePersonal && <Field label='공공 이메일' value={applicant.email} />}
+            {!hidePersonal && <Field label='개인 이메일' value={applicant.personal_email} />}
             {applicant.notes && (
               <div className='col-span-full'>
                 <Field label='비고' value={applicant.notes} />

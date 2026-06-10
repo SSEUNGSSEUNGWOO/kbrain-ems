@@ -57,8 +57,12 @@ export default async function CohortApplicationsPage({ params, searchParams }: P
       name: string;
       phone: string | null;
       email: string | null;
+      personal_email: string | null;
       department: string | null;
+      job_title: string | null;
       job_role: string | null;
+      birth_date: string | null;
+      notes: string | null;
       category: string | null;
       organizations: { name: string } | null;
     } | null;
@@ -162,8 +166,8 @@ export default async function CohortApplicationsPage({ params, searchParams }: P
   // 흔할 때 URL 길이가 PostgREST 한계를 넘어 빈 결과가 나옴 (그린처럼 큰 cohort).
   // applicants!inner + applicants.name=ilike.*pattern* 으로 한 번에 해결.
   const applicantsSelect = search
-    ? 'applicants!inner(id, name, phone, email, department, job_role, category, organizations(name))'
-    : 'applicants(id, name, phone, email, department, job_role, category, organizations(name))';
+    ? 'applicants!inner(id, name, phone, email, personal_email, department, job_title, job_role, birth_date, notes, category, organizations(name))'
+    : 'applicants(id, name, phone, email, personal_email, department, job_title, job_role, birth_date, notes, category, organizations(name))';
 
   let rowsQuery = supabase
     .from('applications')
@@ -312,7 +316,24 @@ export default async function CohortApplicationsPage({ params, searchParams }: P
     knowledge_total_count: a.knowledge_total_count,
     plan_char_count: planCharMap.get(a.id) ?? null,
     prereq_done_count: computePrereqDone(a.applicants?.phone ?? null, a.applicants?.email ?? null),
-    applied_at: a.applied_at
+    applied_at: a.applied_at,
+    applicant_edit: a.applicants
+      ? {
+          id: a.applicants.id,
+          name: a.applicants.name,
+          organizationName: a.applicants.organizations?.name ?? null,
+          category: a.applicants.category,
+          department: a.applicants.department,
+          job_title: a.applicants.job_title,
+          job_role: a.applicants.job_role,
+          birth_date: a.applicants.birth_date,
+          email: hidePersonal ? null : a.applicants.email,
+          personal_email: hidePersonal ? null : a.applicants.personal_email,
+          phone: hidePersonal ? null : a.applicants.phone,
+          notes: a.applicants.notes
+        }
+      : null,
+    can_edit: !hidePersonal
   }));
 
   const hasQuestions = questionCount > 0;

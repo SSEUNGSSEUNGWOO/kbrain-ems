@@ -44,6 +44,7 @@ export default async function ApplicantsPage({ searchParams }: Props) {
       job_role: string | null;
       birth_date: string | null;
       email?: string | null;
+      personal_email?: string | null;
       phone?: string | null;
       notes: string | null;
       organizations: { name: string } | null;
@@ -52,7 +53,7 @@ export default async function ApplicantsPage({ searchParams }: Props) {
     // viewer는 phone/email 네트워크 응답에서도 제외 (서버 select 단계에서 빼기)
     const selectCols = hidePersonal
       ? 'id, name, category, department, job_title, job_role, birth_date, notes, organizations(name)'
-      : 'id, name, category, department, job_title, job_role, birth_date, email, phone, notes, organizations(name)';
+      : 'id, name, category, department, job_title, job_role, birth_date, email, personal_email, phone, notes, organizations(name)';
 
     let rowsQuery = supabase
       .from('applicants')
@@ -92,6 +93,7 @@ export default async function ApplicantsPage({ searchParams }: Props) {
       job_role: r.job_role,
       birth_date: r.birth_date,
       email: r.email ?? null,
+      personal_email: r.personal_email ?? null,
       phone: r.phone ?? null,
       notes: r.notes
     }));

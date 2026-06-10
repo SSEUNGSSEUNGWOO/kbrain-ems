@@ -274,6 +274,7 @@ export type Database = {
           id: string;
           name: string;
           email: string | null;
+          personal_email: string | null;
           phone: string | null;
           organization_id: string | null;
           department: string | null;
@@ -288,6 +289,7 @@ export type Database = {
           id?: string;
           name: string;
           email?: string | null;
+          personal_email?: string | null;
           phone?: string | null;
           organization_id?: string | null;
           department?: string | null;
@@ -302,6 +304,7 @@ export type Database = {
           id?: string;
           name?: string;
           email?: string | null;
+          personal_email?: string | null;
           phone?: string | null;
           organization_id?: string | null;
           department?: string | null;
@@ -544,6 +547,7 @@ export type Database = {
           organization_id: string | null;
           name: string;
           email: string | null;
+          personal_email: string | null;
           phone: string | null;
           department: string | null;
           job_title: string | null;
@@ -561,6 +565,7 @@ export type Database = {
           organization_id?: string | null;
           name: string;
           email?: string | null;
+          personal_email?: string | null;
           phone?: string | null;
           department?: string | null;
           job_title?: string | null;
@@ -578,6 +583,7 @@ export type Database = {
           organization_id?: string | null;
           name?: string;
           email?: string | null;
+          personal_email?: string | null;
           phone?: string | null;
           department?: string | null;
           job_title?: string | null;

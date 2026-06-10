@@ -4,6 +4,7 @@
 // total_score 만 활용. 객관식·OX(16문항)는 문항별 정답률 비교 표시.
 
 import { PrePostCharts } from './pre-post-charts';
+import { PrintButton } from './print-button';
 
 type Response = {
   id: string;
@@ -24,6 +25,7 @@ type Question = {
 };
 
 type Props = {
+  cohortName: string;
   preResponses: Response[];
   postResponses: Response[];
   questions: Question[];
@@ -75,7 +77,12 @@ function correctRate(
   return { correct, total, rate: total > 0 ? (correct / total) * 100 : 0 };
 }
 
-export function PrePostComparison({ preResponses, postResponses, questions }: Props) {
+export function PrePostComparison({
+  cohortName,
+  preResponses,
+  postResponses,
+  questions
+}: Props) {
   const preSubmitted = preResponses.filter((r) => r.submitted_at);
   const postSubmitted = postResponses.filter((r) => r.submitted_at);
 
@@ -88,6 +95,9 @@ export function PrePostComparison({ preResponses, postResponses, questions }: Pr
   const postStd = stdev(postScores);
   const delta = postAvg - preAvg;
 
+  // 진단 만점 — 문항 weight 합. pre=0 학생의 개선율 계산 분모로 사용.
+  const maxScore = questions.reduce((s, q) => s + Number(q.weight ?? 0), 0);
+
   // paired (pre · post 둘 다 응답한 학생)
   type Paired = {
     studentId: string;
@@ -95,6 +105,7 @@ export function PrePostComparison({ preResponses, postResponses, questions }: Pr
     pre: number;
     post: number;
     delta: number;
+    improvementRate: number;
   };
   const preByStudent = new Map<string, Response>();
   for (const r of preSubmitted) {
@@ -105,16 +116,31 @@ export function PrePostComparison({ preResponses, postResponses, questions }: Pr
     if (!r.student_id) continue;
     const pre = preByStudent.get(r.student_id);
     if (!pre) continue;
+    const preScore = Number(pre.total_score ?? 0);
+    const postScore = Number(r.total_score ?? 0);
+    let improvementRate: number;
+    if (preScore > 0) {
+      improvementRate = ((postScore - preScore) / preScore) * 100;
+    } else if (maxScore > 0) {
+      // pre=0 학생은 만점 기준으로 — (post / max) × 100
+      improvementRate = (postScore / maxScore) * 100;
+    } else {
+      improvementRate = 0;
+    }
     paired.push({
       studentId: r.student_id,
       name: r.students?.name ?? '(미지정)',
-      pre: Number(pre.total_score ?? 0),
-      post: Number(r.total_score ?? 0),
-      delta: Number(r.total_score ?? 0) - Number(pre.total_score ?? 0)
+      pre: preScore,
+      post: postScore,
+      delta: postScore - preScore,
+      improvementRate
     });
   }
   paired.sort((a, b) => b.delta - a.delta);
   const pairedAvgDelta = paired.length > 0 ? avg(paired.map((p) => p.delta)) : 0;
+  const avgImprovementRate =
+    paired.length > 0 ? avg(paired.map((p) => p.improvementRate)) : 0;
+  const preZeroCount = paired.filter((p) => p.pre === 0).length;
   const improvedCount = paired.filter((p) => p.delta > 0).length;
   const declinedCount = paired.filter((p) => p.delta < 0).length;
   const sameCount = paired.filter((p) => p.delta === 0).length;
@@ -173,17 +199,35 @@ export function PrePostComparison({ preResponses, postResponses, questions }: Pr
     delta: p.delta
   }));
 
+  const printedAt = new Date().toLocaleDateString('ko-KR', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
+
   return (
-    <section className='rounded-2xl border bg-white p-6 shadow-sm'>
-      <header className='mb-5'>
-        <h2 className='text-lg font-bold text-slate-900'>사전 → 사후 비교 분석</h2>
-        <p className='mt-1 text-xs text-slate-500'>
-          전체 점수 변화는 응답한 모든 학생 기준, 개인별 변화는 두 진단 모두 응답한 학생 기준입니다.
-        </p>
+    <section className='rounded-2xl border bg-white p-6 shadow-sm print:rounded-none print:border-0 print:p-0 print:shadow-none'>
+      {/* 인쇄용 보고서 헤더 — 화면에서는 숨김 */}
+      <div className='mb-4 hidden border-b pb-3 print:block'>
+        <div className='text-xs text-slate-500'>{cohortName}</div>
+        <div className='mt-0.5 text-base font-bold text-slate-900'>
+          사전·사후 역량평가 결과보고
+        </div>
+        <div className='mt-0.5 text-[11px] text-slate-500'>출력일 {printedAt}</div>
+      </div>
+
+      <header className='mb-5 flex items-start justify-between gap-4 print:mb-3'>
+        <div>
+          <h2 className='text-lg font-bold text-slate-900 print:hidden'>사전 → 사후 비교 분석</h2>
+          <p className='mt-1 text-xs text-slate-500 print:mt-0'>
+            전체 점수 변화는 응답한 모든 학생 기준, 개인별 변화는 두 진단 모두 응답한 학생 기준입니다.
+          </p>
+        </div>
+        <PrintButton />
       </header>
 
-      {/* 1) 점수 요약 */}
-      <div className='mb-6 grid grid-cols-2 gap-4 md:grid-cols-4'>
+      {/* 1) 점수 요약 — 인쇄 시 paired 학생 카드 제외하고 4칸 */}
+      <div className='mb-6 grid grid-cols-2 gap-4 md:grid-cols-5 print:mb-3 print:grid-cols-4 print:gap-2'>
         <Stat label='사전 평균' value={`${preAvg.toFixed(1)}점`} sub={`σ ${preStd.toFixed(1)} · n=${preScores.length}`} tone='text-blue-700' />
         <Stat label='사후 평균' value={`${postAvg.toFixed(1)}점`} sub={`σ ${postStd.toFixed(1)} · n=${postScores.length}`} tone='text-emerald-700' />
         <Stat
@@ -193,11 +237,29 @@ export function PrePostComparison({ preResponses, postResponses, questions }: Pr
           tone={delta >= 0 ? 'text-emerald-700' : 'text-rose-700'}
         />
         <Stat
-          label='paired 학생'
-          value={`${paired.length}명`}
-          sub={`평균 변화 ${pairedAvgDelta >= 0 ? '+' : ''}${pairedAvgDelta.toFixed(1)}점`}
-          tone='text-slate-700'
+          label='평균 개선율'
+          value={
+            paired.length > 0
+              ? `${avgImprovementRate >= 0 ? '+' : ''}${avgImprovementRate.toFixed(1)}%`
+              : '—'
+          }
+          sub={
+            paired.length > 0
+              ? preZeroCount > 0
+                ? `개인 평균 · pre=0 ${preZeroCount}명 만점 기준`
+                : '개인별 (post−pre)/pre 평균'
+              : 'paired 학생 없음'
+          }
+          tone={avgImprovementRate >= 0 ? 'text-emerald-700' : 'text-rose-700'}
         />
+        <div className='print:hidden'>
+          <Stat
+            label='paired 학생'
+            value={`${paired.length}명`}
+            sub={`평균 변화 ${pairedAvgDelta >= 0 ? '+' : ''}${pairedAvgDelta.toFixed(1)}점`}
+            tone='text-slate-700'
+          />
+        </div>
       </div>
 
       {/* 향상/하락/동일 카운트 */}
@@ -213,9 +275,9 @@ export function PrePostComparison({ preResponses, postResponses, questions }: Pr
       {/* 차트 — 점수 분포 히스토그램 + paired 산점도 */}
       <PrePostCharts histogram={histogram} paired={pairedPoints} />
 
-      {/* 2) 가장 향상된 / 하락한 문항 */}
+      {/* 2) 가장 향상된 / 하락한 문항 — 인쇄 제외 */}
       {questionStats.length > 0 && (
-        <div className='mb-6 grid grid-cols-1 gap-4 md:grid-cols-2'>
+        <div className='mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 print:hidden'>
           <HighlightList
             title='가장 향상된 문항'
             items={topGains}
@@ -230,9 +292,9 @@ export function PrePostComparison({ preResponses, postResponses, questions }: Pr
         </div>
       )}
 
-      {/* 3) 문항별 정답률 비교 표 (객관식·OX) */}
+      {/* 3) 문항별 정답률 비교 표 (객관식·OX) — 인쇄 제외 */}
       {questionStats.length > 0 && (
-        <div className='mb-6 overflow-hidden rounded-xl border'>
+        <div className='mb-6 overflow-hidden rounded-xl border print:hidden'>
           <table className='w-full text-sm'>
             <thead className='bg-slate-50 text-xs'>
               <tr>
@@ -285,13 +347,15 @@ export function PrePostComparison({ preResponses, postResponses, questions }: Pr
         </div>
       )}
 
-      {/* 4) 개인별 변화 표 */}
+      {/* 4) 개인별 변화 표 — 인쇄 시 summary 숨기고 자동 펼침 */}
       {paired.length > 0 && (
-        <details className='rounded-xl border'>
+        <details
+          className='rounded-xl border print:border-0 print:[&>div]:!block print:[&>summary]:hidden'
+        >
           <summary className='cursor-pointer bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100'>
             개인별 점수 변화 ({paired.length}명) — 향상폭 정렬
           </summary>
-          <div className='max-h-96 overflow-auto'>
+          <div className='max-h-96 overflow-auto print:max-h-none print:overflow-visible'>
             <table className='w-full text-sm'>
               <thead className='sticky top-0 bg-white text-xs'>
                 <tr className='border-b'>

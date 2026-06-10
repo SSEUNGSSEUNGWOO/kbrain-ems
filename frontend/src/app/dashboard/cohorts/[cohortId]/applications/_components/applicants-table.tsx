@@ -26,6 +26,10 @@ import { Icons } from '@/components/icons';
 import { useDebouncedCallback } from '@/hooks/use-debounced-callback';
 import { cn } from '@/lib/utils';
 import { updateApplicationStatus } from '../_actions';
+import {
+  ApplicantSheet,
+  type Applicant as ApplicantEdit
+} from '@/app/dashboard/applicants/_components/applicant-sheet';
 
 export type ApplicationRow = {
   id: string;
@@ -42,6 +46,8 @@ export type ApplicationRow = {
   plan_char_count: number | null;
   prereq_done_count: number;
   applied_at: string | null;
+  applicant_edit: ApplicantEdit | null;
+  can_edit: boolean;
 };
 
 // 설문항목 2 (C2) 응답 → 분류 라벨·톤
@@ -311,17 +317,21 @@ export function ApplicantsTable({
                       {r.applied_at ?? '—'}
                     </TableCell>
                     <TableCell className='text-right'>
-                      <Button
-                        asChild
-                        variant='ghost'
-                        size='icon'
-                        className='h-7 w-7 opacity-0 transition-opacity group-hover:opacity-100'
-                        aria-label='수정'
-                      >
-                        <Link href={`/dashboard/cohorts/${cohortId}/applications/${r.id}`}>
-                          <Icons.edit className='h-3.5 w-3.5' />
-                        </Link>
-                      </Button>
+                      {r.can_edit && r.applicant_edit ? (
+                        <ApplicantSheet
+                          applicant={r.applicant_edit}
+                          trigger={
+                            <Button
+                              variant='ghost'
+                              size='icon'
+                              className='h-7 w-7 opacity-0 transition-opacity group-hover:opacity-100'
+                              aria-label='지원자 정보 수정'
+                            >
+                              <Icons.edit className='h-3.5 w-3.5' />
+                            </Button>
+                          }
+                        />
+                      ) : null}
                     </TableCell>
                   </TableRow>
                 );

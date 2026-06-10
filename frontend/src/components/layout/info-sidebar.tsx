@@ -35,7 +35,7 @@ export function InfoSidebar({ ...props }: React.ComponentProps<typeof Infobar>) 
   const data = content || defaultData;
 
   return (
-    <Infobar {...props}>
+    <Infobar {...props} className='print:hidden'>
       <InfobarHeader className='bg-sidebar sticky top-0 z-10 flex flex-row items-center justify-between gap-2 border-b px-4 py-3'>
         <div className='min-w-0 flex-1'>
           <h2 className='text-lg font-semibold wrap-break-word'>{data.title}</h2>

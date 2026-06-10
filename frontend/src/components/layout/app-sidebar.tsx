@@ -107,7 +107,7 @@ export default function AppSidebar() {
   }, [activeCohortId, cohorts]);
 
   return (
-    <Sidebar collapsible='icon'>
+    <Sidebar collapsible='icon' className='print:hidden'>
       <SidebarHeader className='border-sidebar-border border-b p-0'>
         <Link
           href='/dashboard/overview'

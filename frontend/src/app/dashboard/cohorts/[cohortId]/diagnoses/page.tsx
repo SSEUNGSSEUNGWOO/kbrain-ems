@@ -93,12 +93,15 @@ export default async function DiagnosesPage({ params }: Props) {
     .order('question_no', { ascending: true })
     .returns<Question[]>();
 
-  // cohort 의 student 수 (테스트 학생 제외)
-  const { count: studentCount } = await supabase
-    .from('students')
-    .select('id', { count: 'exact', head: true })
-    .eq('cohort_id', cohortId)
-    .not('name', 'ilike', '테스트%');
+  // cohort 의 student 수 (테스트 학생 제외) + cohort 이름 (인쇄용 헤더에 사용)
+  const [{ count: studentCount }, { data: cohortRow }] = await Promise.all([
+    supabase
+      .from('students')
+      .select('id', { count: 'exact', head: true })
+      .eq('cohort_id', cohortId)
+      .not('name', 'ilike', '테스트%'),
+    supabase.from('cohorts').select('name').eq('id', cohortId).maybeSingle()
+  ]);
 
   // cohort 의 세션들 + 그 안의 attendance_checks (출석 연동 옵션용)
   type AttnCheckOpt = {
@@ -142,22 +145,25 @@ export default async function DiagnosesPage({ params }: Props) {
       }
     >
       <div className='space-y-6'>
-        {diagnoses.map((d) => (
-          <DiagnosisCard
-            key={d.id}
-            cohortId={cohortId}
-            diagnosis={d}
-            responses={responsesByDiag.get(d.id) ?? []}
-            studentCount={studentCount ?? 0}
-            attendanceCheckOptions={attendanceCheckOptions}
-          />
-        ))}
+        <div className='space-y-6 print:hidden'>
+          {diagnoses.map((d) => (
+            <DiagnosisCard
+              key={d.id}
+              cohortId={cohortId}
+              diagnosis={d}
+              responses={responsesByDiag.get(d.id) ?? []}
+              studentCount={studentCount ?? 0}
+              attendanceCheckOptions={attendanceCheckOptions}
+            />
+          ))}
+        </div>
         {(() => {
           const pre = diagnoses.find((d) => d.type === 'pre');
           const post = diagnoses.find((d) => d.type === 'post');
           if (!pre || !post) return null;
           return (
             <PrePostComparison
+              cohortName={cohortRow?.name ?? ''}
               preResponses={responsesByDiag.get(pre.id) ?? []}
               postResponses={responsesByDiag.get(post.id) ?? []}
               questions={previewQuestions ?? []}

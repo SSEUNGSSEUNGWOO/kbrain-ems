@@ -26,6 +26,7 @@ export type Applicant = {
   job_role: string | null;
   birth_date: string | null;
   email: string | null;
+  personal_email: string | null;
   phone: string | null;
   notes: string | null;
 };
@@ -125,8 +126,24 @@ export function ApplicantSheet({ applicant, trigger }: ApplicantSheetProps) {
             />
           </div>
           <div className='grid gap-2'>
-            <Label htmlFor='email'>이메일</Label>
-            <Input id='email' name='email' type='email' defaultValue={applicant?.email ?? ''} />
+            <Label htmlFor='email'>공공 이메일</Label>
+            <Input
+              id='email'
+              name='email'
+              type='email'
+              placeholder='예: hong@go.kr'
+              defaultValue={applicant?.email ?? ''}
+            />
+          </div>
+          <div className='grid gap-2'>
+            <Label htmlFor='personal_email'>개인 이메일</Label>
+            <Input
+              id='personal_email'
+              name='personal_email'
+              type='email'
+              placeholder='예: hong@gmail.com'
+              defaultValue={applicant?.personal_email ?? ''}
+            />
           </div>
           <div className='grid gap-2'>
             <Label htmlFor='phone'>연락처</Label>
