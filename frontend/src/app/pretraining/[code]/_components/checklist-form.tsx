@@ -148,7 +148,9 @@ function AnswerStep({
   };
 
   const allAnswered = visibleItems.every((it) => answers[it.id] === 'yes' || answers[it.id] === 'no');
-  const canSubmit = allAnswered && !pending;
+  const allYes = visibleItems.every((it) => answers[it.id] === 'yes');
+  const hasNo = visibleItems.some((it) => answers[it.id] === 'no');
+  const canSubmit = allYes && !pending;
 
   const onSubmit = () => {
     if (!canSubmit) return;
@@ -256,8 +258,24 @@ function AnswerStep({
 
       {error && <div className='rounded-md bg-red-50 px-4 py-3 text-sm text-red-700'>{error}</div>}
 
+      {hasNo && (
+        <div className='rounded-md border-l-2 border-amber-400 bg-amber-50 px-4 py-3 text-sm text-amber-800'>
+          <div className='font-semibold'>아직 준비가 안 된 항목이 있습니다</div>
+          <div className='mt-1 text-xs leading-relaxed'>
+            가이드를 보고 설치·가입을 완료하신 후 모든 항목을 <strong>"예"</strong>로 변경해주세요.
+            모든 항목이 "예"가 되어야 제출할 수 있습니다.
+          </div>
+        </div>
+      )}
+
       <Button type='button' onClick={onSubmit} disabled={!canSubmit} className='h-12 text-base'>
-        {pending ? '제출 중...' : allAnswered ? '제출하기' : '모든 항목에 답해주세요'}
+        {pending
+          ? '제출 중...'
+          : !allAnswered
+            ? '모든 항목에 답해주세요'
+            : hasNo
+              ? '"아니오" 항목을 "예"로 변경 후 제출'
+              : '제출하기'}
       </Button>
     </div>
   );
