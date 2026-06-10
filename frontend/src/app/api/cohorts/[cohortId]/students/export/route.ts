@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 import { isViewer } from '@/lib/auth';
+import { logActivity } from '@/lib/activity-log';
 import {
   buildStudentsWorkbook,
   type ExportQuestion,
@@ -110,6 +111,13 @@ export async function GET(
     questions,
     answers,
     hidePersonal
+  });
+
+  await logActivity({
+    actionType: 'download',
+    resourceType: 'student',
+    cohortId,
+    summary: '인원 전체 엑셀 다운로드 (사전응답 포함)'
   });
 
   const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');

@@ -1,6 +1,7 @@
 'use server';
 
 import { createAdminClient } from '@/lib/supabase/server';
+import { logActivity } from '@/lib/activity-log';
 import { revalidatePath } from 'next/cache';
 
 type ActionResult = { error?: string };
@@ -12,14 +13,26 @@ export async function createAssignment(cohortId: string, formData: FormData): Pr
   if (!title) return { error: '과제명은 필수입니다.' };
 
   const supabase = createAdminClient();
-  const { error } = await supabase.from('assignments').insert({
-    cohort_id: cohortId,
-    session_id: String(formData.get('session_id') ?? '').trim() || null,
-    title,
-    description: String(formData.get('description') ?? '').trim() || null,
-    due_date: String(formData.get('due_date') ?? '').trim() || null
-  });
+  const { data: created, error } = await supabase
+    .from('assignments')
+    .insert({
+      cohort_id: cohortId,
+      session_id: String(formData.get('session_id') ?? '').trim() || null,
+      title,
+      description: String(formData.get('description') ?? '').trim() || null,
+      due_date: String(formData.get('due_date') ?? '').trim() || null
+    })
+    .select('id')
+    .single();
   if (error) return { error: error.message };
+
+  await logActivity({
+    actionType: 'create',
+    resourceType: 'assignment',
+    resourceId: created?.id ?? null,
+    cohortId,
+    summary: `과제 생성: ${title}`
+  });
 
   revalidatePath(path(cohortId));
   return {};
@@ -40,14 +53,35 @@ export async function updateAssignment(id: string, cohortId: string, formData: F
     .eq('id', id);
   if (error) return { error: error.message };
 
+  await logActivity({
+    actionType: 'update',
+    resourceType: 'assignment',
+    resourceId: id,
+    cohortId,
+    summary: `과제 수정: ${title}`
+  });
+
   revalidatePath(path(cohortId));
   return {};
 }
 
 export async function deleteAssignment(id: string, cohortId: string): Promise<ActionResult> {
   const supabase = createAdminClient();
+  const { data: target } = await supabase
+    .from('assignments')
+    .select('title')
+    .eq('id', id)
+    .maybeSingle();
   const { error } = await supabase.from('assignments').delete().eq('id', id);
   if (error) return { error: error.message };
+
+  await logActivity({
+    actionType: 'delete',
+    resourceType: 'assignment',
+    resourceId: id,
+    cohortId,
+    summary: `과제 삭제: ${target?.title ?? id}`
+  });
 
   revalidatePath(path(cohortId));
   return {};
@@ -59,6 +93,13 @@ export async function deleteAssignments(ids: string[], cohortId: string): Promis
   const supabase = createAdminClient();
   const { error } = await supabase.from('assignments').delete().in('id', ids);
   if (error) return { error: error.message };
+
+  await logActivity({
+    actionType: 'delete',
+    resourceType: 'assignment',
+    cohortId,
+    summary: `과제 일괄 삭제: ${ids.length}건`
+  });
 
   revalidatePath(path(cohortId));
   return {};

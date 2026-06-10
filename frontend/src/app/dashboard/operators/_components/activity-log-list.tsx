@@ -10,7 +10,8 @@ const ACTION_LABEL: Record<string, string> = {
   share_issue: '공유 발급',
   share_revoke: '공유 회수',
   auto_select: '자동선발',
-  upload: '업로드'
+  upload: '업로드',
+  download: '다운로드'
 };
 
 const ACTION_TONE: Record<string, string> = {
@@ -22,7 +23,8 @@ const ACTION_TONE: Record<string, string> = {
   share_issue: 'bg-amber-50 text-amber-700 border-amber-200',
   share_revoke: 'bg-slate-50 text-slate-600 border-slate-200',
   auto_select: 'bg-indigo-50 text-indigo-700 border-indigo-200',
-  upload: 'bg-cyan-50 text-cyan-700 border-cyan-200'
+  upload: 'bg-cyan-50 text-cyan-700 border-cyan-200',
+  download: 'bg-teal-50 text-teal-700 border-teal-200'
 };
 
 type LogRow = {

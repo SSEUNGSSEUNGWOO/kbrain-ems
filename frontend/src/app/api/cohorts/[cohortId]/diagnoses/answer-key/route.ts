@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import ExcelJS from 'exceljs';
 import { createAdminClient } from '@/lib/supabase/server';
+import { logActivity } from '@/lib/activity-log';
 
 const typeLabel = (t: string) =>
   t === 'multiple_choice' ? '4지선다' : t === 'ox' ? 'O/X' : '단답형';
@@ -140,6 +141,14 @@ export async function GET(
   ws.views = [{ state: 'frozen', ySplit: 1, xSplit: 1 }];
 
   const buf = await wb.xlsx.writeBuffer();
+
+  await logActivity({
+    actionType: 'download',
+    resourceType: 'diagnosis',
+    cohortId,
+    summary: '역량평가 정답지 다운로드'
+  });
+
   const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
   const filename = `${cohort.name} 역량평가 정답지 ${today}.xlsx`;
   const encoded = encodeURIComponent(filename);

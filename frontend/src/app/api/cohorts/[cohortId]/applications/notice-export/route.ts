@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 import { isViewer } from '@/lib/auth';
 import { isTestStudent } from '@/lib/students';
+import { logActivity } from '@/lib/activity-log';
 import {
   buildNoticeRosterWorkbook,
   type NoticeRosterRow
@@ -111,6 +112,13 @@ export async function GET(
       { title: '선발자', rows: selectedRows },
       { title: '미선발자', rows: rejectedRows }
     ]
+  });
+
+  await logActivity({
+    actionType: 'download',
+    resourceType: 'application',
+    cohortId,
+    summary: `통보 명단 다운로드 (선발 ${selectedRows.length}명·미선발 ${rejectedRows.length}명)`
   });
 
   const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');

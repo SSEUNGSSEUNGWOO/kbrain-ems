@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
+import { logActivity } from '@/lib/activity-log';
 import { buildAttendanceWorkbook } from '@/lib/excel/attendance-export';
 
 export async function GET(
@@ -96,6 +97,13 @@ export async function GET(
       note: r.note,
       creditedHours: r.credited_hours
     }))
+  });
+
+  await logActivity({
+    actionType: 'download',
+    resourceType: 'session',
+    cohortId,
+    summary: '출석현황 엑셀 다운로드'
   });
 
   const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');

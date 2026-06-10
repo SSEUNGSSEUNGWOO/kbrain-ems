@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
+import { logActivity } from '@/lib/activity-log';
 import {
   buildApplicationsWorkbook,
   type CohortTrack,
@@ -320,6 +321,13 @@ export async function GET(
     excludedCohortNames,
     startedAt: sessionStart,
     endedAt: sessionEnd
+  });
+
+  await logActivity({
+    actionType: 'download',
+    resourceType: 'application',
+    cohortId,
+    summary: '선발결과 엑셀 다운로드'
   });
 
   const year = new Date().getFullYear();

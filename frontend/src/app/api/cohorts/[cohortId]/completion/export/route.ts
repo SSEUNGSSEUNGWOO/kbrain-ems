@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { isViewer } from '@/lib/auth';
 import { computeAttendanceCounts } from '@/lib/completion';
 import { isTestStudent } from '@/lib/students';
+import { logActivity } from '@/lib/activity-log';
 import { buildCompletionWorkbook } from '@/lib/excel/completion-export';
 
 export async function GET(
@@ -74,6 +75,13 @@ export async function GET(
     minAttendance,
     rows,
     hidePersonal
+  });
+
+  await logActivity({
+    actionType: 'download',
+    resourceType: 'student',
+    cohortId,
+    summary: `수료자 명단 다운로드 (출석 ${minAttendance}회 이상)`
   });
 
   const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');

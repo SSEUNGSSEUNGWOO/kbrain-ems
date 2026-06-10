@@ -10,7 +10,8 @@ export type ActivityActionType =
   | 'share_issue'
   | 'share_revoke'
   | 'auto_select'
-  | 'upload';
+  | 'upload'
+  | 'download';
 
 export type ActivityResourceType =
   | 'cohort'

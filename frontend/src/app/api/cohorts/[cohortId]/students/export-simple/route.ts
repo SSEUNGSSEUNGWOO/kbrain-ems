@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import ExcelJS from 'exceljs';
 import { createAdminClient } from '@/lib/supabase/server';
 import { isViewer } from '@/lib/auth';
+import { logActivity } from '@/lib/activity-log';
 import {
   categoryFromLabel,
   ORGANIZATION_CATEGORY_LABEL
@@ -153,6 +154,14 @@ export async function GET(
   ws.views = [{ state: 'frozen', ySplit: 1 }];
 
   const buf = await wb.xlsx.writeBuffer();
+
+  await logActivity({
+    actionType: 'download',
+    resourceType: 'student',
+    cohortId,
+    summary: `명단 다운로드 (${cols.length > 0 ? cols.map((k) => colMeta.get(k)!.label).join('·') : '기본'})`
+  });
+
   const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
   const filename = `${cohort.name} 명단 ${today}.xlsx`;
   const encoded = encodeURIComponent(filename);

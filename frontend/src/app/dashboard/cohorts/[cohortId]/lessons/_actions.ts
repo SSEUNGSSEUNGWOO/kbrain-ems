@@ -2,6 +2,7 @@
 
 import { createAdminClient } from '@/lib/supabase/server';
 import { buildSatisfactionQuestions } from '@/lib/survey-templates/satisfaction';
+import { logActivity } from '@/lib/activity-log';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
@@ -178,6 +179,13 @@ export async function createLesson(input: CreateLessonInput): Promise<Result> {
     // 응답 토큰은 share_code 링크 진입 시 startSurvey()가 그 자리에서 발급.
   }
 
+  await logActivity({
+    actionType: 'create',
+    resourceType: 'session',
+    cohortId,
+    summary: `회차 생성: ${input.sessionDate} ${input.title}`
+  });
+
   revalidatePath(`/dashboard/cohorts/${cohortId}/lessons`);
   redirect(`/dashboard/cohorts/${cohortId}/lessons`);
 }
@@ -222,12 +230,25 @@ export async function updateLesson(input: UpdateLessonInput): Promise<Result> {
   const { error: siErr } = await supabase.from('session_instructors').insert(siRows);
   if (siErr) return { error: siErr.message };
 
+  await logActivity({
+    actionType: 'update',
+    resourceType: 'session',
+    resourceId: sessionId,
+    cohortId,
+    summary: `회차 수정: ${sessionDate} ${title.trim()}`
+  });
+
   revalidatePath(`/dashboard/cohorts/${cohortId}/lessons`);
   return {};
 }
 
 export async function deleteLesson(cohortId: string, sessionId: string): Promise<Result> {
   const supabase = createAdminClient();
+  const { data: target } = await supabase
+    .from('sessions')
+    .select('session_date, title')
+    .eq('id', sessionId)
+    .maybeSingle();
   // sessions 삭제 → session_instructors, attendance_records, surveys(session_id=null) cascade
   // surveys는 session_id SET NULL 이라 같이 사라지지 않음. 명시 삭제도 필요.
   const { error: surveyErr } = await supabase
@@ -238,6 +259,14 @@ export async function deleteLesson(cohortId: string, sessionId: string): Promise
 
   const { error } = await supabase.from('sessions').delete().eq('id', sessionId);
   if (error) return { error: error.message };
+
+  await logActivity({
+    actionType: 'delete',
+    resourceType: 'session',
+    resourceId: sessionId,
+    cohortId,
+    summary: `회차 삭제: ${target?.session_date ?? ''} ${target?.title ?? ''}`.trim()
+  });
 
   revalidatePath(`/dashboard/cohorts/${cohortId}/lessons`);
   return {};
