@@ -26,13 +26,15 @@ export async function GET(
     applicant_id: string;
     name: string;
     phone: string | null;
+    email: string | null;
+    personal_email: string | null;
     organizations: { name: string } | null;
     applicants: { category: string | null } | null;
   };
 
   const { data: studentRows, error } = await supabase
     .from('students')
-    .select('applicant_id, name, phone, organizations(name), applicants(category)')
+    .select('applicant_id, name, phone, email, personal_email, organizations(name), applicants(category)')
     .eq('cohort_id', cohortId)
     .order('name', { ascending: true })
     .returns<StudentRow[]>();
@@ -60,8 +62,8 @@ export async function GET(
 
   const headers = hidePersonal
     ? ['NO', '교육생 이름', '소속기관구분', '소속기관']
-    : ['NO', '교육생 이름', '소속기관구분', '소속기관', '연락처'];
-  const widths = hidePersonal ? [6, 14, 14, 30] : [6, 14, 14, 30, 18];
+    : ['NO', '교육생 이름', '소속기관구분', '소속기관', '연락처', '공공 이메일', '개인 이메일'];
+  const widths = hidePersonal ? [6, 14, 14, 30] : [6, 14, 14, 30, 18, 26, 26];
 
   const headerRow = ws.addRow(headers);
   headerRow.height = 28;
@@ -96,7 +98,15 @@ export async function GET(
     const categoryLabel = ORGANIZATION_CATEGORY_LABEL[categoryKey];
     const vals = hidePersonal
       ? [idx + 1, s.name, categoryLabel, orgName]
-      : [idx + 1, s.name, categoryLabel, orgName, s.phone ?? ''];
+      : [
+          idx + 1,
+          s.name,
+          categoryLabel,
+          orgName,
+          s.phone ?? '',
+          s.email ?? '',
+          s.personal_email ?? ''
+        ];
     const row = ws.addRow(vals);
     row.eachCell((cell, col) => {
       cell.font = { name: 'Arial', size: 10 };
