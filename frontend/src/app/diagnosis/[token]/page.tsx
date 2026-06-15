@@ -16,7 +16,7 @@ export default async function DiagnosisResponsePage({ params }: Props) {
   const { data: response } = await supabase
     .from('diagnosis_responses')
     .select(
-      'id, diagnosis_id, submitted_at, total_score, students(name, department, organizations(name)), diagnoses(title, type, opens_at, closes_at)'
+      'id, diagnosis_id, submitted_at, total_score, students(name, department, organizations(name)), diagnoses(title, type, opens_at, closes_at, duration_minutes)'
     )
     .eq('token', token)
     .maybeSingle();
@@ -28,6 +28,7 @@ export default async function DiagnosisResponsePage({ params }: Props) {
     type: string;
     opens_at: string | null;
     closes_at: string | null;
+    duration_minutes: number;
   } | null;
   const student = response.students as unknown as {
     name: string;
@@ -107,6 +108,7 @@ export default async function DiagnosisResponsePage({ params }: Props) {
           studentDepartment={student?.department ?? ''}
           diagnosisTitle={diag.title}
           diagnosisType={diag.type}
+          durationMinutes={diag.duration_minutes}
           questions={questions}
         />
       </div>

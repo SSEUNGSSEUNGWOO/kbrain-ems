@@ -1577,6 +1577,7 @@ export type Database = {
           attendance_check_id: string | null;
           opens_at: string | null;
           closes_at: string | null;
+          duration_minutes: number;
           created_at: string;
           updated_at: string;
         };
@@ -1589,6 +1590,7 @@ export type Database = {
           attendance_check_id?: string | null;
           opens_at?: string | null;
           closes_at?: string | null;
+          duration_minutes?: number;
           created_at?: string;
           updated_at?: string;
         };
@@ -1601,6 +1603,7 @@ export type Database = {
           attendance_check_id?: string | null;
           opens_at?: string | null;
           closes_at?: string | null;
+          duration_minutes?: number;
           created_at?: string;
           updated_at?: string;
         };

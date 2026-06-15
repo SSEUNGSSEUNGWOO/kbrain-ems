@@ -109,6 +109,27 @@ export async function linkDiagnosisToAttendanceCheck(
 }
 
 /**
+ * 응답 제한 시간(분) 설정.
+ */
+export async function updateDiagnosisDuration(
+  diagnosisId: string,
+  cohortId: string,
+  durationMinutes: number
+): Promise<{ error?: string }> {
+  if (!Number.isInteger(durationMinutes) || durationMinutes < 1 || durationMinutes > 180) {
+    return { error: '1분 이상 180분 이하로 입력해주세요.' };
+  }
+  const supabase = createAdminClient();
+  const { error } = await supabase
+    .from('diagnoses')
+    .update({ duration_minutes: durationMinutes })
+    .eq('id', diagnosisId);
+  if (error) return { error: error.message };
+  revalidatePath(`/dashboard/cohorts/${cohortId}/diagnoses`);
+  return {};
+}
+
+/**
  * 응답 가능 시각(opens_at / closes_at) 설정.
  */
 export async function updateDiagnosisSchedule(

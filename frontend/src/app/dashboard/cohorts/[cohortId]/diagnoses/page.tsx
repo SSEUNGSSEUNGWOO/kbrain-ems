@@ -18,7 +18,9 @@ export default async function DiagnosesPage({ params }: Props) {
 
   const { data: diagnoses } = await supabase
     .from('diagnoses')
-    .select('id, title, type, opens_at, closes_at, share_code, attendance_check_id')
+    .select(
+      'id, title, type, opens_at, closes_at, share_code, attendance_check_id, duration_minutes'
+    )
     .eq('cohort_id', cohortId)
     .order('type', { ascending: true })
     .returns<
@@ -30,6 +32,7 @@ export default async function DiagnosesPage({ params }: Props) {
         closes_at: string | null;
         share_code: string | null;
         attendance_check_id: string | null;
+        duration_minutes: number;
       }[]
     >();
 

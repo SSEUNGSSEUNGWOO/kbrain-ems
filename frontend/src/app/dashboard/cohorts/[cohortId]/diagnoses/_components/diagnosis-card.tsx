@@ -3,7 +3,11 @@
 import { useState, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
 import { QrDialog } from '@/components/qr-dialog';
-import { ensureShareCode, linkDiagnosisToAttendanceCheck } from '../_actions';
+import {
+  ensureShareCode,
+  linkDiagnosisToAttendanceCheck,
+  updateDiagnosisDuration
+} from '../_actions';
 
 type Diagnosis = {
   id: string;
@@ -13,6 +17,7 @@ type Diagnosis = {
   closes_at: string | null;
   share_code: string | null;
   attendance_check_id: string | null;
+  duration_minutes: number;
 };
 
 type AttnCheckOpt = {
@@ -38,6 +43,65 @@ type Props = {
   studentCount: number;
   attendanceCheckOptions: AttnCheckOpt[];
 };
+
+function DurationEditor({
+  diagnosisId,
+  cohortId,
+  current,
+  setMessage
+}: {
+  diagnosisId: string;
+  cohortId: string;
+  current: number;
+  setMessage: (s: string | null) => void;
+}) {
+  const [pending, startTransition] = useTransition();
+  const [value, setValue] = useState(String(current));
+
+  const dirty = value !== String(current);
+
+  const handleSave = () => {
+    setMessage(null);
+    const n = Number(value);
+    if (!Number.isInteger(n) || n < 1 || n > 180) {
+      setMessage('응답 시간은 1~180분 사이 정수로 입력해주세요.');
+      return;
+    }
+    startTransition(async () => {
+      const r = await updateDiagnosisDuration(diagnosisId, cohortId, n);
+      if (r.error) setMessage(`오류: ${r.error}`);
+      else setMessage(`응답 시간 ${n}분으로 저장되었습니다.`);
+    });
+  };
+
+  return (
+    <div className='mt-3 rounded-lg bg-slate-50 px-3 py-2 text-xs'>
+      <div className='flex items-center gap-2'>
+        <span className='font-semibold text-slate-700'>응답 제한 시간:</span>
+        <input
+          type='number'
+          min={1}
+          max={180}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          disabled={pending}
+          className='w-16 rounded border border-slate-200 bg-white px-2 py-0.5 text-xs'
+        />
+        <span className='text-slate-500'>분</span>
+        {dirty && (
+          <button
+            type='button'
+            onClick={handleSave}
+            disabled={pending}
+            className='ml-1 rounded bg-slate-800 px-2 py-0.5 text-xs font-semibold text-white hover:bg-slate-900 disabled:opacity-50'
+          >
+            {pending ? '저장 중...' : '저장'}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function AttendanceLinkSelector({
   diagnosisId,
@@ -181,6 +245,12 @@ export function DiagnosisCard({
               <span className='font-mono text-blue-700 break-all'>{shareUrl}</span>
             </div>
           )}
+          <DurationEditor
+            diagnosisId={diagnosis.id}
+            cohortId={cohortId}
+            current={diagnosis.duration_minutes}
+            setMessage={setMessage}
+          />
           <AttendanceLinkSelector
             diagnosisId={diagnosis.id}
             cohortId={cohortId}

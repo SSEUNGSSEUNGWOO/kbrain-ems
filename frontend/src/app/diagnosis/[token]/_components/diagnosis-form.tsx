@@ -19,6 +19,7 @@ type Props = {
   studentDepartment: string;
   diagnosisTitle: string;
   diagnosisType: string;
+  durationMinutes: number;
   questions: Question[];
 };
 
@@ -30,7 +31,6 @@ type Step = 'confirm' | 'test' | 'result';
 
 const STORAGE_VERSION = 'v2';
 const MAX_RETRIES = 3;
-const TEST_DURATION_SECONDS = 7 * 60;
 
 function storageKey(token: string) {
   return `diagnosis-draft-${STORAGE_VERSION}-${token}`;
@@ -68,8 +68,10 @@ export function DiagnosisForm({
   studentDepartment,
   diagnosisTitle,
   diagnosisType,
+  durationMinutes,
   questions
 }: Props) {
+  const testDurationSeconds = durationMinutes * 60;
   const [step, setStep] = useState<Step>('confirm');
   const [answers, setAnswers] = useState<Record<number, string>>({});
   const [reviewed, setReviewed] = useState<Set<number>>(new Set());
@@ -77,7 +79,7 @@ export function DiagnosisForm({
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<SubmitResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [timeLeft, setTimeLeft] = useState(TEST_DURATION_SECONDS);
+  const [timeLeft, setTimeLeft] = useState(testDurationSeconds);
   const autoSubmittedRef = useRef(false);
 
   // localStorage 복구
@@ -90,7 +92,7 @@ export function DiagnosisForm({
       const startedAt = localStorage.getItem(startedAtKey(token));
       if (startedAt) {
         const elapsed = Math.floor((Date.now() - Number(startedAt)) / 1000);
-        const remain = TEST_DURATION_SECONDS - elapsed;
+        const remain = testDurationSeconds - elapsed;
         if (remain > 0) {
           setTimeLeft(remain);
           setStep('test');
@@ -99,7 +101,7 @@ export function DiagnosisForm({
     } catch {
       // ignore
     }
-  }, [token]);
+  }, [token, testDurationSeconds]);
 
   useEffect(() => {
     if (Object.keys(answers).length === 0) return;
@@ -215,7 +217,7 @@ export function DiagnosisForm({
     [answers, questions.length, submitting, token, unanswered.length]
   );
 
-  // 7분 카운트다운
+  // 응답 카운트다운 (진단별 설정 시간)
   useEffect(() => {
     if (step !== 'test') return;
     const id = setInterval(() => {
@@ -249,7 +251,7 @@ export function DiagnosisForm({
         </div>
         <p className='mt-6 text-sm text-slate-700'>본인이 맞으십니까?</p>
         <p className='mt-1 text-xs text-slate-500'>
-          확인 후 <strong>7분간 {questions.length}문항</strong>에 응답합니다. 시간 만료 시 자동 제출됩니다.
+          확인 후 <strong>{durationMinutes}분간 {questions.length}문항</strong>에 응답합니다. 시간 만료 시 자동 제출됩니다.
         </p>
 
         <div className='mt-8 flex gap-3'>
@@ -268,7 +270,7 @@ export function DiagnosisForm({
               } catch {
                 // ignore
               }
-              setTimeLeft(TEST_DURATION_SECONDS);
+              setTimeLeft(testDurationSeconds);
               setStep('test');
             }}
             className='flex-1 rounded-xl bg-blue-600 px-4 py-3 font-semibold text-white hover:bg-blue-700'
