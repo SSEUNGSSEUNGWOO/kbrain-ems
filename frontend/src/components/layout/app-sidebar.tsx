@@ -451,6 +451,22 @@ export default function AppSidebar() {
               </SidebarMenuItem>
             )}
 
+            {/* 활동 로그 — 개발자만 */}
+            {isDeveloper && (
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  tooltip='활동 로그'
+                  isActive={pathname.startsWith('/dashboard/activity-logs')}
+                >
+                  <Link href='/dashboard/activity-logs'>
+                    <Icons.clock className='text-muted-foreground' />
+                    <span>활동 로그</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )}
+
           </SidebarMenu>
         </SidebarGroup>
       </SidebarContent>
