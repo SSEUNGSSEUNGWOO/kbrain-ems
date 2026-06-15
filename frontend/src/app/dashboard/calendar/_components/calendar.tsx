@@ -179,8 +179,12 @@ export function Calendar({ year, month, cohorts, sessions, rounds }: Props) {
       if (instance.start <= monthEnd && instance.end >= monthStart) out.push(instance);
     };
     const sessionCountByCohort = new Map<string, number>();
+    const cohortHasOTSession = new Set<string>();
     for (const s of sessions) {
       sessionCountByCohort.set(s.cohort_id, (sessionCountByCohort.get(s.cohort_id) ?? 0) + 1);
+      if (s.title && /^\[?\s*OT\s*\]?$/i.test(s.title.trim())) {
+        cohortHasOTSession.add(s.cohort_id);
+      }
     }
     const hasSchedule = (c: Cohort): boolean =>
       !!(c.started_at || c.ended_at || c.orientation_date || sessionCountByCohort.get(c.id));
@@ -294,8 +298,9 @@ export function Calendar({ year, month, cohorts, sessions, rounds }: Props) {
           href: cohortHref
         });
       }
-      // OT는 cohort 단위라 라운드 매핑과 무관하게 항상 표시
-      if (c.orientation_date) {
+      // OT는 cohort 단위라 라운드 매핑과 무관하게 항상 표시.
+      // 단, sessions 에 [OT] 세션이 별도로 등록돼 있으면 중복 표시 회피.
+      if (c.orientation_date && !cohortHasOTSession.has(c.id)) {
         pushInstance({
           key: `orient::${c.id}`,
           start: c.orientation_date,
