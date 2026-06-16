@@ -153,6 +153,50 @@ export default async function SessionAttendancePage({
     }))
   }));
 
+  // 이 세션의 체크포인트에 연결된 진단들 (학생 줄에 진행 상태 뱃지 표시용)
+  const checkIds = checks.map((c) => c.id);
+  type LinkedDiag = {
+    id: string;
+    type: string;
+    duration_minutes: number;
+  };
+  type DiagResp = {
+    diagnosis_id: string;
+    student_id: string | null;
+    started_at: string | null;
+    submitted_at: string | null;
+  };
+  let diagProgress: Record<string, { type: string; startedAt: string | null; submittedAt: string | null; durationMinutes: number }[]> = {};
+  if (checkIds.length > 0) {
+    const { data: linkedDiagnoses } = await supabase
+      .from('diagnoses')
+      .select('id, type, duration_minutes')
+      .in('attendance_check_id', checkIds)
+      .returns<LinkedDiag[]>();
+    const diagIds = (linkedDiagnoses ?? []).map((d) => d.id);
+    if (diagIds.length > 0) {
+      const { data: diagResponses } = await supabase
+        .from('diagnosis_responses')
+        .select('diagnosis_id, student_id, started_at, submitted_at')
+        .in('diagnosis_id', diagIds)
+        .returns<DiagResp[]>();
+      const diagById = new Map((linkedDiagnoses ?? []).map((d) => [d.id, d]));
+      for (const r of diagResponses ?? []) {
+        if (!r.student_id) continue;
+        const d = diagById.get(r.diagnosis_id);
+        if (!d) continue;
+        const arr = diagProgress[r.student_id] ?? [];
+        arr.push({
+          type: d.type,
+          startedAt: r.started_at,
+          submittedAt: r.submitted_at,
+          durationMinutes: d.duration_minutes
+        });
+        diagProgress[r.student_id] = arr;
+      }
+    }
+  }
+
   return (
     <PageContainer
       pageTitle={title}
@@ -180,6 +224,7 @@ export default async function SessionAttendancePage({
           sessionEndTime={session.end_time?.slice(0, 5) ?? null}
           breakMinutes={breakMin}
           breakStartTime={session.break_start_time?.slice(0, 5) ?? null}
+          diagnosisProgress={diagProgress}
         />
       </div>
     </PageContainer>

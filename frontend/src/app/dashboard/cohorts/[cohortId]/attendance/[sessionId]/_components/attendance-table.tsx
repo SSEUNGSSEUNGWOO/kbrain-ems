@@ -122,6 +122,13 @@ function getOrgName(org: Student['organizations']): string {
   return org.name;
 }
 
+type DiagnosisProgressEntry = {
+  type: string;
+  startedAt: string | null;
+  submittedAt: string | null;
+  durationMinutes: number;
+};
+
 interface AttendanceTableProps {
   sessionId: string;
   cohortId: string;
@@ -131,6 +138,36 @@ interface AttendanceTableProps {
   sessionEndTime: string | null;
   breakMinutes: number;
   breakStartTime: string | null;
+  diagnosisProgress?: Record<string, DiagnosisProgressEntry[]>;
+}
+
+function diagnosisBadge(entry: DiagnosisProgressEntry): {
+  label: string;
+  className: string;
+  title: string;
+} | null {
+  const typeLabel = entry.type === 'pre' ? '사전' : entry.type === 'post' ? '사후' : entry.type;
+  if (entry.submittedAt) {
+    return {
+      label: `${typeLabel} 완료`,
+      className: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+      title: `${typeLabel} 진단 제출 — ${new Date(entry.submittedAt).toLocaleString('ko-KR')}`
+    };
+  }
+  if (!entry.startedAt) return null; // 미시작은 노이즈라 표시 X
+  const elapsedMin = Math.floor((Date.now() - new Date(entry.startedAt).getTime()) / 60000);
+  if (elapsedMin >= entry.durationMinutes) {
+    return {
+      label: `${typeLabel} 시간 초과`,
+      className: 'border-rose-200 bg-rose-50 text-rose-700',
+      title: `${typeLabel} 진단 — ${new Date(entry.startedAt).toLocaleTimeString('ko-KR')} 시작 · ${elapsedMin}분 경과 (미제출)`
+    };
+  }
+  return {
+    label: `${typeLabel} 진행 중 ${elapsedMin}분`,
+    className: 'border-amber-200 bg-amber-50 text-amber-700',
+    title: `${typeLabel} 진단 — ${new Date(entry.startedAt).toLocaleTimeString('ko-KR')} 시작`
+  };
 }
 
 export function AttendanceTable({
@@ -141,7 +178,8 @@ export function AttendanceTable({
   sessionStartTime,
   sessionEndTime,
   breakMinutes,
-  breakStartTime
+  breakStartTime,
+  diagnosisProgress
 }: AttendanceTableProps) {
   const [statuses, setStatuses] = useState<Record<string, string>>(
     Object.fromEntries(students.map((s) => [s.id, recordMap[s.id]?.status ?? 'none']))
@@ -287,9 +325,26 @@ export function AttendanceTable({
                 breakMinutes, arrivalTimes[s.id], departureTimes[s.id], breakStartTime
               );
 
+              const diagBadges = (diagnosisProgress?.[s.id] ?? [])
+                .map(diagnosisBadge)
+                .filter((b): b is NonNullable<ReturnType<typeof diagnosisBadge>> => b !== null);
               return (
                 <tr key={s.id} className='border-b last:border-0'>
-                  <td className='px-4 py-2 font-medium'>{s.name}</td>
+                  <td className='px-4 py-2 font-medium'>
+                    <div className='flex flex-wrap items-center gap-1.5'>
+                      <span>{s.name}</span>
+                      {diagBadges.map((b, i) => (
+                        <Badge
+                          key={i}
+                          variant='outline'
+                          title={b.title}
+                          className={`text-[10px] font-medium ${b.className}`}
+                        >
+                          {b.label}
+                        </Badge>
+                      ))}
+                    </div>
+                  </td>
                   <td className='px-4 py-2'>
                     {(() => {
                       const orgName = getOrgName(s.organizations);
