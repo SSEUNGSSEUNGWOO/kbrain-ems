@@ -52,6 +52,7 @@ export default async function DiagnosesPage({ params }: Props) {
     diagnosis_id: string;
     student_id: string | null;
     token: string;
+    started_at: string | null;
     submitted_at: string | null;
     total_score: number | null;
     responses: Record<string, string> | null;
@@ -60,7 +61,7 @@ export default async function DiagnosesPage({ params }: Props) {
   const { data: responses } = await supabase
     .from('diagnosis_responses')
     .select(
-      'id, diagnosis_id, student_id, token, submitted_at, total_score, responses, students(name)'
+      'id, diagnosis_id, student_id, token, started_at, submitted_at, total_score, responses, students(name)'
     )
     .in(
       'diagnosis_id',

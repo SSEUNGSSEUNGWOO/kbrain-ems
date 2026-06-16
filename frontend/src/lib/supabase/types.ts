@@ -1672,6 +1672,7 @@ export type Database = {
           token: string;
           responses: Json | null;
           total_score: string | null;
+          started_at: string | null;
           submitted_at: string | null;
           created_at: string;
           updated_at: string;
@@ -1683,6 +1684,7 @@ export type Database = {
           token: string;
           responses?: Json | null;
           total_score?: string | null;
+          started_at?: string | null;
           submitted_at?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -1694,6 +1696,7 @@ export type Database = {
           token?: string;
           responses?: Json | null;
           total_score?: string | null;
+          started_at?: string | null;
           submitted_at?: string | null;
           created_at?: string;
           updated_at?: string;

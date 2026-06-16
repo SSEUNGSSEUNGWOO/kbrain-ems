@@ -31,6 +31,7 @@ type Response = {
   id: string;
   student_id: string | null;
   token: string;
+  started_at: string | null;
   submitted_at: string | null;
   total_score: number | null;
   students: { name: string } | null;
@@ -43,6 +44,41 @@ type Props = {
   studentCount: number;
   attendanceCheckOptions: AttnCheckOpt[];
 };
+
+function computeProgressStatus(
+  startedAt: string | null,
+  submittedAt: string | null,
+  durationMinutes: number
+): { label: string; badgeClass: string; timeText: string } {
+  if (submittedAt) {
+    return {
+      label: '완료',
+      badgeClass: 'bg-emerald-100 text-emerald-700',
+      timeText: new Date(submittedAt).toLocaleString('ko-KR')
+    };
+  }
+  if (!startedAt) {
+    return {
+      label: '미시작',
+      badgeClass: 'bg-slate-100 text-slate-600',
+      timeText: '-'
+    };
+  }
+  const startedMs = new Date(startedAt).getTime();
+  const elapsedMin = Math.floor((Date.now() - startedMs) / 60000);
+  if (elapsedMin >= durationMinutes) {
+    return {
+      label: '시간 초과 (미제출)',
+      badgeClass: 'bg-rose-100 text-rose-700',
+      timeText: `${new Date(startedAt).toLocaleTimeString('ko-KR')} 시작 · ${elapsedMin}분 경과`
+    };
+  }
+  return {
+    label: `진행 중 (${elapsedMin}분 경과)`,
+    badgeClass: 'bg-amber-100 text-amber-800',
+    timeText: `${new Date(startedAt).toLocaleTimeString('ko-KR')} 시작`
+  };
+}
 
 function DurationEditor({
   diagnosisId,
@@ -298,7 +334,7 @@ export function DiagnosisCard({
                 <th className='px-3 py-2 text-left font-semibold text-slate-600'>이름</th>
                 <th className='px-3 py-2 text-left font-semibold text-slate-600'>상태</th>
                 <th className='px-3 py-2 text-left font-semibold text-slate-600'>점수</th>
-                <th className='px-3 py-2 text-left font-semibold text-slate-600'>제출 시각</th>
+                <th className='px-3 py-2 text-left font-semibold text-slate-600'>시각</th>
               </tr>
             </thead>
             <tbody className='divide-y'>
@@ -307,30 +343,31 @@ export function DiagnosisCard({
                 .sort((a, b) =>
                   (a.students?.name ?? '').localeCompare(b.students?.name ?? '', 'ko')
                 )
-                .map((r) => (
-                  <tr key={r.id}>
-                    <td className='px-3 py-2 font-medium text-slate-900'>
-                      {r.students?.name ?? '(미지정)'}
-                    </td>
-                    <td className='px-3 py-2'>
-                      {r.submitted_at ? (
-                        <span className='rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700'>
-                          완료
+                .map((r) => {
+                  const stat = computeProgressStatus(
+                    r.started_at,
+                    r.submitted_at,
+                    diagnosis.duration_minutes
+                  );
+                  return (
+                    <tr key={r.id}>
+                      <td className='px-3 py-2 font-medium text-slate-900'>
+                        {r.students?.name ?? '(미지정)'}
+                      </td>
+                      <td className='px-3 py-2'>
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-xs font-semibold ${stat.badgeClass}`}
+                        >
+                          {stat.label}
                         </span>
-                      ) : (
-                        <span className='rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600'>
-                          대기
-                        </span>
-                      )}
-                    </td>
-                    <td className='px-3 py-2 text-slate-700'>
-                      {r.total_score != null ? Number(r.total_score) : '-'}
-                    </td>
-                    <td className='px-3 py-2 text-xs text-slate-500'>
-                      {r.submitted_at ? new Date(r.submitted_at).toLocaleString('ko-KR') : '-'}
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className='px-3 py-2 text-slate-700'>
+                        {r.total_score != null ? Number(r.total_score) : '-'}
+                      </td>
+                      <td className='px-3 py-2 text-xs text-slate-500'>{stat.timeText}</td>
+                    </tr>
+                  );
+                })}
             </tbody>
           </table>
         </div>

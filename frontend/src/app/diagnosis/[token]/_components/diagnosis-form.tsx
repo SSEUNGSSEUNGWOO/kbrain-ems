@@ -1,8 +1,9 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { createClient } from '@/lib/supabase/client';
+import { startDiagnosis } from '../_actions';
 
 type Question = {
   id: string;
@@ -20,6 +21,7 @@ type Props = {
   diagnosisTitle: string;
   diagnosisType: string;
   durationMinutes: number;
+  startedAt: string | null;
   questions: Question[];
 };
 
@@ -37,9 +39,6 @@ function storageKey(token: string) {
 }
 function submitIdKey(token: string) {
   return `diagnosis-submit-id-${STORAGE_VERSION}-${token}`;
-}
-function startedAtKey(token: string) {
-  return `diagnosis-started-${STORAGE_VERSION}-${token}`;
 }
 function reviewKey(token: string) {
   return `diagnosis-review-${STORAGE_VERSION}-${token}`;
@@ -69,39 +68,44 @@ export function DiagnosisForm({
   diagnosisTitle,
   diagnosisType,
   durationMinutes,
+  startedAt: serverStartedAt,
   questions
 }: Props) {
   const testDurationSeconds = durationMinutes * 60;
-  const [step, setStep] = useState<Step>('confirm');
+
+  // 서버 started_at 기준 elapsed 계산 (디바이스/브라우저 불문 동일).
+  const computeRemain = (startedAtIso: string | null): number => {
+    if (!startedAtIso) return testDurationSeconds;
+    const elapsed = Math.floor((Date.now() - new Date(startedAtIso).getTime()) / 1000);
+    return testDurationSeconds - elapsed;
+  };
+  const initialRemain = computeRemain(serverStartedAt);
+  const isExpired = serverStartedAt != null && initialRemain <= 0;
+
+  const [step, setStep] = useState<Step>(
+    serverStartedAt != null && initialRemain > 0 ? 'test' : 'confirm'
+  );
   const [answers, setAnswers] = useState<Record<number, string>>({});
   const [reviewed, setReviewed] = useState<Set<number>>(new Set());
   const [currentIndex, setCurrentIndex] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<SubmitResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [timeLeft, setTimeLeft] = useState(testDurationSeconds);
+  const [timeLeft, setTimeLeft] = useState(Math.max(0, initialRemain));
+  const [startPending, startStartTransition] = useTransition();
   const autoSubmittedRef = useRef(false);
 
-  // localStorage 복구
+  // localStorage 에선 답안·리뷰 상태만 복구 (시작 시각은 서버 권위).
   useEffect(() => {
     try {
       const raw = localStorage.getItem(storageKey(token));
       if (raw) setAnswers(JSON.parse(raw) as Record<number, string>);
       const rev = localStorage.getItem(reviewKey(token));
       if (rev) setReviewed(new Set(JSON.parse(rev) as number[]));
-      const startedAt = localStorage.getItem(startedAtKey(token));
-      if (startedAt) {
-        const elapsed = Math.floor((Date.now() - Number(startedAt)) / 1000);
-        const remain = testDurationSeconds - elapsed;
-        if (remain > 0) {
-          setTimeLeft(remain);
-          setStep('test');
-        }
-      }
     } catch {
       // ignore
     }
-  }, [token, testDurationSeconds]);
+  }, [token]);
 
   useEffect(() => {
     if (Object.keys(answers).length === 0) return;
@@ -194,7 +198,6 @@ export function DiagnosisForm({
           try {
             localStorage.removeItem(storageKey(token));
             localStorage.removeItem(submitIdKey(token));
-            localStorage.removeItem(startedAtKey(token));
             localStorage.removeItem(reviewKey(token));
           } catch {
             // ignore
@@ -249,35 +252,77 @@ export function DiagnosisForm({
             <div className='mt-0.5 text-xs text-slate-500'>{studentDepartment}</div>
           )}
         </div>
-        <p className='mt-6 text-sm text-slate-700'>본인이 맞으십니까?</p>
-        <p className='mt-1 text-xs text-slate-500'>
-          확인 후 <strong>{durationMinutes}분간 {questions.length}문항</strong>에 응답합니다. 시간 만료 시 자동 제출됩니다.
-        </p>
+        {isExpired ? (
+          <>
+            <p className='mt-6 text-sm font-semibold text-rose-600'>
+              응답 가능 시간이 종료되었습니다.
+            </p>
+            <p className='mt-1 text-xs text-slate-500'>
+              제한 시간({durationMinutes}분)이 이미 지나 더 이상 응답할 수 없습니다.
+              운영자에게 문의해주세요.
+            </p>
+            <div className='mt-8'>
+              <button
+                type='button'
+                disabled
+                className='w-full rounded-xl bg-slate-200 px-4 py-3 font-semibold text-slate-500'
+              >
+                시간 초과 (시작 불가)
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <p className='mt-6 text-sm text-slate-700'>본인이 맞으십니까?</p>
+            <p className='mt-1 text-xs text-slate-500'>
+              확인 후 <strong>{durationMinutes}분간 {questions.length}문항</strong>에 응답합니다. 시간 만료 시 자동 제출됩니다.
+            </p>
 
-        <div className='mt-8 flex gap-3'>
-          <button
-            type='button'
-            onClick={() => window.history.back()}
-            className='flex-1 rounded-xl border border-slate-200 px-4 py-3 font-semibold text-slate-700 hover:bg-slate-50'
-          >
-            아니오
-          </button>
-          <button
-            type='button'
-            onClick={() => {
-              try {
-                localStorage.setItem(startedAtKey(token), String(Date.now()));
-              } catch {
-                // ignore
-              }
-              setTimeLeft(testDurationSeconds);
-              setStep('test');
-            }}
-            className='flex-1 rounded-xl bg-blue-600 px-4 py-3 font-semibold text-white hover:bg-blue-700'
-          >
-            예, 시작
-          </button>
-        </div>
+            <div className='mt-8 flex gap-3'>
+              <button
+                type='button'
+                onClick={() => window.history.back()}
+                disabled={startPending}
+                className='flex-1 rounded-xl border border-slate-200 px-4 py-3 font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50'
+              >
+                아니오
+              </button>
+              <button
+                type='button'
+                disabled={startPending}
+                onClick={() => {
+                  startStartTransition(async () => {
+                    const r = await startDiagnosis(token);
+                    if (!r.ok) {
+                      setError(
+                        r.error === 'already_submitted'
+                          ? '이미 제출된 응답입니다.'
+                          : '시작 요청에 실패했습니다. 잠시 후 다시 시도해주세요.'
+                      );
+                      return;
+                    }
+                    const remain = computeRemain(r.startedAt);
+                    if (remain <= 0) {
+                      // 서버 시각 기준으로 이미 만료 — 시작 안 함.
+                      setError(
+                        '응답 가능 시간이 종료되었습니다. 운영자에게 문의해주세요.'
+                      );
+                      return;
+                    }
+                    setTimeLeft(remain);
+                    setStep('test');
+                  });
+                }}
+                className='flex-1 rounded-xl bg-blue-600 px-4 py-3 font-semibold text-white hover:bg-blue-700 disabled:opacity-60'
+              >
+                {startPending ? '시작 중...' : '예, 시작'}
+              </button>
+            </div>
+            {error && (
+              <p className='mt-3 text-xs font-semibold text-rose-600'>{error}</p>
+            )}
+          </>
+        )}
       </div>
     );
   }

@@ -16,7 +16,7 @@ export default async function DiagnosisResponsePage({ params }: Props) {
   const { data: response } = await supabase
     .from('diagnosis_responses')
     .select(
-      'id, diagnosis_id, submitted_at, total_score, students(name, department, organizations(name)), diagnoses(title, type, opens_at, closes_at, duration_minutes)'
+      'id, diagnosis_id, started_at, submitted_at, total_score, students(name, department, organizations(name)), diagnoses(title, type, opens_at, closes_at, duration_minutes)'
     )
     .eq('token', token)
     .maybeSingle();
@@ -109,6 +109,7 @@ export default async function DiagnosisResponsePage({ params }: Props) {
           diagnosisTitle={diag.title}
           diagnosisType={diag.type}
           durationMinutes={diag.duration_minutes}
+          startedAt={response.started_at}
           questions={questions}
         />
       </div>
