@@ -41,13 +41,14 @@ export async function createSatisfactionSurvey(input: CreateInput) {
     .maybeSingle();
   if (dup) return { error: '이미 사용 중인 공유 코드입니다.' };
 
-  // cohort category 확인 — 일반교육이면 별도 템플릿
+  // cohort category 확인 — 일반교육·AI 챔피언(비대면)은 동일한 일반 템플릿
   const { data: cohortRow } = await supabase
     .from('cohorts')
     .select('category')
     .eq('id', cohortId)
     .maybeSingle<{ category: string | null }>();
-  const isGeneral = cohortRow?.category === 'general';
+  const isGeneral =
+    cohortRow?.category === 'general' || cohortRow?.category === 'champion';
 
   // 강사 정보 fetch (섹션 제목용)
   const instructorIds = instructors.map((r) => r.instructorId);

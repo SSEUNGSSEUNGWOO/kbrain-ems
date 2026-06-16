@@ -43,14 +43,23 @@ type Props = {
 const CATEGORY_SURVEY_PREFIX: Record<string, string> = {
   experts: '기술교육',
   general: '일반교육',
-  special: '특화교육',
-  champion: 'AI 챔피언'
+  special: '특화교육'
 };
-const prefixFor = (category: string | null) =>
-  category && CATEGORY_SURVEY_PREFIX[category] ? CATEGORY_SURVEY_PREFIX[category] : '만족도';
-const defaultTitleOf = (category: string | null) => `[${prefixFor(category)}] 만족도 조사`;
-const sessionTitleOf = (category: string | null, sessionNo: number) =>
-  `[${prefixFor(category)}] ${sessionNo}회차 만족도 조사`;
+// 챔피언은 cohort 이름에서 "N회차" 만 제거한 부분을 prefix 로 사용
+// ("AI 챔피언 블루 1회차" → "AI 챔피언 블루").
+const prefixFor = (category: string | null, cohortName: string) => {
+  if (category === 'champion') {
+    return cohortName.replace(/\s*\d+회차\s*$/, '').trim() || 'AI 챔피언';
+  }
+  if (category && CATEGORY_SURVEY_PREFIX[category]) {
+    return CATEGORY_SURVEY_PREFIX[category];
+  }
+  return '만족도';
+};
+const defaultTitleOf = (category: string | null, cohortName: string) =>
+  `[${prefixFor(category, cohortName)}] 만족도 조사`;
+const sessionTitleOf = (category: string | null, cohortName: string, sessionNo: number) =>
+  `[${prefixFor(category, cohortName)}] ${sessionNo}회차 만족도 조사`;
 const EMPTY_ROW: InstructorRow = { instructorId: '' };
 
 function todayPlusDays(days: number): string {
@@ -69,7 +78,7 @@ export function NewSurveyForm({ cohortId, cohortName, cohortCategory, instructor
   const [cloneFromId, setCloneFromId] = useState('');
 
   // 폼 필드
-  const [title, setTitle] = useState(defaultTitleOf(cohortCategory));
+  const [title, setTitle] = useState(defaultTitleOf(cohortCategory, cohortName));
   const [sessionDate, setSessionDate] = useState(todayPlusDays(7));
   const [shareCode, setShareCode] = useState(autoShareCode(todayPlusDays(7), cohortName));
   const [shareCodeEdited, setShareCodeEdited] = useState(false);
@@ -97,7 +106,7 @@ export function NewSurveyForm({ cohortId, cohortName, cohortCategory, instructor
   const handleCloneToggle = (checked: boolean) => {
     setUseClone(checked);
     if (!checked) {
-      setTitle(defaultTitleOf(cohortCategory));
+      setTitle(defaultTitleOf(cohortCategory, cohortName));
       setInstructorRows([{ ...EMPTY_ROW }]);
       setCloneFromId('');
     }
@@ -202,7 +211,7 @@ export function NewSurveyForm({ cohortId, cohortName, cohortCategory, instructor
                 if (!sess) return;
                 setSessionDate(sess.session_date);
                 setShareCodeEdited(false); // share_code 자동 재계산
-                setTitle(sessionTitleOf(cohortCategory, sess.sessionNo));
+                setTitle(sessionTitleOf(cohortCategory, cohortName, sess.sessionNo));
                 if (sess.instructors.length > 0) {
                   setInstructorRows(sess.instructors.map((i) => ({ instructorId: i.id })));
                 }
