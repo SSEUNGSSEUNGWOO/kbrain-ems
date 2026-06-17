@@ -31,12 +31,12 @@
   --chart-5: #BBC9FB;
   /* 본문은 light, 사이드바만 deep navy (Linear/Notion 톤) */
   --sidebar: #161E45;
-  --sidebar-foreground: #F3F2EE;
+  --sidebar-foreground: #E5E7EB;
   --sidebar-primary: #6883F0;
   --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #21306A;
-  --sidebar-accent-foreground: #BBC9FB;
-  --sidebar-border: #353229;
+  --sidebar-accent: #233285;       /* hover/active 시 살짝 밝아지는 navy. 하늘색 톤 X */
+  --sidebar-accent-foreground: #F3F2EE;
+  --sidebar-border: #2A3563;
   --sidebar-ring: #6883F0;
   --font-sans: 'Pretendard', 'IBM Plex Sans KR', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-serif: Georgia, serif;

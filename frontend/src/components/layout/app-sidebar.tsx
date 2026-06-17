@@ -213,7 +213,7 @@ export default function AppSidebar() {
                       <span>교육과정</span>
                     </Link>
                   </SidebarMenuButton>
-                  <CollapsibleTrigger className='hover:bg-accent shrink-0 rounded p-1 group-data-[collapsible=icon]:hidden'>
+                  <CollapsibleTrigger className='hover:bg-sidebar-accent shrink-0 rounded p-1 group-data-[collapsible=icon]:hidden'>
                     <Icons.chevronRight className='h-4 w-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90' />
                   </CollapsibleTrigger>
                 </div>
@@ -235,7 +235,7 @@ export default function AppSidebar() {
                             defaultOpen={isActiveCat}
                             className='group/cat w-full'
                           >
-                            <CollapsibleTrigger className='hover:bg-accent flex w-full items-center justify-between rounded px-2 py-1.5 text-sm font-semibold text-foreground'>
+                            <CollapsibleTrigger className='hover:bg-sidebar-accent flex w-full items-center justify-between rounded px-2 py-1.5 text-sm font-semibold text-sidebar-foreground'>
                               <span>{cat.label}</span>
                               <Icons.chevronRight className='h-3 w-3 transition-transform duration-200 group-data-[state=open]/cat:rotate-90' />
                             </CollapsibleTrigger>
@@ -263,7 +263,7 @@ export default function AppSidebar() {
                                             <span className='truncate'>{cohort.name}</span>
                                           </Link>
                                         </SidebarMenuSubButton>
-                                        <CollapsibleTrigger className='hover:bg-accent shrink-0 rounded p-1'>
+                                        <CollapsibleTrigger className='hover:bg-sidebar-accent shrink-0 rounded p-1'>
                                           <Icons.chevronRight className='h-3 w-3 transition-transform duration-200 group-data-[state=open]/cohort:rotate-90' />
                                         </CollapsibleTrigger>
                                       </div>
@@ -302,7 +302,7 @@ export default function AppSidebar() {
                     {cohortsByCategory.uncategorized.length > 0 && (
                       <SidebarMenuSubItem>
                         <Collapsible className='group/cat w-full'>
-                          <CollapsibleTrigger className='hover:bg-accent flex w-full items-center justify-between rounded px-2 py-1.5 text-sm font-semibold text-foreground'>
+                          <CollapsibleTrigger className='hover:bg-sidebar-accent flex w-full items-center justify-between rounded px-2 py-1.5 text-sm font-semibold text-sidebar-foreground'>
                             <span>미분류</span>
                             <Icons.chevronRight className='h-3 w-3 transition-transform duration-200 group-data-[state=open]/cat:rotate-90' />
                           </CollapsibleTrigger>
