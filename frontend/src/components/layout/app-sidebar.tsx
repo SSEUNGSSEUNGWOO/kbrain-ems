@@ -119,8 +119,9 @@ export default function AppSidebar() {
             <Image
               src='/brand/korus-symbol-white.svg'
               alt='Korus'
-              width={24}
-              height={24}
+              width={20}
+              height={20}
+              className='h-5 w-5'
               priority
             />
             <span className='text-base font-bold tracking-[-0.03em] text-sidebar-foreground'>
