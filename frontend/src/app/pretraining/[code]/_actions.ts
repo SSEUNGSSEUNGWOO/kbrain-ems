@@ -114,22 +114,20 @@ export async function submitChecklistResponse(
     return { error: '잘못된 접근입니다. 다시 인증해주세요.' };
   }
 
-  // 같은 student 재제출 시 가장 최신만 유지 — 기존 응답 삭제
-  await supabase
-    .from('pretraining_checklist_responses')
-    .delete()
-    .eq('checklist_id', checklistId)
-    .eq('student_id', studentId);
-
-  const { error } = await supabase.from('pretraining_checklist_responses').insert({
-    checklist_id: checklistId,
-    student_id: studentId,
-    name: payload.name,
-    organization: payload.organization,
-    phone: payload.phone,
-    answers: payload.answers as unknown as Json,
-    submitted_at: new Date().toISOString()
-  });
+  // 같은 student 재제출 시 최신 값으로 덮어쓰기. partial unique index
+  // (checklist_id, student_id where student_id is not null) 가 동시 제출 방어.
+  const { error } = await supabase.from('pretraining_checklist_responses').upsert(
+    {
+      checklist_id: checklistId,
+      student_id: studentId,
+      name: payload.name,
+      organization: payload.organization,
+      phone: payload.phone,
+      answers: payload.answers as unknown as Json,
+      submitted_at: new Date().toISOString()
+    },
+    { onConflict: 'checklist_id,student_id' }
+  );
   if (error) return { error: error.message };
 
   return { ok: true };

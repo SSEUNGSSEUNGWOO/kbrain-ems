@@ -96,12 +96,30 @@ export async function checkinByShareCode(
     };
   }
 
-  // 4) 신규 체크인 기록
+  // 4) 신규 체크인 기록 — 동시 클릭 시 unique(check_id, student_id) 위반 가능.
+  // 위반이면 다른 요청이 먼저 성공한 것이므로 기존 row 로 응답해 UX 안정화.
   const checkedAt = new Date().toISOString();
   const { error: insErr } = await supabase
     .from('attendance_check_records')
     .insert({ check_id: check.id, student_id: student.id, checked_at: checkedAt });
-  if (insErr) return { ok: false, error: '체크인 저장에 실패했습니다.' };
+  if (insErr) {
+    if (insErr.code === '23505') {
+      const { data: race } = await supabase
+        .from('attendance_check_records')
+        .select('checked_at')
+        .eq('check_id', check.id)
+        .eq('student_id', student.id)
+        .maybeSingle();
+      return {
+        ok: true,
+        studentName: student.name,
+        alreadyChecked: true,
+        checkedAt: race?.checked_at ?? checkedAt,
+        label: check.label
+      };
+    }
+    return { ok: false, error: '체크인 저장에 실패했습니다.' };
+  }
 
   // 5) attendance_records 자동 반영
   if (check.attendance_role === 'arrival') {
