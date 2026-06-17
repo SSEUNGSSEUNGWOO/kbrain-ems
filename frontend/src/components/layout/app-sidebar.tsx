@@ -420,7 +420,7 @@ export default function AppSidebar() {
                   isActive={pathname === '/dashboard/operators'}
                 >
                   <Link href='/dashboard/operators'>
-                    <Icons.settings className='text-muted-foreground' />
+                    <Icons.settings />
                     <span>운영자 관리</span>
                   </Link>
                 </SidebarMenuButton>
@@ -436,7 +436,7 @@ export default function AppSidebar() {
                   isActive={pathname.startsWith('/dashboard/activity-logs')}
                 >
                   <Link href='/dashboard/activity-logs'>
-                    <Icons.clock className='text-muted-foreground' />
+                    <Icons.clock />
                     <span>활동 로그</span>
                   </Link>
                 </SidebarMenuButton>
