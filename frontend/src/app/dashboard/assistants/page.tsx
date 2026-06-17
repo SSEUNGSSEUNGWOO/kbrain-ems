@@ -58,14 +58,14 @@ export default async function AssistantsPage({ searchParams }: Props) {
 
   const [assistantsRes, sessionsRes, cohortsRes] = await Promise.all([
     supabase.from('instructors').select('id, name').eq('kind', 'sub').order('name'),
-    // session_end_date 기준으로도 이 달과 겹치는 row 포함
+    // 다일 회차는 매일 row 로 정규화 (split-multiday 일회성 적용 + 향후 정책 동일)
     supabase
       .from('sessions')
       .select(
-        'id, session_date, session_end_date, title, cohort_id, cohorts(name), session_instructors(instructor_id, role)'
+        'id, session_date, title, cohort_id, cohorts(name), session_instructors(instructor_id, role)'
       )
-      .lt('session_date', end)
-      .or(`session_end_date.gte.${start},session_end_date.is.null`),
+      .gte('session_date', start)
+      .lt('session_date', end),
     // 셀프스터디 가상 row 용: 이 달과 겹치는 self_study_* 기간
     supabase
       .from('cohorts')
@@ -79,7 +79,6 @@ export default async function AssistantsPage({ searchParams }: Props) {
   type SessionRow = {
     id: string;
     session_date: string;
-    session_end_date: string | null;
     title: string | null;
     cohort_id: string;
     cohorts: { name: string } | null;
@@ -102,31 +101,25 @@ export default async function AssistantsPage({ searchParams }: Props) {
 
   const rows: VirtualRow[] = [];
 
-  // 1) 실제 sessions — session_end_date 까지 펼쳐서 평일 모두 카드
+  // 1) 실제 sessions — 매일 row 1개. OT 는 보조강사 배정 대상이 아니라 스킵.
   for (const s of ((sessionsRes.data ?? []) as unknown as SessionRow[])) {
+    const title = s.title ?? '';
+    if (/OT|오리엔테이션/i.test(title)) continue;
     const subIds = s.session_instructors
       .filter((si) => si.role === 'sub')
       .map((si) => si.instructor_id);
-    const title = s.title ?? '';
-    const isOT = /OT|오리엔테이션/i.test(title);
-    const startD = s.session_date;
-    const endD = s.session_end_date ?? s.session_date;
-    const days = eachWeekday(startD, endD);
-    for (const d of days) {
-      if (!withinMonth(d, start, end)) continue;
-      rows.push({
-        id: `${s.id}::${d}`,
-        realSessionId: s.id,
-        date: d,
-        title,
-        cohortId: s.cohort_id,
-        cohortName: s.cohorts?.name ?? '',
-        assignedAssistantIds: subIds,
-        availableNote: '',
-        kind: isOT ? 'ot' : 'lesson',
-        isVirtual: false
-      });
-    }
+    rows.push({
+      id: s.id,
+      realSessionId: s.id,
+      date: s.session_date,
+      title,
+      cohortId: s.cohort_id,
+      cohortName: s.cohorts?.name ?? '',
+      assignedAssistantIds: subIds,
+      availableNote: '',
+      kind: 'lesson',
+      isVirtual: false
+    });
   }
 
   // 2) 셀프스터디 가상 row — cohorts.self_study_start_at ~ end_at 의 평일
@@ -149,7 +142,7 @@ export default async function AssistantsPage({ searchParams }: Props) {
     }
   }
 
-  // 정렬: 날짜 → 종류(lesson > ot > selfstudy) → cohort 이름
+  // 정렬: 날짜 → 종류(lesson > selfstudy) → cohort 이름
   const KIND_ORDER: Record<string, number> = { lesson: 0, ot: 1, selfstudy: 2 };
   rows.sort((a, b) => {
     if (a.date !== b.date) return a.date.localeCompare(b.date);
@@ -174,7 +167,7 @@ export default async function AssistantsPage({ searchParams }: Props) {
   return (
     <PageContainer
       pageTitle='보조강사 배정'
-      pageDescription='EMS 일정 그대로 표시 · 클릭으로 즉시 저장 (셀프스터디는 cohorts.self_study_*에서 가상 표시)'
+      pageDescription='EMS sessions 매일 1 row 정규화 · 클릭으로 즉시 저장. OT 는 배정 대상 X, 셀프스터디는 cohorts.self_study_*에서 가상 표시.'
     >
       <AssistantsMatrix
         year={year}
