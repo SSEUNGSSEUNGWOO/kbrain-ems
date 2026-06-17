@@ -119,24 +119,24 @@ export default function AppSidebar() {
             <Image
               src='/brand/korus-symbol-white.svg'
               alt='Korus'
-              width={20}
-              height={20}
-              className='h-5 w-5'
+              width={28}
+              height={28}
+              className='h-7 w-7'
               priority
             />
-            <span className='text-base font-bold tracking-[-0.03em] text-sidebar-foreground'>
+            <span className='text-xl font-bold tracking-[-0.03em] text-sidebar-foreground'>
               Korus
             </span>
-            <span className='text-sidebar-foreground/30 text-base font-light'>|</span>
+            <span className='text-sidebar-foreground/30 text-lg font-light'>|</span>
             <Image
               src='/brand/k-brain-mark.png'
               alt='K-Brain'
               width={780}
               height={832}
-              className='h-5 w-auto opacity-90 brightness-0 invert'
+              className='h-4 w-auto opacity-90 brightness-0 invert'
               priority
             />
-            <span className='text-sm font-semibold tracking-tight text-sidebar-foreground'>
+            <span className='text-xs font-semibold tracking-tight text-sidebar-foreground/80'>
               K-Brain
             </span>
           </div>
