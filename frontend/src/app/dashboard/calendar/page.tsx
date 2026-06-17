@@ -24,7 +24,7 @@ export default async function CalendarPage({ searchParams }: Props) {
       ),
     supabase
       .from('sessions')
-      .select('id, cohort_id, session_date, session_end_date, title, session_instructors(instructors(name))'),
+      .select('id, cohort_id, session_date, session_end_date, title, session_instructors(role, instructors(name, kind))'),
     supabase
       .from('recruitment_rounds')
       .select('id, round_no, label, application_start_at, application_end_at, selection_at, announce_at')
@@ -76,15 +76,24 @@ export default async function CalendarPage({ searchParams }: Props) {
         }))}
         sessions={sessions.map((s) => {
           const a = assistantById.get(s.id);
+          const si = (s.session_instructors ?? []) as unknown as {
+            role: string | null;
+            instructors: { name: string; kind: string } | null;
+          }[];
+          const mains = si
+            .filter((x) => x.instructors && (x.role ?? 'main') === 'main')
+            .map((x) => x.instructors!.name);
+          const subs = si
+            .filter((x) => x.instructors && x.role === 'sub')
+            .map((x) => x.instructors!.name);
           return {
             id: s.id,
             cohort_id: s.cohort_id,
             session_date: s.session_date,
             session_end_date: s.session_end_date,
             title: s.title,
-            instructors: (s.session_instructors ?? [])
-              .map((si) => si.instructors?.name)
-              .filter((n): n is string => !!n),
+            instructors: mains,
+            assistants: subs,
             assistant_needed: a?.needed ?? false,
             assistant_time_range: a?.timeRange ?? '—'
           };

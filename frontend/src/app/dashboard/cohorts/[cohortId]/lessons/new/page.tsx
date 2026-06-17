@@ -11,9 +11,10 @@ export default async function NewLessonPage({ params }: Props) {
   const { cohortId } = await params;
   const supabase = createAdminClient();
 
-  const [cohortRes, instructorsRes, locationsRes] = await Promise.all([
+  const [cohortRes, instructorsRes, assistantsRes, locationsRes] = await Promise.all([
     supabase.from('cohorts').select('id, name').eq('id', cohortId).maybeSingle(),
     supabase.from('instructors').select('id, name, affiliation').eq('kind', 'main').order('name'),
+    supabase.from('instructors').select('id, name, affiliation').eq('kind', 'sub').order('name'),
     supabase.from('locations').select('id, name').order('name')
   ]);
 
@@ -28,6 +29,7 @@ export default async function NewLessonPage({ params }: Props) {
         cohortId={cohortId}
         cohortName={cohortRes.data.name}
         instructors={instructorsRes.data ?? []}
+        assistants={assistantsRes.data ?? []}
         locations={locationsRes.data ?? []}
       />
     </PageContainer>

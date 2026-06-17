@@ -12,6 +12,7 @@ type CreateLessonInput = {
   title: string;
   locationId: string | null;
   instructorIds: string[]; // 1~N
+  assistantIds?: string[];
   withAssignment: boolean;
   assignmentTitle?: string;
   withSurvey: boolean;
@@ -62,6 +63,7 @@ export async function createLesson(input: CreateLessonInput): Promise<Result> {
     title,
     locationId,
     instructorIds,
+    assistantIds,
     withAssignment,
     assignmentTitle,
     withSurvey,
@@ -88,12 +90,11 @@ export async function createLesson(input: CreateLessonInput): Promise<Result> {
     .single();
   if (sessionErr || !session) return { error: sessionErr?.message ?? '수업 생성 실패' };
 
-  // 2) session_instructors — 입력 순서대로
-  const siRows = instructorIds.map((id) => ({
-    session_id: session.id,
-    instructor_id: id,
-    role: 'main'
-  }));
+  // 2) session_instructors — main + sub
+  const siRows = [
+    ...instructorIds.map((id) => ({ session_id: session.id, instructor_id: id, role: 'main' })),
+    ...(assistantIds ?? []).map((id) => ({ session_id: session.id, instructor_id: id, role: 'sub' }))
+  ];
   const { error: siErr } = await supabase.from('session_instructors').insert(siRows);
   if (siErr) return { error: siErr.message };
 
@@ -197,10 +198,11 @@ type UpdateLessonInput = {
   title: string;
   locationId: string | null;
   instructorIds: string[];
+  assistantIds?: string[];
 };
 
 export async function updateLesson(input: UpdateLessonInput): Promise<Result> {
-  const { cohortId, sessionId, sessionDate, title, locationId, instructorIds } = input;
+  const { cohortId, sessionId, sessionDate, title, locationId, instructorIds, assistantIds } = input;
 
   if (!sessionDate) return { error: '날짜를 선택해주세요.' };
   if (!title.trim()) return { error: '수업 제목을 입력해주세요.' };
@@ -215,18 +217,17 @@ export async function updateLesson(input: UpdateLessonInput): Promise<Result> {
     .eq('id', sessionId);
   if (sErr) return { error: sErr.message };
 
-  // 2) 강사 매핑 전체 갈아엎기 (삭제 후 재생성)
+  // 2) 강사·보조강사 매핑 전체 갈아엎기 (삭제 후 재생성)
   const { error: delErr } = await supabase
     .from('session_instructors')
     .delete()
     .eq('session_id', sessionId);
   if (delErr) return { error: delErr.message };
 
-  const siRows = instructorIds.map((id) => ({
-    session_id: sessionId,
-    instructor_id: id,
-    role: 'main'
-  }));
+  const siRows = [
+    ...instructorIds.map((id) => ({ session_id: sessionId, instructor_id: id, role: 'main' })),
+    ...(assistantIds ?? []).map((id) => ({ session_id: sessionId, instructor_id: id, role: 'sub' }))
+  ];
   const { error: siErr } = await supabase.from('session_instructors').insert(siRows);
   if (siErr) return { error: siErr.message };
 

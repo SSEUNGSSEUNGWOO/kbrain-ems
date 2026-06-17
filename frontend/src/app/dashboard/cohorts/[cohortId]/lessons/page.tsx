@@ -64,11 +64,14 @@ export default async function LessonsPage({ params, searchParams }: Props) {
   }
 
   const rows: LessonRow[] = rawRows.map((s) => {
-    const instructorNames =
-      s.session_instructors
-        .filter((si) => si.instructors)
-        .map((si) => si.instructors!.name)
-        .join(', ') || '—';
+    const mainNames = s.session_instructors
+      .filter((si) => si.instructors && (si.role ?? 'main') === 'main')
+      .map((si) => si.instructors!.name);
+    const subNames = s.session_instructors
+      .filter((si) => si.instructors && si.role === 'sub')
+      .map((si) => si.instructors!.name);
+    const instructorNames = mainNames.length > 0 ? mainNames.join(', ') : '—';
+    const assistantNames = subNames.length > 0 ? subNames.join(', ') : '—';
     const prog = progressBySessionId.get(s.id);
     const isComplete = prog ? prog.total > 0 && prog.filled === prog.total : false;
     const pct = prog && prog.total > 0 ? Math.round((prog.filled / prog.total) * 100) : 0;
@@ -78,6 +81,7 @@ export default async function LessonsPage({ params, searchParams }: Props) {
       title: s.title,
       locationName: s.locations?.name ?? null,
       instructorNames,
+      assistantNames,
       isComplete,
       pct,
       prog,

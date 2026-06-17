@@ -31,6 +31,7 @@ type SessionRow = {
   session_end_date: string | null;
   title: string | null;
   instructors: string[];
+  assistants: string[];
   assistant_needed: boolean;
   assistant_time_range: string;
 };
@@ -366,9 +367,15 @@ export function Calendar({ year, month, cohorts, sessions, rounds }: Props) {
     for (const s of sessions) {
       const cohortName = cohortNameById.get(s.cohort_id) ?? '';
       const instr = s.instructors.join('·');
+      const assignedSubs = s.assistants.join('·');
       const assistantLabel = s.assistant_needed
-        ? `보조강사 ${s.assistant_time_range}`
+        ? `보조강사 필요 ${s.assistant_time_range}`
         : '';
+      // 카드 label: 배정된 보조강사가 있으면 이름 뒤에 표시,
+      //            없고 필요만 표시되면 🎯 마크.
+      const subSuffix = assignedSubs ? ` · 보조 ${assignedSubs}` : '';
+      const headPrefix =
+        s.assistants.length === 0 && s.assistant_needed ? '🎯 ' : '';
       pushInstance({
         key: `session::${s.id}`,
         start: s.session_date,
@@ -376,8 +383,13 @@ export function Calendar({ year, month, cohorts, sessions, rounds }: Props) {
         kind: 'session',
         cohortId: s.cohort_id,
         cohortName,
-        label: s.assistant_needed ? `🎯 ${cohortName}` : cohortName,
-        tooltip: [`[수업] ${cohortName}`, s.title ?? '', instr, assistantLabel]
+        label: `${headPrefix}${cohortName}${subSuffix}`,
+        tooltip: [
+          `[수업] ${cohortName}`,
+          s.title ?? '',
+          instr,
+          assignedSubs ? `보조강사 ${assignedSubs}` : assistantLabel
+        ]
           .filter(Boolean)
           .join(' · '),
         href: `/dashboard/cohorts/${s.cohort_id}/lessons/${s.id}`

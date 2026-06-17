@@ -22,7 +22,9 @@ type Props = {
   initialTitle: string;
   initialLocationId: string | null;
   initialInstructorIds: string[];
+  initialAssistantIds: string[];
   instructors: Instructor[];
+  assistants: Instructor[];
   locations: Location[];
   hasSurvey: boolean;
 };
@@ -34,7 +36,9 @@ export function EditLessonForm({
   initialTitle,
   initialLocationId,
   initialInstructorIds,
+  initialAssistantIds,
   instructors,
+  assistants,
   locations,
   hasSurvey
 }: Props) {
@@ -50,6 +54,16 @@ export function EditLessonForm({
   const [instructorIds, setInstructorIds] = useState<string[]>(
     initialInstructorIds.length > 0 ? initialInstructorIds : ['']
   );
+  const [assistantIds, setAssistantIds] = useState<Set<string>>(
+    new Set(initialAssistantIds)
+  );
+  const toggleAssistant = (id: string) =>
+    setAssistantIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
   const handleInstructorChange = (idx: number, value: string) => {
     setInstructorIds((prev) => prev.map((v, i) => (i === idx ? value : v)));
@@ -93,7 +107,8 @@ export function EditLessonForm({
         sessionDate,
         title,
         locationId: locationId || null,
-        instructorIds: cleanIds
+        instructorIds: cleanIds,
+        assistantIds: Array.from(assistantIds)
       });
       if (result.error) {
         setError(result.error);
@@ -221,6 +236,46 @@ export function EditLessonForm({
             >
               + 강사 추가
             </button>
+          </div>
+
+          <div>
+            <div className='mb-2 flex items-center justify-between'>
+              <div className='block text-xs font-semibold text-muted-foreground'>
+                보조강사
+              </div>
+              <div className='text-xs text-muted-foreground'>
+                {assistantIds.size}명 선택
+              </div>
+            </div>
+            {assistants.length === 0 ? (
+              <div className='rounded-md border bg-muted/30 px-3 py-3 text-xs text-muted-foreground'>
+                등록된 보조강사가 없습니다.
+              </div>
+            ) : (
+              <div className='grid grid-cols-3 gap-2 sm:grid-cols-4'>
+                {assistants.map((a) => {
+                  const checked = assistantIds.has(a.id);
+                  return (
+                    <label
+                      key={a.id}
+                      className={`flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors ${
+                        checked
+                          ? 'border-blue-500 bg-blue-50 text-blue-900 dark:bg-blue-950/30 dark:text-blue-100'
+                          : 'bg-background hover:bg-muted'
+                      }`}
+                    >
+                      <input
+                        type='checkbox'
+                        checked={checked}
+                        onChange={() => toggleAssistant(a.id)}
+                        className='h-4 w-4'
+                      />
+                      <span className='truncate'>{a.name}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       </div>

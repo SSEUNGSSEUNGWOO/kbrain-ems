@@ -11,13 +11,14 @@ export default async function EditLessonPage({ params }: Props) {
   const { cohortId, sessionId } = await params;
   const supabase = createAdminClient();
 
-  const [sessionRes, allInstructorsRes, locationsRes, hasSurveyRes] = await Promise.all([
+  const [sessionRes, mainInstructorsRes, subInstructorsRes, locationsRes, hasSurveyRes] = await Promise.all([
     supabase
       .from('sessions')
-      .select('id, session_date, title, location_id, session_instructors(instructor_id)')
+      .select('id, session_date, title, location_id, session_instructors(instructor_id, role)')
       .eq('id', sessionId)
       .maybeSingle(),
     supabase.from('instructors').select('id, name, affiliation').eq('kind', 'main').order('name'),
+    supabase.from('instructors').select('id, name, affiliation').eq('kind', 'sub').order('name'),
     supabase.from('locations').select('id, name').order('name'),
     supabase
       .from('surveys')
@@ -33,10 +34,15 @@ export default async function EditLessonPage({ params }: Props) {
     session_date: string;
     title: string | null;
     location_id: string | null;
-    session_instructors: { instructor_id: string }[];
+    session_instructors: { instructor_id: string; role: string | null }[];
   };
   const session = sessionRes.data as unknown as SessionRow;
-  const initialInstructorIds = session.session_instructors.map((si) => si.instructor_id);
+  const initialInstructorIds = session.session_instructors
+    .filter((si) => (si.role ?? 'main') === 'main')
+    .map((si) => si.instructor_id);
+  const initialAssistantIds = session.session_instructors
+    .filter((si) => si.role === 'sub')
+    .map((si) => si.instructor_id);
   const hasSurvey = (hasSurveyRes.data?.length ?? 0) > 0;
 
   return (
@@ -48,7 +54,9 @@ export default async function EditLessonPage({ params }: Props) {
         initialTitle={session.title ?? ''}
         initialLocationId={session.location_id}
         initialInstructorIds={initialInstructorIds}
-        instructors={allInstructorsRes.data ?? []}
+        initialAssistantIds={initialAssistantIds}
+        instructors={mainInstructorsRes.data ?? []}
+        assistants={subInstructorsRes.data ?? []}
         locations={locationsRes.data ?? []}
         hasSurvey={hasSurvey}
       />

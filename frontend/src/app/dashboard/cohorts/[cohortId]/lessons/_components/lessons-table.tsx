@@ -21,6 +21,7 @@ export type LessonRow = {
   title: string | null;
   locationName: string | null;
   instructorNames: string;
+  assistantNames: string;
   isComplete: boolean;
   pct: number;
   prog: { filled: number; total: number } | undefined;
@@ -39,7 +40,7 @@ export function LessonsTable({ cohortId, rows, ascending }: Props) {
   const q = searchQuery.trim().toLowerCase();
   const filtered = q
     ? rows.filter((r) => {
-        const hay = `${r.session_date} ${(r.title ?? '').toLowerCase()} ${r.instructorNames.toLowerCase()} ${(r.locationName ?? '').toLowerCase()}`;
+        const hay = `${r.session_date} ${(r.title ?? '').toLowerCase()} ${r.instructorNames.toLowerCase()} ${r.assistantNames.toLowerCase()} ${(r.locationName ?? '').toLowerCase()}`;
         return hay.includes(q);
       })
     : rows;
@@ -82,6 +83,7 @@ export function LessonsTable({ cohortId, rows, ascending }: Props) {
               <TableHead>제목</TableHead>
               <TableHead className='w-40'>장소</TableHead>
               <TableHead>강사</TableHead>
+              <TableHead>보조강사</TableHead>
               <TableHead className='w-28 text-right'>관리</TableHead>
             </TableRow>
           </TableHeader>
@@ -110,6 +112,7 @@ export function LessonsTable({ cohortId, rows, ascending }: Props) {
                     {r.locationName ?? '—'}
                   </TableCell>
                   <TableCell className='text-muted-foreground text-sm'>{r.instructorNames}</TableCell>
+                  <TableCell className='text-muted-foreground text-sm'>{r.assistantNames}</TableCell>
                   <TableCell className='text-right'>
                     <LessonRowActions cohortId={cohortId} sessionId={r.id} />
                   </TableCell>
