@@ -2,8 +2,8 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Image from 'next/image';
 import { createClient } from '@/lib/supabase/client';
+import { Logo } from '@/components/brand/logo';
 
 export default function LockPage() {
   const [email, setEmail] = useState('');
@@ -104,16 +104,7 @@ export default function LockPage() {
 
         <div className='rounded-2xl border bg-white/80 px-8 py-10 shadow-lg backdrop-blur'>
           <div className='mb-8 flex flex-col items-center gap-2'>
-            <Image
-              src='/k-brain-logo.png'
-              alt='K-Brain'
-              width={3233}
-              height={1326}
-              className='h-8 w-auto'
-            />
-            <span className='text-[10.5px] font-semibold uppercase tracking-[0.15em] text-slate-400'>
-              Education Management System
-            </span>
+            <Logo variant='color' size={36} withWordmark endorsed />
           </div>
 
           <div className='mb-6 text-center'>

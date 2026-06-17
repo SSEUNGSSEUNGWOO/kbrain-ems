@@ -10,12 +10,15 @@ import { NuqsAdapter } from 'nuqs/adapters/next/app';
 import '../styles/globals.css';
 
 export const metadata: Metadata = {
-  title: 'K-Brain EMS',
-  description: '교육과정 관리 시스템'
+  title: 'Korus · K-Brain',
+  description: 'K-Brain Korus — 교육과정 운영 SaaS',
+  icons: {
+    icon: '/brand/korus-symbol-color.svg'
+  }
 };
 
 export const viewport: Viewport = {
-  themeColor: '#ffffff'
+  themeColor: '#FAFAF8'
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {

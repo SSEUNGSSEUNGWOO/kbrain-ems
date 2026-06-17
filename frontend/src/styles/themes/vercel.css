@@ -1,43 +1,46 @@
 [data-theme='vercel'] {
   /* ============================================================
-     행정안전부 신뢰감 톤 — Primary: #003478 (행안부 공식 네이비)
+     K-Brain Korus — Primary: #2C49D1 (Korus Blue, main UI)
+     Accent: #F3AE26 (Amber bar)
+     Secondary: #11B594 (Teal)
+     Neutral: warm gray
      ============================================================ */
-  --background: #FFFFFF;
-  --foreground: #0F172A;
+  --background: #FAFAF8;
+  --foreground: #1A1815;
   --card: #FFFFFF;
-  --card-foreground: #0F172A;
+  --card-foreground: #1A1815;
   --popover: #FFFFFF;
-  --popover-foreground: #0F172A;
-  --primary: #003478;
+  --popover-foreground: #1A1815;
+  --primary: #2C49D1;
   --primary-foreground: #FFFFFF;
-  --secondary: #F1F5F9;
-  --secondary-foreground: #0F172A;
-  --muted: #F8FAFC;
-  --muted-foreground: #64748B;
-  --accent: #EFF6FF;
-  --accent-foreground: #003478;
-  --destructive: #B91C1C;
+  --secondary: #ECFDF8;
+  --secondary-foreground: #0A7563;
+  --muted: #F3F2EE;
+  --muted-foreground: #847E72;
+  --accent: #EEF2FE;
+  --accent-foreground: #2539A8;
+  --destructive: #E04B4B;
   --destructive-foreground: #FFFFFF;
-  --border: #E2E8F0;
-  --input: #E2E8F0;
-  --ring: #003478;
-  --chart-1: #003478;
-  --chart-2: #1E3A8A;
-  --chart-3: #1D4ED8;
-  --chart-4: #3B82F6;
-  --chart-5: #93C5FD;
-  --sidebar: #F8FAFC;
-  --sidebar-foreground: #0F172A;
-  --sidebar-primary: #003478;
+  --border: #E7E5DF;
+  --input: #E7E5DF;
+  --ring: #2C49D1;
+  --chart-1: #2C49D1;
+  --chart-2: #11B594;
+  --chart-3: #F3AE26;
+  --chart-4: #6883F0;
+  --chart-5: #BBC9FB;
+  --sidebar: #F3F2EE;
+  --sidebar-foreground: #1A1815;
+  --sidebar-primary: #2C49D1;
   --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #EFF6FF;
-  --sidebar-accent-foreground: #003478;
-  --sidebar-border: #E2E8F0;
-  --sidebar-ring: #003478;
-  --font-sans: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif;
+  --sidebar-accent: #EEF2FE;
+  --sidebar-accent-foreground: #2539A8;
+  --sidebar-border: #E7E5DF;
+  --sidebar-ring: #2C49D1;
+  --font-sans: 'Pretendard', 'IBM Plex Sans KR', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-serif: Georgia, serif;
-  --font-mono: 'JetBrains Mono', 'D2Coding', monospace;
-  --radius: 0.5rem;
+  --font-mono: 'IBM Plex Mono', 'JetBrains Mono', ui-monospace, monospace;
+  --radius: 0.875rem; /* 14px — Korus DEFAULT radius */
   --shadow-2xs: 0px 1px 2px 0px hsl(0 0% 0% / 0.06);
   --shadow-xs: 0px 1px 2px 0px hsl(0 0% 0% / 0.06);
   --shadow-sm: 0px 1px 2px 0px hsl(0 0% 0% / 0.12), 0px 1px 2px -1px hsl(0 0% 0% / 0.12);
@@ -49,38 +52,39 @@
 }
 
 [data-theme='vercel'].dark {
-  --background: #0B1220;
-  --foreground: #F1F5F9;
-  --card: #111827;
-  --card-foreground: #F1F5F9;
-  --popover: #111827;
-  --popover-foreground: #F1F5F9;
-  --primary: #2563EB;
+  /* Korus warm dark — primary-400 (#6883F0) 가 인터랙티브 블루 (500/600 은 너무 어두움) */
+  --background: #161513;
+  --foreground: #F3F2EE;
+  --card: #1F1E1A;
+  --card-foreground: #F3F2EE;
+  --popover: #1F1E1A;
+  --popover-foreground: #F3F2EE;
+  --primary: #6883F0;
   --primary-foreground: #FFFFFF;
-  --secondary: #1F2937;
-  --secondary-foreground: #F1F5F9;
-  --muted: #1F2937;
-  --muted-foreground: #94A3B8;
-  --accent: #1E293B;
-  --accent-foreground: #93C5FD;
-  --destructive: #EF4444;
+  --secondary: #27251F;
+  --secondary-foreground: #F3F2EE;
+  --muted: #27251F;
+  --muted-foreground: #A8A296;
+  --accent: #21306A;
+  --accent-foreground: #BBC9FB;
+  --destructive: #EE6A6A;
   --destructive-foreground: #FFFFFF;
-  --border: rgba(255, 255, 255, 0.1);
-  --input: rgba(255, 255, 255, 0.15);
-  --ring: #2563EB;
-  --chart-1: #2563EB;
-  --chart-2: #3B82F6;
-  --chart-3: #60A5FA;
-  --chart-4: #93C5FD;
-  --chart-5: #BFDBFE;
-  --sidebar: #0F172A;
-  --sidebar-foreground: #F1F5F9;
-  --sidebar-primary: #2563EB;
+  --border: #353229;
+  --input: #353229;
+  --ring: #6883F0;
+  --chart-1: #6883F0;
+  --chart-2: #2DD0AD;
+  --chart-3: #F6C44F;
+  --chart-4: #92A6F6;
+  --chart-5: #9FF3DA;
+  --sidebar: #1F1E1A;
+  --sidebar-foreground: #F3F2EE;
+  --sidebar-primary: #6883F0;
   --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #1E293B;
-  --sidebar-accent-foreground: #F1F5F9;
-  --sidebar-border: rgba(255, 255, 255, 0.1);
-  --sidebar-ring: #2563EB;
+  --sidebar-accent: #27251F;
+  --sidebar-accent-foreground: #F3F2EE;
+  --sidebar-border: #353229;
+  --sidebar-ring: #6883F0;
   --font-sans: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-serif: Georgia, serif;
   --font-mono: 'JetBrains Mono', 'D2Coding', monospace;

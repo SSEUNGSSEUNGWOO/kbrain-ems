@@ -22,6 +22,7 @@ import * as React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/lib/auth-context';
 import { Icons } from '../icons';
+import { Logo } from '../brand/logo';
 import { STAGE_DOMAINS, STAGE_LABEL, type CohortStage } from '@/lib/cohort-stage';
 
 type Cohort = { id: string; name: string; category: string | null; stage: CohortStage };
@@ -114,24 +115,16 @@ export default function AppSidebar() {
           href='/dashboard/overview'
           className='relative flex flex-col items-start gap-2 overflow-hidden px-5 py-5 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-3'
         >
-          {/* 배경 장식 */}
-          <div className='pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full bg-blue-400/10 blur-2xl' />
-          <div className='pointer-events-none absolute -bottom-4 -left-4 h-16 w-16 rounded-full bg-violet-400/10 blur-2xl' />
-
-          <Image
-            src='/k-brain-logo.png'
-            alt='K-Brain'
-            width={3233}
-            height={1326}
-            className='relative h-7 w-auto shrink-0 dark:brightness-0 dark:invert group-data-[collapsible=icon]:hidden'
-          />
-          <div className='relative flex items-center gap-1.5 group-data-[collapsible=icon]:hidden'>
-            <span className='inline-block h-1 w-1 rounded-full bg-blue-500' />
-            <span className='text-xs font-bold tracking-[0.2em] text-muted-foreground'>
-              EMS
-            </span>
+          <div className='relative group-data-[collapsible=icon]:hidden'>
+            <Logo variant='color' size={26} withWordmark endorsed />
           </div>
-          <Icons.galleryVerticalEnd className='relative hidden h-6 w-6 shrink-0 text-primary group-data-[collapsible=icon]:block' />
+          <Image
+            src='/brand/korus-symbol-color.svg'
+            alt='Korus'
+            width={28}
+            height={28}
+            className='relative hidden shrink-0 group-data-[collapsible=icon]:block'
+          />
         </Link>
       </SidebarHeader>
 
