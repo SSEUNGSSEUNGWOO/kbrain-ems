@@ -133,10 +133,10 @@ export default function AppSidebar() {
               alt='K-Brain'
               width={780}
               height={832}
-              className='h-4 w-auto opacity-90 brightness-0 invert'
+              className='h-[18px] w-auto opacity-90 brightness-0 invert'
               priority
             />
-            <span className='text-base font-semibold tracking-tight text-sidebar-foreground'>
+            <span className='text-[17px] font-semibold tracking-tight text-sidebar-foreground'>
               K-Brain
             </span>
           </div>
