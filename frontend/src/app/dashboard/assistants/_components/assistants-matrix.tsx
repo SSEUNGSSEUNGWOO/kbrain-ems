@@ -8,21 +8,24 @@ import { colorForCohort } from './cohort-color';
 
 type Assistant = { id: string; name: string; count: number };
 
-type Session = {
+type Row = {
   id: string;
-  session_date: string;
+  realSessionId: string | null;
+  date: string;
   title: string;
   cohortId: string;
   cohortName: string;
   assignedAssistantIds: string[];
+  availableNote: string;
   kind: 'lesson' | 'ot' | 'selfstudy';
+  isVirtual: boolean;
 };
 
 type Props = {
   year: number;
   month: number;
   assistants: Assistant[];
-  sessions: Session[];
+  rows: Row[];
 };
 
 const DOW = ['일', '월', '화', '수', '목', '금', '토'] as const;
@@ -34,11 +37,10 @@ function nextMonth(year: number, month: number) {
   return month === 12 ? { y: year + 1, m: 1 } : { y: year, m: month + 1 };
 }
 
-// 해당 월의 캘린더 그리드(7×N)를 만들기 위해, 첫 날의 요일까지 비우고 마지막 날 이후도 채움.
 function buildCells(year: number, month: number): { date: string | null; key: string }[] {
   const first = new Date(year, month - 1, 1);
   const last = new Date(year, month, 0);
-  const startWeekday = first.getDay(); // 0=일
+  const startWeekday = first.getDay();
   const totalDays = last.getDate();
   const cells: { date: string | null; key: string }[] = [];
   for (let i = 0; i < startWeekday; i++) cells.push({ date: null, key: `pre-${i}` });
@@ -50,66 +52,65 @@ function buildCells(year: number, month: number): { date: string | null; key: st
   return cells;
 }
 
-export function AssistantsMatrix({ year, month, assistants, sessions }: Props) {
+export function AssistantsMatrix({ year, month, assistants, rows }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [filterCohort, setFilterCohort] = useState<string>('all');
-  const [openSessionId, setOpenSessionId] = useState<string | null>(null);
-  // 클릭 직후 낙관적 표시 — 토글된 (sessionId, assistantId) 의 새 상태(boolean) 저장
+  const [openRowId, setOpenRowId] = useState<string | null>(null);
+  // 낙관적 표시 — key = `${realSessionId}::${assistantId}` → 새 boolean
   const [optimistic, setOptimistic] = useState<Map<string, boolean>>(new Map());
 
   const cohortOptions = useMemo(() => {
     const m = new Map<string, string>();
-    for (const s of sessions) if (s.cohortId) m.set(s.cohortId, s.cohortName);
+    for (const r of rows) if (r.cohortId) m.set(r.cohortId, r.cohortName);
     return Array.from(m.entries()).sort((a, b) => a[1].localeCompare(b[1], 'ko'));
-  }, [sessions]);
+  }, [rows]);
 
-  const filteredSessions =
-    filterCohort === 'all' ? sessions : sessions.filter((s) => s.cohortId === filterCohort);
+  const filteredRows =
+    filterCohort === 'all' ? rows : rows.filter((r) => r.cohortId === filterCohort);
 
-  const sessionsByDate = useMemo(() => {
-    const map = new Map<string, Session[]>();
-    for (const s of filteredSessions) {
-      const arr = map.get(s.session_date) ?? [];
-      arr.push(s);
-      map.set(s.session_date, arr);
+  const rowsByDate = useMemo(() => {
+    const m = new Map<string, Row[]>();
+    for (const r of filteredRows) {
+      const arr = m.get(r.date) ?? [];
+      arr.push(r);
+      m.set(r.date, arr);
     }
-    return map;
-  }, [filteredSessions]);
+    return m;
+  }, [filteredRows]);
 
-  // 같은 날 모든 회차 (필터와 무관 — 전체 데이터) 의 보조강사 배정 현황.
-  // 충돌 감지용: (date, assistantId) → 그 날 그 사람이 이미 배정된 회차들.
-  // optimistic 상태도 반영한다.
-  const allSessionsByDate = useMemo(() => {
-    const map = new Map<string, Session[]>();
-    for (const s of sessions) {
-      const arr = map.get(s.session_date) ?? [];
-      arr.push(s);
-      map.set(s.session_date, arr);
+  // 충돌 감지용 — 같은 날 모든 row (필터 무관)
+  const allRowsByDate = useMemo(() => {
+    const m = new Map<string, Row[]>();
+    for (const r of rows) {
+      const arr = m.get(r.date) ?? [];
+      arr.push(r);
+      m.set(r.date, arr);
     }
-    return map;
-  }, [sessions]);
+    return m;
+  }, [rows]);
 
   const optimisticKey = (sid: string, aid: string) => `${sid}::${aid}`;
 
-  const isAssigned = (sessionId: string, assistantId: string): boolean => {
-    const o = optimistic.get(optimisticKey(sessionId, assistantId));
+  const isAssigned = (row: Row, assistantId: string): boolean => {
+    if (!row.realSessionId) return false;
+    const o = optimistic.get(optimisticKey(row.realSessionId, assistantId));
     if (o !== undefined) return o;
-    const s = sessions.find((x) => x.id === sessionId);
-    return !!s && s.assignedAssistantIds.includes(assistantId);
+    return row.assignedAssistantIds.includes(assistantId);
   };
 
-  const handleToggle = (sessionId: string, assistantId: string) => {
-    const next = !isAssigned(sessionId, assistantId);
+  const handleToggle = (row: Row, assistantId: string) => {
+    if (!row.realSessionId) return; // 가상 row 는 토글 불가
+    const next = !isAssigned(row, assistantId);
     setError(null);
     setOptimistic((prev) => {
       const m = new Map(prev);
-      m.set(optimisticKey(sessionId, assistantId), next);
+      m.set(optimisticKey(row.realSessionId!, assistantId), next);
       return m;
     });
     startTransition(async () => {
-      const r = await toggleAssistantAssignment(sessionId, assistantId, next);
+      const r = await toggleAssistantAssignment(row.realSessionId!, assistantId, next);
       if (r.error) setError(r.error);
       router.refresh();
     });
@@ -120,18 +121,18 @@ export function AssistantsMatrix({ year, month, assistants, sessions }: Props) {
   const cells = useMemo(() => buildCells(year, month), [year, month]);
 
   const onCsv = () => {
-    const lines: string[] = ['날짜,요일,기수,회차,' + assistants.map((a) => a.name).join(',')];
-    const sorted = [...filteredSessions].sort((a, b) =>
-      a.session_date.localeCompare(b.session_date)
-    );
-    for (const s of sorted) {
-      const date = new Date(`${s.session_date}T00:00:00`);
+    const lines: string[] = ['날짜,요일,기수,회차,종류,' + assistants.map((a) => a.name).join(',')];
+    const sorted = [...filteredRows].sort((a, b) => a.date.localeCompare(b.date));
+    for (const r of sorted) {
+      const date = new Date(`${r.date}T00:00:00`);
+      const kindLabel = r.kind === 'selfstudy' ? '셀프스터디' : r.kind === 'ot' ? 'OT' : '수업';
       const row = [
-        s.session_date,
+        r.date,
         DOW[date.getDay()],
-        `"${s.cohortName.replace(/"/g, '""')}"`,
-        `"${(s.title ?? '').replace(/"/g, '""')}"`,
-        ...assistants.map((a) => (isAssigned(s.id, a.id) ? 'O' : ''))
+        `"${r.cohortName.replace(/"/g, '""')}"`,
+        `"${(r.title ?? '').replace(/"/g, '""')}"`,
+        kindLabel,
+        ...assistants.map((a) => (isAssigned(r, a.id) ? 'O' : ''))
       ];
       lines.push(row.join(','));
     }
@@ -145,7 +146,7 @@ export function AssistantsMatrix({ year, month, assistants, sessions }: Props) {
   };
 
   const todayIso = new Date().toISOString().slice(0, 10);
-  const openSession = openSessionId ? sessions.find((s) => s.id === openSessionId) : null;
+  const openRow = openRowId ? rows.find((r) => r.id === openRowId) : null;
 
   return (
     <div className='space-y-4'>
@@ -172,7 +173,7 @@ export function AssistantsMatrix({ year, month, assistants, sessions }: Props) {
           onChange={(e) => setFilterCohort(e.target.value)}
           className='ml-auto h-9 rounded-md border bg-background px-3 text-sm'
         >
-          <option value='all'>전체 기수 ({sessions.length}회차)</option>
+          <option value='all'>전체 기수 ({rows.length}일)</option>
           {cohortOptions.map(([id, name]) => (
             <option key={id} value={id}>
               {name}
@@ -188,9 +189,8 @@ export function AssistantsMatrix({ year, month, assistants, sessions }: Props) {
         </button>
       </div>
 
-      {/* 인원별 배정 건수 */}
       <div className='rounded-xl border bg-card p-4'>
-        <div className='mb-3 text-xs font-bold text-muted-foreground'>이달 배정 건수</div>
+        <div className='mb-3 text-xs font-bold text-muted-foreground'>이달 배정 건수 (실제 회차만)</div>
         <div className='flex flex-wrap gap-2'>
           {assistants.map((a) => (
             <div
@@ -215,7 +215,6 @@ export function AssistantsMatrix({ year, month, assistants, sessions }: Props) {
         <div className='rounded-md bg-red-50 px-4 py-2 text-sm text-red-700'>{error}</div>
       )}
 
-      {/* 캘린더 */}
       <div className='overflow-hidden rounded-xl border bg-card'>
         <div className='grid grid-cols-7 border-b bg-muted/30'>
           {DOW.map((d, i) => (
@@ -242,7 +241,7 @@ export function AssistantsMatrix({ year, month, assistants, sessions }: Props) {
             const d = new Date(`${date}T00:00:00`);
             const dow = d.getDay();
             const day = d.getDate();
-            const list = sessionsByDate.get(date) ?? [];
+            const list = rowsByDate.get(date) ?? [];
             const isToday = date === todayIso;
             return (
               <div
@@ -267,24 +266,24 @@ export function AssistantsMatrix({ year, month, assistants, sessions }: Props) {
                   </span>
                 </div>
                 <div className='flex flex-col gap-1'>
-                  {list.map((s) => {
-                    const color = colorForCohort(s.cohortName);
+                  {list.map((r) => {
+                    const color = colorForCohort(r.cohortName);
                     const assignedNames = assistants
-                      .filter((a) => isAssigned(s.id, a.id))
+                      .filter((a) => isAssigned(r, a.id))
                       .map((a) => a.name);
-                    const isSelf = s.kind === 'selfstudy';
+                    const isSelf = r.kind === 'selfstudy';
                     return (
                       <button
-                        key={s.id}
+                        key={r.id}
                         type='button'
-                        onClick={() => setOpenSessionId(s.id)}
+                        onClick={() => setOpenRowId(r.id)}
                         className={`group rounded-md border-l-[3px] px-2 py-1.5 text-left transition-colors hover:bg-muted ${
                           isSelf
                             ? 'border-dashed bg-slate-50/60 dark:bg-slate-900/30'
                             : 'bg-background'
                         }`}
                         style={{ borderLeftColor: color }}
-                        title={`${s.cohortName} · ${s.title}`}
+                        title={`${r.cohortName} · ${r.title}`}
                       >
                         <div className='flex items-center gap-1'>
                           <span
@@ -294,7 +293,7 @@ export function AssistantsMatrix({ year, month, assistants, sessions }: Props) {
                                 : 'text-slate-900 dark:text-slate-100'
                             }`}
                           >
-                            {s.cohortName}
+                            {r.cohortName}
                           </span>
                           {isSelf && (
                             <span className='shrink-0 rounded-sm bg-slate-200 px-1 text-[9px] font-semibold text-slate-600 dark:bg-slate-700 dark:text-slate-300'>
@@ -302,10 +301,8 @@ export function AssistantsMatrix({ year, month, assistants, sessions }: Props) {
                             </span>
                           )}
                         </div>
-                        {s.title && !isSelf && (
-                          <div className='truncate text-[10px] text-muted-foreground'>
-                            {s.title}
-                          </div>
+                        {r.title && !isSelf && (
+                          <div className='truncate text-[10px] text-muted-foreground'>{r.title}</div>
                         )}
                         <div className='mt-1 flex flex-wrap gap-0.5'>
                           {assignedNames.length === 0 ? (
@@ -316,7 +313,7 @@ export function AssistantsMatrix({ year, month, assistants, sessions }: Props) {
                                   : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
                               }`}
                             >
-                              미배정
+                              {isSelf ? '배정 대상 X' : '미배정'}
                             </span>
                           ) : (
                             assignedNames.map((n) => (
@@ -339,11 +336,10 @@ export function AssistantsMatrix({ year, month, assistants, sessions }: Props) {
         </div>
       </div>
 
-      {/* 모달: 보조강사 토글 */}
-      {openSession && (
+      {openRow && (
         <div
           className='fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4'
-          onClick={() => setOpenSessionId(null)}
+          onClick={() => setOpenRowId(null)}
         >
           <div
             className='w-full max-w-md rounded-2xl bg-background p-6 shadow-2xl'
@@ -351,69 +347,81 @@ export function AssistantsMatrix({ year, month, assistants, sessions }: Props) {
           >
             <div className='mb-4'>
               <div className='text-xs font-semibold text-muted-foreground'>
-                {openSession.session_date} ·{' '}
-                {DOW[new Date(`${openSession.session_date}T00:00:00`).getDay()]}요일
+                {openRow.date} · {DOW[new Date(`${openRow.date}T00:00:00`).getDay()]}요일
               </div>
               <div className='mt-1 flex items-center gap-2'>
                 <span
                   className='inline-block h-3 w-3 rounded-full'
-                  style={{ backgroundColor: colorForCohort(openSession.cohortName) }}
+                  style={{ backgroundColor: colorForCohort(openRow.cohortName) }}
                 />
-                <h2 className='text-base font-bold'>{openSession.cohortName}</h2>
+                <h2 className='text-base font-bold'>{openRow.cohortName}</h2>
               </div>
-              {openSession.title && (
-                <div className='mt-0.5 text-sm text-muted-foreground'>{openSession.title}</div>
+              {openRow.title && (
+                <div className='mt-0.5 text-sm text-muted-foreground'>{openRow.title}</div>
               )}
             </div>
-            <div className='mb-4 text-xs font-semibold text-muted-foreground'>
-              보조강사 선택 — 같은 날 다른 회차에 이미 배정된 인원은 선택 불가
-            </div>
-            <div className='grid grid-cols-2 gap-2'>
-              {assistants.map((a) => {
-                const on = isAssigned(openSession.id, a.id);
-                // 같은 날 다른 회차에 이미 배정됐는지 확인
-                const sameDay = allSessionsByDate.get(openSession.session_date) ?? [];
-                const conflictWith = sameDay.find(
-                  (other) => other.id !== openSession.id && isAssigned(other.id, a.id)
-                );
-                const blocked = !!conflictWith && !on;
-                return (
-                  <button
-                    key={a.id}
-                    type='button'
-                    onClick={() => handleToggle(openSession.id, a.id)}
-                    disabled={pending || blocked}
-                    title={
-                      blocked && conflictWith
-                        ? `${conflictWith.cohortName} 에 이미 배정됨`
-                        : undefined
-                    }
-                    className={`flex flex-col items-start gap-0.5 rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors ${
-                      on
-                        ? 'border-blue-500 bg-blue-50 text-blue-900 dark:bg-blue-950/40 dark:text-blue-100'
-                        : blocked
-                          ? 'cursor-not-allowed border-rose-200 bg-rose-50/60 text-rose-700 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-300'
-                          : 'bg-background text-muted-foreground hover:bg-muted'
-                    } disabled:opacity-50`}
-                  >
-                    <div className='flex w-full items-center justify-between'>
-                      <span>{a.name}</span>
-                      {on && <span className='text-base font-bold'>✓</span>}
-                      {blocked && <span className='text-[10px] font-bold'>충돌</span>}
-                    </div>
-                    {blocked && conflictWith && (
-                      <div className='text-[10px] leading-tight text-rose-600/80 dark:text-rose-300/80'>
-                        {conflictWith.cohortName}
-                      </div>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
+
+            {openRow.isVirtual ? (
+              <div className='rounded-md border border-dashed border-slate-300 bg-slate-50 px-3 py-3 text-xs text-slate-600 dark:bg-slate-900/30 dark:text-slate-300'>
+                셀프스터디는 cohort.self_study_* 기간으로 자동 표시되는 가상 일정이라 보조강사 배정 대상이 아닙니다.
+                필요하면 lessons 페이지에서 셀프스터디 회차를 별도로 등록하세요.
+              </div>
+            ) : (
+              <>
+                <div className='mb-4 text-xs font-semibold text-muted-foreground'>
+                  보조강사 선택 — 같은 날 다른 회차에 이미 배정된 인원은 선택 불가
+                </div>
+                <div className='grid grid-cols-2 gap-2'>
+                  {assistants.map((a) => {
+                    const on = isAssigned(openRow, a.id);
+                    const sameDay = allRowsByDate.get(openRow.date) ?? [];
+                    const conflictWith = sameDay.find(
+                      (other) =>
+                        other.realSessionId &&
+                        other.realSessionId !== openRow.realSessionId &&
+                        isAssigned(other, a.id)
+                    );
+                    const blocked = !!conflictWith && !on;
+                    return (
+                      <button
+                        key={a.id}
+                        type='button'
+                        onClick={() => handleToggle(openRow, a.id)}
+                        disabled={pending || blocked}
+                        title={
+                          blocked && conflictWith
+                            ? `${conflictWith.cohortName} 에 이미 배정됨`
+                            : undefined
+                        }
+                        className={`flex flex-col items-start gap-0.5 rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors ${
+                          on
+                            ? 'border-blue-500 bg-blue-50 text-blue-900 dark:bg-blue-950/40 dark:text-blue-100'
+                            : blocked
+                              ? 'cursor-not-allowed border-rose-200 bg-rose-50/60 text-rose-700 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-300'
+                              : 'bg-background text-muted-foreground hover:bg-muted'
+                        } disabled:opacity-50`}
+                      >
+                        <div className='flex w-full items-center justify-between'>
+                          <span>{a.name}</span>
+                          {on && <span className='text-base font-bold'>✓</span>}
+                          {blocked && <span className='text-[10px] font-bold'>충돌</span>}
+                        </div>
+                        {blocked && conflictWith && (
+                          <div className='text-[10px] leading-tight text-rose-600/80 dark:text-rose-300/80'>
+                            {conflictWith.cohortName}
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+
             <div className='mt-5 flex justify-end'>
               <button
                 type='button'
-                onClick={() => setOpenSessionId(null)}
+                onClick={() => setOpenRowId(null)}
                 className='rounded-md border bg-background px-4 py-2 text-sm font-semibold hover:bg-muted'
               >
                 닫기
