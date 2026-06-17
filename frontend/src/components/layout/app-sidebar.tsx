@@ -34,22 +34,20 @@ const CATEGORIES: { key: string; label: string }[] = [
   { key: 'experts', label: '4. 전문인재' }
 ];
 
-// Korus refined — 뮤트 틴트, mono 폰트, radius 5px, min-width 34px 통일.
+// Korus refined 사이드바 톤 (dark navy) 에 어울리는 stage 8색 — dark variant 만 사용.
+// mono 9.5px / radius 5px / min-w 34px 는 refined 그대로 유지.
 const BADGE_BASE =
   'font-mono text-[9.5px] font-semibold tracking-[0.02em] px-1.5 py-[2px] rounded-[5px] min-w-[34px] text-center';
-const BADGE_RUN = 'bg-[rgba(99,131,240,0.18)] text-[#9DB2F5]';
-const BADGE_PREP = 'bg-white/[0.07] text-[#94A6C2]';
-const BADGE_DONE = 'bg-[rgba(45,208,173,0.15)] text-[#5FE0C6]';
 
 const STAGE_BADGE_CLASS: Record<CohortStage, string> = {
-  recruiting: `${BADGE_BASE} ${BADGE_PREP}`,
-  selecting: `${BADGE_BASE} ${BADGE_PREP}`,
-  notifying: `${BADGE_BASE} ${BADGE_PREP}`,
-  preparing: `${BADGE_BASE} ${BADGE_PREP}`,
-  onboarding: `${BADGE_BASE} ${BADGE_DONE}`,
-  active: `${BADGE_BASE} ${BADGE_RUN}`,
-  finished: `${BADGE_BASE} ${BADGE_PREP}`,
-  unset: `${BADGE_BASE} ${BADGE_PREP}`
+  recruiting: `${BADGE_BASE} bg-orange-950/50 text-orange-300`,
+  selecting: `${BADGE_BASE} bg-rose-950/50 text-rose-300`,
+  notifying: `${BADGE_BASE} bg-cyan-950/50 text-cyan-300`,
+  preparing: `${BADGE_BASE} bg-violet-950/50 text-violet-300`,
+  onboarding: `${BADGE_BASE} bg-emerald-950/50 text-emerald-300`,
+  active: `${BADGE_BASE} bg-blue-900/60 text-blue-200`,
+  finished: `${BADGE_BASE} bg-slate-800 text-slate-400`,
+  unset: `${BADGE_BASE} bg-amber-950/50 text-amber-300`
 };
 
 // 단색 라인 아이콘 — color 는 currentColor 통일. active 시에만 primary tint.
