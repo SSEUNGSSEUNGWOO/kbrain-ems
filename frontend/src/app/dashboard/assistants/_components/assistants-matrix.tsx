@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toggleAssistantAssignment } from '../_actions';
+import { colorForCohort } from './cohort-color';
 
 type Assistant = { id: string; name: string; count: number };
 
@@ -25,11 +26,6 @@ type Props = {
 
 const DOW = ['일', '월', '화', '수', '목', '금', '토'] as const;
 
-function formatKoreanDate(d: string): string {
-  const date = new Date(`${d}T00:00:00`);
-  return `${d.slice(5).replace('-', '/')} (${DOW[date.getDay()]})`;
-}
-
 function prevMonth(year: number, month: number) {
   return month === 1 ? { y: year - 1, m: 12 } : { y: year, m: month - 1 };
 }
@@ -37,65 +33,84 @@ function nextMonth(year: number, month: number) {
   return month === 12 ? { y: year + 1, m: 1 } : { y: year, m: month + 1 };
 }
 
+// 해당 월의 캘린더 그리드(7×N)를 만들기 위해, 첫 날의 요일까지 비우고 마지막 날 이후도 채움.
+function buildCells(year: number, month: number): { date: string | null; key: string }[] {
+  const first = new Date(year, month - 1, 1);
+  const last = new Date(year, month, 0);
+  const startWeekday = first.getDay(); // 0=일
+  const totalDays = last.getDate();
+  const cells: { date: string | null; key: string }[] = [];
+  for (let i = 0; i < startWeekday; i++) cells.push({ date: null, key: `pre-${i}` });
+  for (let d = 1; d <= totalDays; d++) {
+    const iso = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    cells.push({ date: iso, key: iso });
+  }
+  while (cells.length % 7 !== 0) cells.push({ date: null, key: `post-${cells.length}` });
+  return cells;
+}
+
 export function AssistantsMatrix({ year, month, assistants, sessions }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [filterCohort, setFilterCohort] = useState<string>('all');
-  // 클릭 직후 낙관적 표시용 — 서버 round-trip 끝나면 router.refresh 가 데이터 갱신
-  const [optimistic, setOptimistic] = useState<Map<string, Set<string>>>(new Map());
+  const [openSessionId, setOpenSessionId] = useState<string | null>(null);
+  // 클릭 직후 낙관적 표시 — 토글된 (sessionId, assistantId) 의 새 상태(boolean) 저장
+  const [optimistic, setOptimistic] = useState<Map<string, boolean>>(new Map());
 
   const cohortOptions = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const s of sessions) {
-      if (s.cohortId) map.set(s.cohortId, s.cohortName);
-    }
-    return Array.from(map.entries()).sort((a, b) => a[1].localeCompare(b[1], 'ko'));
+    const m = new Map<string, string>();
+    for (const s of sessions) if (s.cohortId) m.set(s.cohortId, s.cohortName);
+    return Array.from(m.entries()).sort((a, b) => a[1].localeCompare(b[1], 'ko'));
   }, [sessions]);
 
   const filteredSessions =
     filterCohort === 'all' ? sessions : sessions.filter((s) => s.cohortId === filterCohort);
 
-  const isAssigned = (sessionId: string, assistantId: string): boolean => {
-    const overlay = optimistic.get(sessionId);
-    if (overlay && overlay.has(assistantId)) {
-      // overlay 가 마지막 클릭 상태를 표시 (toggle 의도 반영)
-      return overlay.has(`${assistantId}::on`);
+  const sessionsByDate = useMemo(() => {
+    const map = new Map<string, Session[]>();
+    for (const s of filteredSessions) {
+      const arr = map.get(s.session_date) ?? [];
+      arr.push(s);
+      map.set(s.session_date, arr);
     }
+    return map;
+  }, [filteredSessions]);
+
+  const optimisticKey = (sid: string, aid: string) => `${sid}::${aid}`;
+
+  const isAssigned = (sessionId: string, assistantId: string): boolean => {
+    const o = optimistic.get(optimisticKey(sessionId, assistantId));
+    if (o !== undefined) return o;
     const s = sessions.find((x) => x.id === sessionId);
     return !!s && s.assignedAssistantIds.includes(assistantId);
   };
 
   const handleToggle = (sessionId: string, assistantId: string) => {
-    const currently = isAssigned(sessionId, assistantId);
-    const next = !currently;
+    const next = !isAssigned(sessionId, assistantId);
     setError(null);
     setOptimistic((prev) => {
       const m = new Map(prev);
-      const set = new Set(m.get(sessionId) ?? []);
-      // 모든 이전 상태 클리어 후 새 상태 표시
-      set.delete(assistantId);
-      set.delete(`${assistantId}::on`);
-      set.add(assistantId);
-      if (next) set.add(`${assistantId}::on`);
-      m.set(sessionId, set);
+      m.set(optimisticKey(sessionId, assistantId), next);
       return m;
     });
     startTransition(async () => {
       const r = await toggleAssistantAssignment(sessionId, assistantId, next);
-      if (r.error) {
-        setError(r.error);
-      }
+      if (r.error) setError(r.error);
       router.refresh();
     });
   };
 
   const prev = prevMonth(year, month);
   const nx = nextMonth(year, month);
+  const cells = useMemo(() => buildCells(year, month), [year, month]);
 
   const onCsv = () => {
     const lines: string[] = ['날짜,요일,기수,회차,' + assistants.map((a) => a.name).join(',')];
-    for (const s of filteredSessions) {
+    const sorted = [...filteredSessions].sort((a, b) =>
+      a.session_date.localeCompare(b.session_date)
+    );
+    for (const s of sorted) {
       const date = new Date(`${s.session_date}T00:00:00`);
       const row = [
         s.session_date,
@@ -114,6 +129,9 @@ export function AssistantsMatrix({ year, month, assistants, sessions }: Props) {
     link.click();
     URL.revokeObjectURL(url);
   };
+
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const openSession = openSessionId ? sessions.find((s) => s.id === openSessionId) : null;
 
   return (
     <div className='space-y-4'>
@@ -166,7 +184,7 @@ export function AssistantsMatrix({ year, month, assistants, sessions }: Props) {
               className='inline-flex items-center gap-2 rounded-full border bg-background px-3 py-1.5 text-sm'
             >
               <span className='font-semibold'>{a.name}</span>
-              <span className='text-blue-600 dark:text-blue-400 font-bold tabular-nums'>
+              <span className='font-bold tabular-nums text-blue-600 dark:text-blue-400'>
                 {a.count}건
               </span>
             </div>
@@ -183,68 +201,168 @@ export function AssistantsMatrix({ year, month, assistants, sessions }: Props) {
         <div className='rounded-md bg-red-50 px-4 py-2 text-sm text-red-700'>{error}</div>
       )}
 
-      {/* 매트릭스 */}
-      <div className='rounded-xl border bg-card overflow-x-auto'>
-        {filteredSessions.length === 0 ? (
-          <div className='text-muted-foreground px-6 py-12 text-center text-sm'>
-            이 달에 등록된 회차가 없습니다.
-          </div>
-        ) : (
-          <table className='w-full text-sm'>
-            <thead>
-              <tr className='border-b bg-muted/40'>
-                <th className='whitespace-nowrap px-3 py-2 text-left font-semibold'>날짜</th>
-                <th className='whitespace-nowrap px-3 py-2 text-left font-semibold'>기수 · 회차</th>
-                {assistants.map((a) => (
-                  <th
-                    key={a.id}
-                    className='whitespace-nowrap px-2 py-2 text-center font-semibold'
-                    title={a.name}
+      {/* 캘린더 */}
+      <div className='overflow-hidden rounded-xl border bg-card'>
+        <div className='grid grid-cols-7 border-b bg-muted/30'>
+          {DOW.map((d, i) => (
+            <div
+              key={d}
+              className={`px-2 py-2 text-center text-xs font-bold ${
+                i === 0 ? 'text-red-600' : i === 6 ? 'text-blue-600' : 'text-muted-foreground'
+              }`}
+            >
+              {d}
+            </div>
+          ))}
+        </div>
+        <div className='grid grid-cols-7'>
+          {cells.map(({ date, key }) => {
+            if (!date) {
+              return (
+                <div
+                  key={key}
+                  className='min-h-[120px] border-b border-r border-muted/30 bg-muted/10 last:border-r-0'
+                />
+              );
+            }
+            const d = new Date(`${date}T00:00:00`);
+            const dow = d.getDay();
+            const day = d.getDate();
+            const list = sessionsByDate.get(date) ?? [];
+            const isToday = date === todayIso;
+            return (
+              <div
+                key={key}
+                className={`flex min-h-[120px] flex-col gap-1 border-b border-r border-muted/30 p-1.5 last:border-r-0 ${
+                  dow === 0 ? 'bg-rose-50/40' : dow === 6 ? 'bg-blue-50/30' : ''
+                }`}
+              >
+                <div className='flex items-center justify-between'>
+                  <span
+                    className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${
+                      isToday
+                        ? 'bg-blue-600 text-white'
+                        : dow === 0
+                          ? 'text-red-600'
+                          : dow === 6
+                            ? 'text-blue-600'
+                            : 'text-slate-700 dark:text-slate-300'
+                    }`}
                   >
-                    {a.name}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filteredSessions.map((s) => (
-                <tr key={s.id} className='border-b last:border-0 hover:bg-muted/20'>
-                  <td className='whitespace-nowrap px-3 py-2 font-mono text-xs'>
-                    {formatKoreanDate(s.session_date)}
-                  </td>
-                  <td className='px-3 py-2'>
-                    <div className='font-medium'>{s.cohortName}</div>
-                    {s.title && (
-                      <div className='text-xs text-muted-foreground'>{s.title}</div>
-                    )}
-                  </td>
-                  {assistants.map((a) => {
-                    const on = isAssigned(s.id, a.id);
+                    {day}
+                  </span>
+                </div>
+                <div className='flex flex-col gap-1'>
+                  {list.map((s) => {
+                    const color = colorForCohort(s.cohortName);
+                    const assignedNames = assistants
+                      .filter((a) => isAssigned(s.id, a.id))
+                      .map((a) => a.name);
                     return (
-                      <td key={a.id} className='px-2 py-2 text-center'>
-                        <button
-                          type='button'
-                          onClick={() => handleToggle(s.id, a.id)}
-                          disabled={pending}
-                          aria-pressed={on}
-                          className={`inline-flex h-7 w-7 items-center justify-center rounded-md border text-sm font-bold transition-colors ${
-                            on
-                              ? 'border-blue-500 bg-blue-500 text-white shadow-sm'
-                              : 'border-muted-foreground/20 bg-background text-muted-foreground/40 hover:bg-muted'
-                          } disabled:opacity-50`}
-                          title={`${a.name} ${on ? '배정 해제' : '배정'}`}
-                        >
-                          {on ? '✓' : ''}
-                        </button>
-                      </td>
+                      <button
+                        key={s.id}
+                        type='button'
+                        onClick={() => setOpenSessionId(s.id)}
+                        className='group rounded-md border-l-[3px] bg-background px-2 py-1.5 text-left transition-colors hover:bg-muted'
+                        style={{ borderLeftColor: color }}
+                        title={`${s.cohortName} · ${s.title}`}
+                      >
+                        <div className='truncate text-[11px] font-semibold text-slate-900 dark:text-slate-100'>
+                          {s.cohortName}
+                        </div>
+                        {s.title && (
+                          <div className='truncate text-[10px] text-muted-foreground'>
+                            {s.title}
+                          </div>
+                        )}
+                        <div className='mt-1 flex flex-wrap gap-0.5'>
+                          {assignedNames.length === 0 ? (
+                            <span className='inline-block rounded-sm bg-amber-100 px-1 text-[10px] font-semibold text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'>
+                              미배정
+                            </span>
+                          ) : (
+                            assignedNames.map((n) => (
+                              <span
+                                key={n}
+                                className='inline-block rounded-sm bg-emerald-100 px-1 text-[10px] font-semibold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+                              >
+                                {n}
+                              </span>
+                            ))
+                          )}
+                        </div>
+                      </button>
                     );
                   })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
+
+      {/* 모달: 보조강사 토글 */}
+      {openSession && (
+        <div
+          className='fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4'
+          onClick={() => setOpenSessionId(null)}
+        >
+          <div
+            className='w-full max-w-md rounded-2xl bg-background p-6 shadow-2xl'
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className='mb-4'>
+              <div className='text-xs font-semibold text-muted-foreground'>
+                {openSession.session_date} ·{' '}
+                {DOW[new Date(`${openSession.session_date}T00:00:00`).getDay()]}요일
+              </div>
+              <div className='mt-1 flex items-center gap-2'>
+                <span
+                  className='inline-block h-3 w-3 rounded-full'
+                  style={{ backgroundColor: colorForCohort(openSession.cohortName) }}
+                />
+                <h2 className='text-base font-bold'>{openSession.cohortName}</h2>
+              </div>
+              {openSession.title && (
+                <div className='mt-0.5 text-sm text-muted-foreground'>{openSession.title}</div>
+              )}
+            </div>
+            <div className='mb-4 text-xs font-semibold text-muted-foreground'>
+              보조강사 선택 — 클릭 즉시 저장
+            </div>
+            <div className='grid grid-cols-2 gap-2'>
+              {assistants.map((a) => {
+                const on = isAssigned(openSession.id, a.id);
+                return (
+                  <button
+                    key={a.id}
+                    type='button'
+                    onClick={() => handleToggle(openSession.id, a.id)}
+                    disabled={pending}
+                    className={`flex items-center justify-between rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors ${
+                      on
+                        ? 'border-blue-500 bg-blue-50 text-blue-900 dark:bg-blue-950/40 dark:text-blue-100'
+                        : 'bg-background text-muted-foreground hover:bg-muted'
+                    } disabled:opacity-50`}
+                  >
+                    <span>{a.name}</span>
+                    {on && <span className='text-base font-bold'>✓</span>}
+                  </button>
+                );
+              })}
+            </div>
+            <div className='mt-5 flex justify-end'>
+              <button
+                type='button'
+                onClick={() => setOpenSessionId(null)}
+                className='rounded-md border bg-background px-4 py-2 text-sm font-semibold hover:bg-muted'
+              >
+                닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
