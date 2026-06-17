@@ -386,62 +386,6 @@ export default function AppSidebar() {
               </SidebarMenuButton>
             </SidebarMenuItem>
 
-            {/* 평가위원 — 글로벌 */}
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                asChild
-                tooltip='평가위원'
-                isActive={pathname.startsWith('/dashboard/evaluators')}
-              >
-                <Link href='/dashboard/evaluators'>
-                  <Icons.userPen className='text-purple-600 dark:text-purple-400' />
-                  <span>평가위원</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-
-            {/* KPI 대시보드 — 글로벌 */}
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                asChild
-                tooltip='사업 진척률·KPI'
-                isActive={pathname.startsWith('/dashboard/kpi-dashboard')}
-              >
-                <Link href='/dashboard/kpi-dashboard'>
-                  <Icons.adjustments className='text-emerald-600 dark:text-emerald-400' />
-                  <span>사업 KPI</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-
-            {/* 리스크 등록부 — 글로벌 */}
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                asChild
-                tooltip='리스크 등록부'
-                isActive={pathname.startsWith('/dashboard/risks')}
-              >
-                <Link href='/dashboard/risks'>
-                  <Icons.warning className='text-red-600 dark:text-red-400' />
-                  <span>리스크</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-
-            {/* 이슈 보드 — 글로벌 */}
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                asChild
-                tooltip='이슈 보드'
-                isActive={pathname.startsWith('/dashboard/issues')}
-              >
-                <Link href='/dashboard/issues'>
-                  <Icons.alertCircle className='text-orange-600 dark:text-orange-400' />
-                  <span>이슈</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-
             {/* 운영자 관리 — 개발자만 */}
             {isDeveloper && (
               <SidebarMenuItem>
