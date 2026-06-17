@@ -20,6 +20,7 @@ type StudentInfo = {
   name: string;
   phone: string | null;
   org_name: string | null;
+  applicationStatus?: string | null;
 };
 
 function formatPhone(phone: string | null): string {
@@ -93,6 +94,7 @@ function isoToTimeInput(iso: string | null): string {
 }
 
 const isTestStudent = (name: string) => name.startsWith('테스트');
+const isSameDayCancel = (s: StudentInfo) => s.applicationStatus === 'same_day_cancel';
 
 export function AttendanceChecksSection({
   cohortId,
@@ -101,9 +103,12 @@ export function AttendanceChecksSection({
   students,
   checks
 }: Props) {
-  const realStudents = students.filter((s) => !isTestStudent(s.name));
+  // 3그룹 분리: 정상(realStudents) / 당일취소 / 테스트.
+  const realStudents = students.filter((s) => !isTestStudent(s.name) && !isSameDayCancel(s));
+  const cancelStudents = students.filter((s) => !isTestStudent(s.name) && isSameDayCancel(s));
   const testStudents = students.filter((s) => isTestStudent(s.name));
   const realIds = new Set(realStudents.map((s) => s.id));
+  const cancelIds = new Set(cancelStudents.map((s) => s.id));
   const testIds = new Set(testStudents.map((s) => s.id));
   const [creating, setCreating] = useState(false);
   const [labelInput, setLabelInput] = useState('');
@@ -454,6 +459,19 @@ export function AttendanceChecksSection({
                         recordByStudent={recordByStudent}
                         criterionAt={check.criterion_at}
                       />
+                      {cancelStudents.length > 0 && (
+                        <div className='space-y-1.5'>
+                          <div className='flex items-center gap-2'>
+                            <span className='text-[11px] font-semibold text-rose-600'>● 당일취소</span>
+                            <div className='h-px flex-1 bg-rose-200' />
+                          </div>
+                          <CheckpointNameGrid
+                            students={cancelStudents}
+                            recordByStudent={recordByStudent}
+                            criterionAt={check.criterion_at}
+                          />
+                        </div>
+                      )}
                       {testStudents.length > 0 && (
                         <div className='space-y-1.5'>
                           <div className='flex items-center gap-2'>

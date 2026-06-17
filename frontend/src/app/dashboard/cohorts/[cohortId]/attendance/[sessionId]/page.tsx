@@ -220,7 +220,8 @@ export default async function SessionAttendancePage({
             id: s.id,
             name: s.name,
             phone: s.phone,
-            org_name: s.organizations?.name ?? null
+            org_name: s.organizations?.name ?? null,
+            applicationStatus: s.applicationStatus ?? null
           }))}
           checks={checks}
         />
