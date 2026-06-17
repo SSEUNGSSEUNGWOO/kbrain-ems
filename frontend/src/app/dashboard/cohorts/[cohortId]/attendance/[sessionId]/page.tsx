@@ -101,11 +101,17 @@ export default async function SessionAttendancePage({
   });
   const recordRows = recordRes.data ?? [];
 
-  // 테스트 학생(이름이 '테스트'로 시작)은 실제 학생 뒤로 정렬
+  // 정렬 그룹: 정상 → 당일취소 → 테스트. 각 그룹 안에선 이름 순.
+  const groupOf = (s: { name: string; applicant_id: string | null }): 0 | 1 | 2 => {
+    if (s.name.startsWith('테스트')) return 2;
+    const status = s.applicant_id ? appStatusByApplicant.get(s.applicant_id) : null;
+    if (status === 'same_day_cancel') return 1;
+    return 0;
+  };
   const sortedStudentRows = [...studentRows].sort((a, b) => {
-    const aTest = a.name.startsWith('테스트');
-    const bTest = b.name.startsWith('테스트');
-    if (aTest !== bTest) return aTest ? 1 : -1;
+    const ga = groupOf(a);
+    const gb = groupOf(b);
+    if (ga !== gb) return ga - gb;
     return a.name.localeCompare(b.name, 'ko');
   });
 

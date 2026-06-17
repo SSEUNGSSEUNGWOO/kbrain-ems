@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useTransition } from 'react';
+import { Fragment, useEffect, useState, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -260,6 +260,14 @@ export function AttendanceTable({
     ? students
     : students.filter((s) => statuses[s.id] === filter);
 
+  // 그룹 구분: 0 정상 / 1 당일취소 / 2 테스트. 헤더 row 삽입용.
+  const groupOf = (s: Student): 0 | 1 | 2 => {
+    if (s.name.startsWith('테스트')) return 2;
+    if (s.applicationStatus === 'same_day_cancel') return 1;
+    return 0;
+  };
+  const totalCols = 4 + (hasTime ? 1 : 0) + 1 + 1; // 이름·소속·출결·시간 (+인정시간) · 비고
+
   const FILTERS = [
     { value: 'all', label: '전체', count: students.length, className: 'text-foreground' },
     { value: 'present', label: '출석', count: counts['present'] ?? 0, className: 'text-green-600' },
@@ -319,7 +327,7 @@ export function AttendanceTable({
             </tr>
           </thead>
           <tbody>
-            {filteredStudents.map((s) => {
+            {filteredStudents.map((s, idx) => {
               const status = statuses[s.id] ?? 'none';
               const credited = calcCreditedHours(
                 status, sessionStartTime, sessionEndTime,
@@ -329,8 +337,38 @@ export function AttendanceTable({
               const diagBadges = (diagnosisProgress?.[s.id] ?? [])
                 .map(diagnosisBadge)
                 .filter((b): b is NonNullable<ReturnType<typeof diagnosisBadge>> => b !== null);
+
+              // 그룹 변화 감지 → 섹션 헤더 row 삽입.
+              const curGroup = groupOf(s);
+              const prevGroup = idx > 0 ? groupOf(filteredStudents[idx - 1]) : -1;
+              const sectionHeader =
+                curGroup !== prevGroup && curGroup === 1 ? (
+                  <tr
+                    key={`hdr-cancel-${idx}`}
+                    className='bg-rose-50 dark:bg-rose-950/20'
+                  >
+                    <td
+                      colSpan={totalCols}
+                      className='px-4 py-1.5 text-xs font-bold tracking-tight text-rose-700 dark:text-rose-300'
+                    >
+                      ● 당일취소
+                    </td>
+                  </tr>
+                ) : curGroup !== prevGroup && curGroup === 2 ? (
+                  <tr key={`hdr-test-${idx}`} className='bg-muted/40'>
+                    <td
+                      colSpan={totalCols}
+                      className='px-4 py-1.5 text-xs font-bold tracking-tight text-muted-foreground'
+                    >
+                      ● 테스트
+                    </td>
+                  </tr>
+                ) : null;
+
               return (
-                <tr key={s.id} className='border-b last:border-0'>
+                <Fragment key={s.id}>
+                  {sectionHeader}
+                <tr className='border-b last:border-0'>
                   <td className='px-4 py-2 font-medium'>
                     <div className='flex flex-wrap items-center gap-1.5'>
                       <span>{s.name}</span>
@@ -441,6 +479,7 @@ export function AttendanceTable({
                     />
                   </td>
                 </tr>
+                </Fragment>
               );
             })}
           </tbody>
