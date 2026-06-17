@@ -77,6 +77,19 @@ export function AssistantsMatrix({ year, month, assistants, sessions }: Props) {
     return map;
   }, [filteredSessions]);
 
+  // 같은 날 모든 회차 (필터와 무관 — 전체 데이터) 의 보조강사 배정 현황.
+  // 충돌 감지용: (date, assistantId) → 그 날 그 사람이 이미 배정된 회차들.
+  // optimistic 상태도 반영한다.
+  const allSessionsByDate = useMemo(() => {
+    const map = new Map<string, Session[]>();
+    for (const s of sessions) {
+      const arr = map.get(s.session_date) ?? [];
+      arr.push(s);
+      map.set(s.session_date, arr);
+    }
+    return map;
+  }, [sessions]);
+
   const optimisticKey = (sid: string, aid: string) => `${sid}::${aid}`;
 
   const isAssigned = (sessionId: string, assistantId: string): boolean => {
@@ -328,25 +341,46 @@ export function AssistantsMatrix({ year, month, assistants, sessions }: Props) {
               )}
             </div>
             <div className='mb-4 text-xs font-semibold text-muted-foreground'>
-              보조강사 선택 — 클릭 즉시 저장
+              보조강사 선택 — 같은 날 다른 회차에 이미 배정된 인원은 선택 불가
             </div>
             <div className='grid grid-cols-2 gap-2'>
               {assistants.map((a) => {
                 const on = isAssigned(openSession.id, a.id);
+                // 같은 날 다른 회차에 이미 배정됐는지 확인
+                const sameDay = allSessionsByDate.get(openSession.session_date) ?? [];
+                const conflictWith = sameDay.find(
+                  (other) => other.id !== openSession.id && isAssigned(other.id, a.id)
+                );
+                const blocked = !!conflictWith && !on;
                 return (
                   <button
                     key={a.id}
                     type='button'
                     onClick={() => handleToggle(openSession.id, a.id)}
-                    disabled={pending}
-                    className={`flex items-center justify-between rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors ${
+                    disabled={pending || blocked}
+                    title={
+                      blocked && conflictWith
+                        ? `${conflictWith.cohortName} 에 이미 배정됨`
+                        : undefined
+                    }
+                    className={`flex flex-col items-start gap-0.5 rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors ${
                       on
                         ? 'border-blue-500 bg-blue-50 text-blue-900 dark:bg-blue-950/40 dark:text-blue-100'
-                        : 'bg-background text-muted-foreground hover:bg-muted'
+                        : blocked
+                          ? 'cursor-not-allowed border-rose-200 bg-rose-50/60 text-rose-700 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-300'
+                          : 'bg-background text-muted-foreground hover:bg-muted'
                     } disabled:opacity-50`}
                   >
-                    <span>{a.name}</span>
-                    {on && <span className='text-base font-bold'>✓</span>}
+                    <div className='flex w-full items-center justify-between'>
+                      <span>{a.name}</span>
+                      {on && <span className='text-base font-bold'>✓</span>}
+                      {blocked && <span className='text-[10px] font-bold'>충돌</span>}
+                    </div>
+                    {blocked && conflictWith && (
+                      <div className='text-[10px] leading-tight text-rose-600/80 dark:text-rose-300/80'>
+                        {conflictWith.cohortName}
+                      </div>
+                    )}
                   </button>
                 );
               })}
