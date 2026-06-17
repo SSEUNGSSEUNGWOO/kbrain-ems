@@ -71,7 +71,8 @@ export async function checkinByShareCode(
       .eq('applicant_id', student.applicant_id)
       .eq('cohort_id', session.cohort_id)
       .maybeSingle();
-    if (app && app.status !== 'selected') {
+    // 'selected' 외 'same_day_cancel'(당일취소)도 출결 가능. 'pre_cancel'·'rejected' 만 차단.
+    if (app && app.status !== 'selected' && app.status !== 'same_day_cancel') {
       return {
         ok: false,
         error: '현재 출석 대상자가 아닙니다. 관리자에게 문의해주세요.'

@@ -102,6 +102,7 @@ type Student = {
   name: string;
   organizations: { name: string }[] | { name: string } | null;
   category: string | null;
+  applicationStatus?: string | null;
 };
 
 function resolveCategory(student: Student): OrganizationCategory {
@@ -333,6 +334,15 @@ export function AttendanceTable({
                   <td className='px-4 py-2 font-medium'>
                     <div className='flex flex-wrap items-center gap-1.5'>
                       <span>{s.name}</span>
+                      {s.applicationStatus === 'same_day_cancel' && (
+                        <Badge
+                          variant='outline'
+                          title='당일취소'
+                          className='border-rose-200 bg-rose-50 text-[10px] font-medium text-rose-700'
+                        >
+                          당일취소
+                        </Badge>
+                      )}
                       {diagBadges.map((b, i) => (
                         <Badge
                           key={i}
