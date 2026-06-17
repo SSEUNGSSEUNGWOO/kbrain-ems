@@ -127,6 +127,14 @@ export default function AppSidebar() {
               Korus
             </span>
             <span className='text-sidebar-foreground/30 text-base font-light'>|</span>
+            <Image
+              src='/brand/k-brain-mark.png'
+              alt='K-Brain'
+              width={780}
+              height={832}
+              className='h-5 w-auto opacity-90 brightness-0 invert'
+              priority
+            />
             <span className='text-sm font-semibold tracking-tight text-sidebar-foreground/70'>
               K-Brain
             </span>
