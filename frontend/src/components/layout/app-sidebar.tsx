@@ -123,23 +123,30 @@ export default function AppSidebar() {
           href='/dashboard/overview'
           className='relative flex flex-col items-start gap-2 overflow-hidden px-5 py-5 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-3'
         >
-          <div className='relative flex items-center gap-3 group-data-[collapsible=icon]:hidden'>
+          <div className='relative flex items-center gap-2 group-data-[collapsible=icon]:hidden'>
             <Image
               src='/brand/korus-symbol-white.svg'
               alt='Korus'
-              width={30}
-              height={30}
-              className='h-[30px] w-[30px]'
+              width={28}
+              height={28}
+              className='h-7 w-7'
               priority
             />
-            <div className='flex flex-col leading-none'>
-              <span className='text-[18px] font-bold tracking-[-0.02em] text-white'>
-                Korus
-              </span>
-              <span className='mt-[3px] font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-[#6E80A0]'>
-                by K-Brain
-              </span>
-            </div>
+            <span className='text-xl font-bold tracking-[-0.03em] text-white'>
+              Korus
+            </span>
+            <span className='text-lg font-light text-white/30'>|</span>
+            <Image
+              src='/brand/k-brain-mark.png'
+              alt='K-Brain'
+              width={780}
+              height={832}
+              className='h-[18px] w-auto opacity-90 brightness-0 invert'
+              priority
+            />
+            <span className='text-[17px] font-semibold tracking-tight text-white'>
+              K-Brain
+            </span>
           </div>
           <Image
             src='/brand/korus-symbol-white.svg'
