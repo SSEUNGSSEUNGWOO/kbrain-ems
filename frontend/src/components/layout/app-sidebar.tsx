@@ -34,31 +34,39 @@ const CATEGORIES: { key: string; label: string }[] = [
   { key: 'experts', label: '4. 전문인재' }
 ];
 
+// Korus refined — 뮤트 틴트, mono 폰트, radius 5px, min-width 34px 통일.
+const BADGE_BASE =
+  'font-mono text-[9.5px] font-semibold tracking-[0.02em] px-1.5 py-[2px] rounded-[5px] min-w-[34px] text-center';
+const BADGE_RUN = 'bg-[rgba(99,131,240,0.18)] text-[#9DB2F5]';
+const BADGE_PREP = 'bg-white/[0.07] text-[#94A6C2]';
+const BADGE_DONE = 'bg-[rgba(45,208,173,0.15)] text-[#5FE0C6]';
+
 const STAGE_BADGE_CLASS: Record<CohortStage, string> = {
-  recruiting: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
-  selecting: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300',
-  notifying: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300',
-  onboarding: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
-  active: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
-  finished: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
-  preparing: 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300',
-  unset: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
+  recruiting: `${BADGE_BASE} ${BADGE_PREP}`,
+  selecting: `${BADGE_BASE} ${BADGE_PREP}`,
+  notifying: `${BADGE_BASE} ${BADGE_PREP}`,
+  preparing: `${BADGE_BASE} ${BADGE_PREP}`,
+  onboarding: `${BADGE_BASE} ${BADGE_DONE}`,
+  active: `${BADGE_BASE} ${BADGE_RUN}`,
+  finished: `${BADGE_BASE} ${BADGE_PREP}`,
+  unset: `${BADGE_BASE} ${BADGE_PREP}`
 };
 
+// 단색 라인 아이콘 — color 는 currentColor 통일. active 시에만 primary tint.
 const DOMAINS = [
-  { slug: 'applications', label: '신청·응답', icon: 'forms' as const, color: 'text-teal-500' },
-  { slug: 'students', label: '인원관리', icon: 'teams' as const, color: 'text-blue-500' },
-  { slug: 'lessons', label: '수업관리', icon: 'calendar' as const, color: 'text-sky-500' },
-  { slug: 'attendance', label: '출결', icon: 'circleCheck' as const, color: 'text-emerald-500' },
-  { slug: 'assignments', label: '과제', icon: 'forms' as const, color: 'text-amber-500' },
-  { slug: 'surveys', label: '만족도', icon: 'chat' as const, color: 'text-pink-500' },
-  { slug: 'completion', label: '수료', icon: 'badgeCheck' as const, color: 'text-violet-500' },
-  { slug: 'instructors', label: '강사', icon: 'user2' as const, color: 'text-rose-500' },
-  { slug: 'diagnoses', label: '사전·사후 진단', icon: 'checks' as const, color: 'text-cyan-500' },
-  { slug: 'pretraining', label: '사전 세팅 체크', icon: 'circleCheck' as const, color: 'text-lime-500' },
-  { slug: 'reports', label: '결과보고서', icon: 'fileTypeDoc' as const, color: 'text-orange-500' },
-  { slug: 'notifications', label: '알림 발송', icon: 'notification' as const, color: 'text-yellow-600' },
-  { slug: 'dashboard', label: '누적 통계', icon: 'trendingUp' as const, color: 'text-indigo-500' }
+  { slug: 'applications', label: '신청·응답', icon: 'forms' as const },
+  { slug: 'students', label: '인원관리', icon: 'teams' as const },
+  { slug: 'lessons', label: '수업관리', icon: 'calendar' as const },
+  { slug: 'attendance', label: '출결', icon: 'circleCheck' as const },
+  { slug: 'assignments', label: '과제', icon: 'forms' as const },
+  { slug: 'surveys', label: '만족도', icon: 'chat' as const },
+  { slug: 'completion', label: '수료', icon: 'badgeCheck' as const },
+  { slug: 'instructors', label: '강사', icon: 'user2' as const },
+  { slug: 'diagnoses', label: '사전·사후 진단', icon: 'checks' as const },
+  { slug: 'pretraining', label: '사전 세팅 체크', icon: 'circleCheck' as const },
+  { slug: 'reports', label: '결과보고서', icon: 'fileTypeDoc' as const },
+  { slug: 'notifications', label: '알림 발송', icon: 'notification' as const },
+  { slug: 'dashboard', label: '누적 통계', icon: 'trendingUp' as const }
 ] as const;
 
 export default function AppSidebar() {
@@ -115,30 +123,23 @@ export default function AppSidebar() {
           href='/dashboard/overview'
           className='relative flex flex-col items-start gap-2 overflow-hidden px-5 py-5 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-3'
         >
-          <div className='relative flex items-center gap-2 group-data-[collapsible=icon]:hidden'>
+          <div className='relative flex items-center gap-3 group-data-[collapsible=icon]:hidden'>
             <Image
               src='/brand/korus-symbol-white.svg'
               alt='Korus'
-              width={28}
-              height={28}
-              className='h-7 w-7'
+              width={30}
+              height={30}
+              className='h-[30px] w-[30px]'
               priority
             />
-            <span className='text-xl font-bold tracking-[-0.03em] text-sidebar-foreground'>
-              Korus
-            </span>
-            <span className='text-sidebar-foreground/30 text-lg font-light'>|</span>
-            <Image
-              src='/brand/k-brain-mark.png'
-              alt='K-Brain'
-              width={780}
-              height={832}
-              className='h-[18px] w-auto opacity-90 brightness-0 invert'
-              priority
-            />
-            <span className='text-[17px] font-semibold tracking-tight text-sidebar-foreground'>
-              K-Brain
-            </span>
+            <div className='flex flex-col leading-none'>
+              <span className='text-[18px] font-bold tracking-[-0.02em] text-white'>
+                Korus
+              </span>
+              <span className='mt-[3px] font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-[#6E80A0]'>
+                by K-Brain
+              </span>
+            </div>
           </div>
           <Image
             src='/brand/korus-symbol-white.svg'
@@ -152,7 +153,9 @@ export default function AppSidebar() {
 
       <SidebarContent className='overflow-x-hidden'>
         <SidebarGroup className='py-0'>
-          <SidebarGroupLabel>메뉴</SidebarGroupLabel>
+          <SidebarGroupLabel className='font-mono text-[10.5px] font-semibold uppercase tracking-[0.13em] text-[#6E80A0]'>
+            메뉴
+          </SidebarGroupLabel>
           <SidebarMenu>
 
             {/* 대시보드 */}
@@ -163,7 +166,7 @@ export default function AppSidebar() {
                 isActive={pathname === '/dashboard/overview'}
               >
                 <Link href='/dashboard/overview'>
-                  <Icons.dashboard className='text-blue-600 dark:text-blue-400' />
+                  <Icons.dashboard />
                   <span>대시보드</span>
                 </Link>
               </SidebarMenuButton>
@@ -177,7 +180,7 @@ export default function AppSidebar() {
                 isActive={pathname.startsWith('/dashboard/calendar')}
               >
                 <Link href='/dashboard/calendar'>
-                  <Icons.calendar className='text-pink-600 dark:text-pink-400' />
+                  <Icons.calendar />
                   <span>캘린더</span>
                 </Link>
               </SidebarMenuButton>
@@ -191,7 +194,7 @@ export default function AppSidebar() {
                 isActive={pathname === '/dashboard/notifications'}
               >
                 <Link href='/dashboard/notifications'>
-                  <Icons.notification className='text-yellow-600 dark:text-yellow-400' />
+                  <Icons.notification />
                   <span>알림 발송 (beta)</span>
                   {pendingDispatchCount > 0 && (
                     <span className='ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white group-data-[collapsible=icon]:absolute group-data-[collapsible=icon]:right-1 group-data-[collapsible=icon]:top-1 group-data-[collapsible=icon]:ml-0 group-data-[collapsible=icon]:h-3.5 group-data-[collapsible=icon]:min-w-3.5'>
@@ -210,7 +213,7 @@ export default function AppSidebar() {
                 isActive={pathname.startsWith('/dashboard/operations')}
               >
                 <Link href='/dashboard/operations'>
-                  <Icons.adjustments className='text-emerald-600 dark:text-emerald-400' />
+                  <Icons.adjustments />
                   <span>운영관리</span>
                 </Link>
               </SidebarMenuButton>
@@ -231,7 +234,7 @@ export default function AppSidebar() {
                     className='flex-1'
                   >
                     <Link href='/dashboard/cohorts'>
-                      <Icons.galleryVerticalEnd className='text-violet-600 dark:text-violet-400' />
+                      <Icons.galleryVerticalEnd />
                       <span>교육과정</span>
                     </Link>
                   </SidebarMenuButton>
@@ -303,7 +306,7 @@ export default function AppSidebar() {
                                                   )}
                                                 >
                                                   <Link href={`/dashboard/cohorts/${cohort.id}/${d.slug}`}>
-                                                    <DomainIcon className={`h-3.5 w-3.5 shrink-0 ${d.color}`} />
+                                                    <DomainIcon className='h-3.5 w-3.5 shrink-0' />
                                                     <span>{d.label}</span>
                                                   </Link>
                                                 </SidebarMenuSubButton>
@@ -360,7 +363,7 @@ export default function AppSidebar() {
                 isActive={pathname.startsWith('/dashboard/applicants')}
               >
                 <Link href='/dashboard/applicants'>
-                  <Icons.teams className='text-amber-600 dark:text-amber-400' />
+                  <Icons.teams />
                   <span>지원자 관리</span>
                 </Link>
               </SidebarMenuButton>
@@ -374,7 +377,7 @@ export default function AppSidebar() {
                 isActive={pathname.startsWith('/dashboard/lms-completions')}
               >
                 <Link href='/dashboard/lms-completions'>
-                  <Icons.checks className='text-teal-600 dark:text-teal-400' />
+                  <Icons.checks />
                   <span>사전학습 명단</span>
                 </Link>
               </SidebarMenuButton>
@@ -388,7 +391,7 @@ export default function AppSidebar() {
                 isActive={pathname === '/dashboard/instructors' || pathname.startsWith('/dashboard/instructors/')}
               >
                 <Link href='/dashboard/instructors'>
-                  <Icons.user2 className='text-rose-600 dark:text-rose-400' />
+                  <Icons.user2 />
                   <span>강사풀</span>
                 </Link>
               </SidebarMenuButton>
@@ -402,7 +405,7 @@ export default function AppSidebar() {
                 isActive={pathname.startsWith('/dashboard/assistants')}
               >
                 <Link href='/dashboard/assistants'>
-                  <Icons.user2 className='text-pink-600 dark:text-pink-400' />
+                  <Icons.user2 />
                   <span>보조강사 배정</span>
                 </Link>
               </SidebarMenuButton>

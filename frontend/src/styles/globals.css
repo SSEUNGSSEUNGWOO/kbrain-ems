@@ -1,4 +1,5 @@
 @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css');
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&display=swap');
 
 @import 'tailwindcss';
 
@@ -7,6 +8,19 @@
 @custom-variant dark (&:is(.dark *));
 
 @import './theme.css';
+
+/* 사이드바 refined spec (SIDEBAR.md) — hover/active 톤 분리.
+   --sidebar-accent 는 active row bg 라 hover 와 다르게 처리. */
+[data-sidebar='sidebar'] [data-sidebar='menu-button']:not([data-active='true']):hover,
+[data-sidebar='sidebar'] [data-sidebar='menu-sub-button']:not([data-active='true']):hover {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  color: var(--sidebar-foreground) !important;
+}
+[data-sidebar='sidebar'] [data-sidebar='menu-button'][data-active='true'] [data-slot='icon'],
+[data-sidebar='sidebar'] [data-sidebar='menu-button'][data-active='true'] svg,
+[data-sidebar='sidebar'] [data-sidebar='menu-sub-button'][data-active='true'] svg {
+  color: var(--sidebar-primary);
+}
 
 @layer base {
   * {

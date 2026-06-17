@@ -29,15 +29,17 @@
   --chart-3: #F3AE26;
   --chart-4: #6883F0;
   --chart-5: #BBC9FB;
-  /* 본문은 light, 사이드바만 deep navy (Linear/Notion 톤) */
-  --sidebar: #161E45;
-  --sidebar-foreground: #E5E7EB;
-  --sidebar-primary: #6883F0;
+  /* 사이드바 — Korus refined spec (SIDEBAR.md). 단색 모노톤 + active 만 색.
+     idle: 모든 텍스트·아이콘이 muted blue-gray.
+     active: 옅은 primary tint bg + white text. */
+  --sidebar: #0E1E38;
+  --sidebar-foreground: #9DB0CC;
+  --sidebar-primary: #9DB2F5;                   /* active icon color (primary-300) */
   --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #233285;       /* hover/active 시 살짝 밝아지는 navy. 하늘색 톤 X */
-  --sidebar-accent-foreground: #F3F2EE;
-  --sidebar-border: #2A3563;
-  --sidebar-ring: #6883F0;
+  --sidebar-accent: rgba(99, 131, 240, 0.16);   /* active row bg */
+  --sidebar-accent-foreground: #FFFFFF;
+  --sidebar-border: rgba(255, 255, 255, 0.07);
+  --sidebar-ring: #9DB2F5;
   --font-sans: 'Pretendard', 'IBM Plex Sans KR', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-serif: Georgia, serif;
   --font-mono: 'IBM Plex Mono', 'JetBrains Mono', ui-monospace, monospace;
