@@ -83,8 +83,10 @@ export default async function AssistantsPage({ searchParams }: Props) {
         .gte('on_date', start)
         .lt('on_date', end),
       supabase
-        .from('assistant_availability_marks')
-        .select('row_key, instructor_id')
+        .from('assistant_daily_availability')
+        .select('on_date, instructor_id')
+        .gte('on_date', start)
+        .lt('on_date', end)
     ]);
 
   const assistants = assistantsRes.data ?? [];
@@ -119,12 +121,12 @@ export default async function AssistantsPage({ searchParams }: Props) {
     selfAsgMap.set(k, arr);
   }
 
-  // 가용 인원 마크 매핑 row_key → [instructor_id]
-  const availMap = new Map<string, string[]>();
-  for (const m of ((availMarksRes.data ?? []) as unknown as { row_key: string; instructor_id: string }[])) {
-    const arr = availMap.get(m.row_key) ?? [];
+  // 가용 인원 마크 매핑 on_date → [instructor_id] (날짜 단위, 모든 종류 공유)
+  const availByDate = new Map<string, string[]>();
+  for (const m of ((availMarksRes.data ?? []) as unknown as { on_date: string; instructor_id: string }[])) {
+    const arr = availByDate.get(m.on_date) ?? [];
     arr.push(m.instructor_id);
-    availMap.set(m.row_key, arr);
+    availByDate.set(m.on_date, arr);
   }
 
   // 통합 row
@@ -152,7 +154,6 @@ export default async function AssistantsPage({ searchParams }: Props) {
     const subIds = s.session_instructors
       .filter((si) => si.role === 'sub')
       .map((si) => si.instructor_id);
-    const rowKey = `session::${s.id}`;
     rows.push({
       id: s.id,
       realSessionId: s.id,
@@ -164,7 +165,7 @@ export default async function AssistantsPage({ searchParams }: Props) {
       cohortName: s.cohorts?.name ?? '',
       category: s.cohorts?.category ?? 'other',
       assignedAssistantIds: subIds,
-      markedAssistantIds: availMap.get(rowKey) ?? [],
+      markedAssistantIds: availByDate.get(s.session_date) ?? [],
       kind: 'lesson',
       notRequired: s.assistant_not_required
     });
@@ -176,9 +177,8 @@ export default async function AssistantsPage({ searchParams }: Props) {
     for (const d of days) {
       if (!withinMonth(d, start, end)) continue;
       const assigned = selfAsgMap.get(`${c.id}::${d}`) ?? [];
-      const rowKey = `selfstudy::${c.id}::${d}`;
       rows.push({
-        id: rowKey,
+        id: `selfstudy::${c.id}::${d}`,
         realSessionId: null,
         externalEventId: null,
         selfStudy: { cohortId: c.id, onDate: d },
@@ -188,7 +188,7 @@ export default async function AssistantsPage({ searchParams }: Props) {
         cohortName: c.name,
         category: c.category ?? 'other',
         assignedAssistantIds: assigned,
-        markedAssistantIds: availMap.get(rowKey) ?? [],
+        markedAssistantIds: availByDate.get(d) ?? [],
         kind: 'selfstudy',
         notRequired: false
       });
@@ -198,19 +198,18 @@ export default async function AssistantsPage({ searchParams }: Props) {
   // 3) 외부 일정
   for (const e of ((externalEventsRes.data ?? []) as unknown as RowExternal[])) {
     const assigned = (e.assistant_external_assignments ?? []).map((x) => x.instructor_id);
-    const rowKey = `external::${e.id}`;
     rows.push({
-      id: rowKey,
+      id: `external::${e.id}`,
       realSessionId: null,
       externalEventId: e.id,
       selfStudy: null,
       date: e.on_date,
       title: e.title,
-      cohortId: rowKey,
+      cohortId: `external::${e.id}`,
       cohortName: e.organization ?? e.title,
       category: 'external',
       assignedAssistantIds: assigned,
-      markedAssistantIds: availMap.get(rowKey) ?? [],
+      markedAssistantIds: availByDate.get(e.on_date) ?? [],
       kind: 'external',
       notRequired: false
     });

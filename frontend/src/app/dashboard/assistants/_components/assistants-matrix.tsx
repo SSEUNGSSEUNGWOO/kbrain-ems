@@ -7,7 +7,7 @@ import {
   createExternalEvent,
   deleteExternalEvent,
   toggleAssistantAssignment,
-  toggleAvailabilityMark,
+  toggleDailyAvailability,
   toggleExternalAssistant,
   toggleSelfStudyAssistant,
   toggleSessionNotRequired
@@ -131,8 +131,11 @@ export function AssistantsMatrix({ year, month, assistants, rows }: Props) {
     return row.notRequired;
   };
 
+  // 가용 마크는 (date, assistant) 단위라 row.id 가 아닌 date 로 key 구성.
+  const markKey = (date: string, aid: string) => `${date}::${aid}`;
+
   const isMarked = (row: Row, assistantId: string): boolean => {
-    const o = optimisticMark.get(optimisticKey(row.id, assistantId));
+    const o = optimisticMark.get(markKey(row.date, assistantId));
     if (o !== undefined) return o;
     return row.markedAssistantIds.includes(assistantId);
   };
@@ -142,16 +145,16 @@ export function AssistantsMatrix({ year, month, assistants, rows }: Props) {
     setError(null);
     setOptimisticMark((prev) => {
       const m = new Map(prev);
-      m.set(optimisticKey(row.id, assistantId), next);
+      m.set(markKey(row.date, assistantId), next);
       return m;
     });
     startTransition(async () => {
-      const r = await toggleAvailabilityMark(row.id, assistantId, next);
+      const r = await toggleDailyAvailability(row.date, assistantId, next);
       if (r.error) {
         setError(r.error);
         setOptimisticMark((prev) => {
           const m = new Map(prev);
-          m.delete(optimisticKey(row.id, assistantId));
+          m.delete(markKey(row.date, assistantId));
           return m;
         });
       }
@@ -644,7 +647,7 @@ function AssignmentModal({
         {!isNotRequired && (
           <div className='mb-4'>
             <div className='mb-1.5 text-xs font-semibold text-muted-foreground'>
-              ★ 이 회차에 가능한 보조강사 (사전 표시)
+              ★ 이 날 가능한 보조강사 (날짜 단위, 모든 회차 공유)
             </div>
             <div className='flex flex-wrap gap-1.5'>
               {assistants.map((a) => {

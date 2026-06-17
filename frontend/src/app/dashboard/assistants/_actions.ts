@@ -175,25 +175,25 @@ export async function deleteExternalEvent(eventId: string): Promise<{ error?: st
 }
 
 /**
- * 가용 인원 마크 토글 — 운영자가 미리 표시하는 '이 회차에 가능한 보조강사'.
- * 배정과는 별개의 사전 메모.
+ * 날짜 × 보조강사 가용 마크 토글. 그 날 가능한 보조강사를 운영자가 미리 표시.
+ * 모든 회차/외부일정/셀프스터디에 동일 적용.
  */
-export async function toggleAvailabilityMark(
-  rowKey: string,
+export async function toggleDailyAvailability(
+  onDate: string,
   assistantId: string,
   on: boolean
 ): Promise<{ error?: string }> {
   const supabase = createAdminClient();
   if (on) {
     const { error } = await supabase
-      .from('assistant_availability_marks')
-      .insert({ row_key: rowKey, instructor_id: assistantId });
+      .from('assistant_daily_availability')
+      .insert({ on_date: onDate, instructor_id: assistantId });
     if (error && error.code !== '23505') return { error: error.message };
   } else {
     const { error } = await supabase
-      .from('assistant_availability_marks')
+      .from('assistant_daily_availability')
       .delete()
-      .eq('row_key', rowKey)
+      .eq('on_date', onDate)
       .eq('instructor_id', assistantId);
     if (error) return { error: error.message };
   }

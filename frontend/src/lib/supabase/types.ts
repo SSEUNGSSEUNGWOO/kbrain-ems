@@ -2151,25 +2151,25 @@ export type Database = {
         ];
       };
 
-      assistant_availability_marks: {
+      assistant_daily_availability: {
         Row: {
-          row_key: string;
+          on_date: string;
           instructor_id: string;
           created_at: string;
         };
         Insert: {
-          row_key: string;
+          on_date: string;
           instructor_id: string;
           created_at?: string;
         };
         Update: {
-          row_key?: string;
+          on_date?: string;
           instructor_id?: string;
           created_at?: string;
         };
         Relationships: [
           {
-            foreignKeyName: 'assistant_availability_marks_instructor_id_fkey';
+            foreignKeyName: 'assistant_daily_availability_instructor_id_fkey';
             columns: ['instructor_id'];
             referencedRelation: 'instructors';
             referencedColumns: ['id'];
