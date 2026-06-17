@@ -135,7 +135,7 @@ export default function AppSidebar() {
               className='h-5 w-auto opacity-90 brightness-0 invert'
               priority
             />
-            <span className='text-sm font-semibold tracking-tight text-sidebar-foreground/70'>
+            <span className='text-sm font-semibold tracking-tight text-sidebar-foreground'>
               K-Brain
             </span>
           </div>
