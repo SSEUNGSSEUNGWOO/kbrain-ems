@@ -115,8 +115,21 @@ export default function AppSidebar() {
           href='/dashboard/overview'
           className='relative flex flex-col items-start gap-2 overflow-hidden px-5 py-5 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-3'
         >
-          <div className='relative group-data-[collapsible=icon]:hidden'>
-            <Logo variant='white' size={26} withWordmark endorsed />
+          <div className='relative flex items-center gap-2 group-data-[collapsible=icon]:hidden'>
+            <Image
+              src='/brand/korus-symbol-white.svg'
+              alt='Korus'
+              width={24}
+              height={24}
+              priority
+            />
+            <span className='text-base font-bold tracking-[-0.03em] text-sidebar-foreground'>
+              Korus
+            </span>
+            <span className='text-sidebar-foreground/30 text-base font-light'>|</span>
+            <span className='text-sm font-semibold tracking-tight text-sidebar-foreground/70'>
+              K-Brain
+            </span>
           </div>
           <Image
             src='/brand/korus-symbol-white.svg'
