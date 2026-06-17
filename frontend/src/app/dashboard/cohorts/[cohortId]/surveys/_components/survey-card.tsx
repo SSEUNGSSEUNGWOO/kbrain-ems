@@ -5,6 +5,7 @@ import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { deleteSurvey } from '../_actions';
 import { SurveyEditSheet } from './survey-edit-sheet';
+import { QrDialog } from '@/components/qr-dialog';
 
 type Props = {
   id: string;
@@ -46,6 +47,7 @@ export function SurveyCard({
 }: Props) {
   const [origin, setOrigin] = useState('');
   const [copied, setCopied] = useState(false);
+  const [qrOpen, setQrOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const router = useRouter();
 
@@ -183,7 +185,21 @@ export function SurveyCard({
               >
                 {copied ? '✓ 복사됨' : '복사'}
               </button>
+              <button
+                onClick={() => setQrOpen(true)}
+                disabled={!shareUrl}
+                className='shrink-0 rounded-md border px-4 py-2 text-sm font-semibold transition hover:bg-muted disabled:opacity-50'
+              >
+                QR
+              </button>
             </div>
+            <QrDialog
+              open={qrOpen}
+              onClose={() => setQrOpen(false)}
+              label={title}
+              url={shareUrl}
+              filenamePrefix='survey'
+            />
           </div>
         ) : (
           <div className='rounded-md bg-amber-50 px-4 py-2 text-sm text-amber-700 dark:bg-amber-900/20 dark:text-amber-300'>
