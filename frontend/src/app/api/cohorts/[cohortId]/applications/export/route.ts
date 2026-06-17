@@ -73,7 +73,10 @@ export async function GET(
     .returns<AppRow[]>();
   if (appError) return new NextResponse(appError.message, { status: 500 });
 
-  const rows = applications ?? [];
+  // 테스트 계정(이름 '테스트' 시작) 제외
+  const rows = (applications ?? []).filter(
+    (r) => !(r.applicants?.name ?? '').trim().startsWith('테스트')
+  );
   const appIds = rows.map((r) => r.id);
 
   // 문항 메타: C2(분류) / Plan(글자수) / U1(다수체크) + knowledge 가중치 합

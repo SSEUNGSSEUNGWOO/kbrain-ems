@@ -37,6 +37,7 @@ export async function GET(
     .from('students')
     .select('id, name, department, job_title, organizations(name)')
     .eq('cohort_id', cohortId)
+    .not('name', 'ilike', '테스트%')
     .order('name', { ascending: true })
     .returns<StudentRow[]>();
   if (studentError) {

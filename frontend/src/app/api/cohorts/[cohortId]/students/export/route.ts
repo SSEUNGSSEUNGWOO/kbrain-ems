@@ -43,6 +43,7 @@ export async function GET(
       'applicant_id, name, department, job_title, job_role, email, phone, organizations(name), applicants(category)'
     )
     .eq('cohort_id', cohortId)
+    .not('name', 'ilike', '테스트%')
     .order('name', { ascending: true })
     .returns<StudentRow[]>();
   if (studentError) return new NextResponse(studentError.message, { status: 500 });
