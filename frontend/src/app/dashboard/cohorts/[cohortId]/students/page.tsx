@@ -99,6 +99,7 @@ export default async function StudentsPage({
     type StudentRow = {
       id: string;
       name: string;
+      applicant_id: string | null;
       department: string | null;
       job_title: string | null;
       job_role: string | null;
@@ -112,8 +113,8 @@ export default async function StudentsPage({
     };
 
     const studentCols = hidePersonal
-      ? 'id, name, department, job_title, job_role, birth_date, notes, organizations(name), applicants(category)'
-      : 'id, name, department, job_title, job_role, birth_date, email, personal_email, phone, notes, organizations(name), applicants(category)';
+      ? 'id, name, applicant_id, department, job_title, job_role, birth_date, notes, organizations(name), applicants(category)'
+      : 'id, name, applicant_id, department, job_title, job_role, birth_date, email, personal_email, phone, notes, organizations(name), applicants(category)';
     const { data: studentRows, error: studentError } = await supabase
       .from('students')
       .select(studentCols)
@@ -121,6 +122,17 @@ export default async function StudentsPage({
       .order('name', { ascending: true })
       .returns<StudentRow[]>();
     if (studentError) throw new Error(studentError.message);
+
+    // 인원관리에서도 application status (사전취소·당일취소 등) 표시·수정 가능하도록 함께 fetch.
+    const { data: appRows } = await supabase
+      .from('applications')
+      .select('id, applicant_id, status')
+      .eq('cohort_id', cohortId);
+    type AppMini = { id: string; applicant_id: string; status: string };
+    const appByApplicant = new Map<string, { id: string; status: string }>();
+    for (const a of ((appRows ?? []) as unknown as AppMini[])) {
+      appByApplicant.set(a.applicant_id, { id: a.id, status: a.status });
+    }
 
     // Per-student attended session count + total sessions — cohort_attendance_summary RPC로 SQL 측 집계
     type AttSummary = { student_id: string; present_count: number; total_count: number };
@@ -140,22 +152,27 @@ export default async function StudentsPage({
       .eq('cohort_id', cohortId);
     if (sessionCountError) throw new Error(sessionCountError.message);
 
-    const mapped = (studentRows ?? []).map((r) => ({
-      id: r.id,
-      name: r.name,
-      organizations: r.organizations ? { name: r.organizations.name } : null,
-      category: r.applicants?.category ?? null,
-      department: r.department,
-      job_title: r.job_title,
-      job_role: r.job_role,
-      birth_date: r.birth_date,
-      email: r.email ?? null,
-      personal_email: r.personal_email ?? null,
-      phone: r.phone ?? null,
-      notes: r.notes,
-      attendedSessions: attendanceMap.get(r.id) ?? 0,
-      totalSessions: totalSessions ?? 0
-    }));
+    const mapped = (studentRows ?? []).map((r) => {
+      const app = r.applicant_id ? appByApplicant.get(r.applicant_id) ?? null : null;
+      return {
+        id: r.id,
+        name: r.name,
+        organizations: r.organizations ? { name: r.organizations.name } : null,
+        category: r.applicants?.category ?? null,
+        department: r.department,
+        job_title: r.job_title,
+        job_role: r.job_role,
+        birth_date: r.birth_date,
+        email: r.email ?? null,
+        personal_email: r.personal_email ?? null,
+        phone: r.phone ?? null,
+        notes: r.notes,
+        attendedSessions: attendanceMap.get(r.id) ?? 0,
+        totalSessions: totalSessions ?? 0,
+        applicationId: app?.id ?? null,
+        applicationStatus: app?.status ?? null
+      };
+    });
 
     return (
       <PageContainer

@@ -32,14 +32,42 @@ import {
   AlertDialogTitle
 } from '@/components/ui/alert-dialog';
 import { Icons } from '@/components/icons';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select';
 import { deleteStudent, deleteStudents } from '../_actions';
+import { updateApplicationStatus } from '../../applications/_actions';
 import { StudentSheet } from './student-sheet';
+
+const STATUS_OPTIONS: { value: string; label: string }[] = [
+  { value: 'applied', label: '신청' },
+  { value: 'pending', label: '심사중' },
+  { value: 'selected', label: '선발' },
+  { value: 'rejected', label: '탈락' },
+  { value: 'pre_cancel', label: '사전취소' },
+  { value: 'same_day_cancel', label: '당일취소' }
+];
+
+const STATUS_TONE: Record<string, string> = {
+  applied: 'text-slate-600',
+  pending: 'text-amber-700',
+  selected: 'text-emerald-700',
+  rejected: 'text-rose-700',
+  pre_cancel: 'text-slate-500',
+  same_day_cancel: 'text-rose-700'
+};
 
 type Student = {
   id: string;
   name: string;
   organizations: { name: string }[] | { name: string } | null;
   category: string | null;
+  applicationId?: string | null;
+  applicationStatus?: string | null;
   department: string | null;
   job_title: string | null;
   job_role: string | null;
@@ -71,6 +99,60 @@ const CATEGORY_CLASS: Record<OrganizationCategory, string> = {
   education: 'border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-900 dark:bg-violet-950/40 dark:text-violet-300',
   unknown: 'border-border bg-muted text-muted-foreground'
 };
+
+function StatusCell({
+  cohortId,
+  applicationId,
+  currentStatus,
+  disabled
+}: {
+  cohortId: string;
+  applicationId: string;
+  currentStatus: string;
+  disabled: boolean;
+}) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [value, setValue] = useState(currentStatus);
+
+  const onChange = (next: string) => {
+    if (next === value) return;
+    setValue(next);
+    startTransition(async () => {
+      const r = await updateApplicationStatus(applicationId, next, cohortId);
+      if (r.error) {
+        alert(r.error);
+        setValue(currentStatus);
+        return;
+      }
+      router.refresh();
+    });
+  };
+
+  if (disabled) {
+    const label = STATUS_OPTIONS.find((s) => s.value === value)?.label ?? value;
+    return (
+      <span className={`text-xs font-medium ${STATUS_TONE[value] ?? ''}`}>{label}</span>
+    );
+  }
+
+  return (
+    <Select value={value} onValueChange={onChange} disabled={pending}>
+      <SelectTrigger
+        className={`h-8 w-[7rem] text-xs font-medium ${STATUS_TONE[value] ?? ''}`}
+      >
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {STATUS_OPTIONS.map((o) => (
+          <SelectItem key={o.value} value={o.value} className='text-xs'>
+            {o.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
 
 export function StudentTable({
   cohortId,
@@ -308,6 +390,7 @@ export function StudentTable({
               <th className='px-4 py-3 text-left font-medium'>소속</th>
               {!hidePersonal && <th className='px-4 py-3 text-left font-medium'>전화번호</th>}
               {!hidePersonal && <th className='px-4 py-3 text-left font-medium'>이메일</th>}
+              <th className='w-28 px-4 py-3 text-left font-medium'>상태</th>
               <th className='w-28 px-4 py-3 text-left font-medium'>출석률</th>
               <th className='w-20 px-4 py-3'></th>
             </tr>
@@ -344,6 +427,18 @@ export function StudentTable({
                   {!hidePersonal && (
                     <td className='text-muted-foreground px-4 py-3'>{s.email ?? '-'}</td>
                   )}
+                  <td className='px-4 py-3'>
+                    {s.applicationId ? (
+                      <StatusCell
+                        cohortId={cohortId}
+                        applicationId={s.applicationId}
+                        currentStatus={s.applicationStatus ?? 'applied'}
+                        disabled={!isDeveloper}
+                      />
+                    ) : (
+                      <span className='text-muted-foreground text-xs'>-</span>
+                    )}
+                  </td>
                   <td className='px-4 py-3'>
                     {s.totalSessions > 0 ? (() => {
                       const pct = Math.round((s.attendedSessions / s.totalSessions) * 100);
