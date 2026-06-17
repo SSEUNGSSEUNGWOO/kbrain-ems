@@ -469,6 +469,7 @@ export function AttendanceChecksSection({
                             students={cancelStudents}
                             recordByStudent={recordByStudent}
                             criterionAt={check.criterion_at}
+                            variant='cancel'
                           />
                         </div>
                       )}
@@ -502,18 +503,35 @@ export function AttendanceChecksSection({
 function CheckpointNameGrid({
   students,
   recordByStudent,
-  criterionAt
+  criterionAt,
+  variant = 'normal'
 }: {
   students: StudentInfo[];
   recordByStudent: Map<string, string>;
   criterionAt: string | null;
+  variant?: 'normal' | 'cancel';
 }) {
+  const isCancel = variant === 'cancel';
   return (
     <div className='grid grid-cols-3 gap-1.5 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-9'>
       {students.map((s) => {
         const checkedAt = recordByStudent.get(s.id);
         const isLate =
           checkedAt && criterionAt && new Date(checkedAt) > new Date(criterionAt);
+        // 당일취소: 카드 전체 rose 톤 + 우측에 '취소' 라벨 고정.
+        if (isCancel) {
+          return (
+            <div
+              key={s.id}
+              className='flex items-center justify-between gap-1 rounded-lg bg-rose-50 px-2.5 py-1 text-xs text-rose-900 ring-1 ring-rose-300 dark:bg-rose-950/30 dark:text-rose-200'
+            >
+              <StudentNameTooltip student={s}>
+                <span className='truncate font-medium'>{s.name}</span>
+              </StudentNameTooltip>
+              <span className='font-bold text-rose-600 dark:text-rose-300'>취소</span>
+            </div>
+          );
+        }
         return (
           <div
             key={s.id}
