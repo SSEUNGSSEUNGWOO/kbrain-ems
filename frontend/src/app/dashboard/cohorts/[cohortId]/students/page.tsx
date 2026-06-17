@@ -73,17 +73,19 @@ export default async function StudentsPage({
       );
     }
 
-    const rows = (appRows ?? []).map((r) => ({
-      applicationId: r.id,
-      applicantId: r.applicant_id,
-      name: r.applicants?.name ?? '',
-      organizationName: r.applicants?.organizations?.name ?? null,
-      email: r.applicants?.email ?? null,
-      phone: r.applicants?.phone ?? null,
-      appliedAt: r.applied_at,
-      status: r.status,
-      motivation: r.motivation
-    }));
+    const rows = (appRows ?? [])
+      .filter((r) => !(r.applicants?.name ?? '').trim().startsWith('테스트'))
+      .map((r) => ({
+        applicationId: r.id,
+        applicantId: r.applicant_id,
+        name: r.applicants?.name ?? '',
+        organizationName: r.applicants?.organizations?.name ?? null,
+        email: r.applicants?.email ?? null,
+        phone: r.applicants?.phone ?? null,
+        appliedAt: r.applied_at,
+        status: r.status,
+        motivation: r.motivation
+      }));
 
     return (
       <PageContainer
@@ -119,6 +121,7 @@ export default async function StudentsPage({
       .from('students')
       .select(studentCols)
       .eq('cohort_id', cohortId)
+      .not('name', 'ilike', '테스트%')
       .order('name', { ascending: true })
       .returns<StudentRow[]>();
     if (studentError) throw new Error(studentError.message);
