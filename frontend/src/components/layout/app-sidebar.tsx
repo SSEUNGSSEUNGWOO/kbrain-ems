@@ -116,10 +116,10 @@ export default function AppSidebar() {
           className='relative flex flex-col items-start gap-2 overflow-hidden px-5 py-5 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-3'
         >
           <div className='relative group-data-[collapsible=icon]:hidden'>
-            <Logo variant='color' size={26} withWordmark endorsed />
+            <Logo variant='white' size={26} withWordmark endorsed />
           </div>
           <Image
-            src='/brand/korus-symbol-color.svg'
+            src='/brand/korus-symbol-white.svg'
             alt='Korus'
             width={28}
             height={28}

@@ -29,14 +29,15 @@
   --chart-3: #F3AE26;
   --chart-4: #6883F0;
   --chart-5: #BBC9FB;
-  --sidebar: #F3F2EE;
-  --sidebar-foreground: #1A1815;
-  --sidebar-primary: #2C49D1;
+  /* 본문은 light, 사이드바만 deep navy (Linear/Notion 톤) */
+  --sidebar: #161E45;
+  --sidebar-foreground: #F3F2EE;
+  --sidebar-primary: #6883F0;
   --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #EEF2FE;
-  --sidebar-accent-foreground: #2539A8;
-  --sidebar-border: #E7E5DF;
-  --sidebar-ring: #2C49D1;
+  --sidebar-accent: #21306A;
+  --sidebar-accent-foreground: #BBC9FB;
+  --sidebar-border: #353229;
+  --sidebar-ring: #6883F0;
   --font-sans: 'Pretendard', 'IBM Plex Sans KR', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-serif: Georgia, serif;
   --font-mono: 'IBM Plex Mono', 'JetBrains Mono', ui-monospace, monospace;
