@@ -175,6 +175,33 @@ export async function deleteExternalEvent(eventId: string): Promise<{ error?: st
 }
 
 /**
+ * 가용 인원 마크 토글 — 운영자가 미리 표시하는 '이 회차에 가능한 보조강사'.
+ * 배정과는 별개의 사전 메모.
+ */
+export async function toggleAvailabilityMark(
+  rowKey: string,
+  assistantId: string,
+  on: boolean
+): Promise<{ error?: string }> {
+  const supabase = createAdminClient();
+  if (on) {
+    const { error } = await supabase
+      .from('assistant_availability_marks')
+      .insert({ row_key: rowKey, instructor_id: assistantId });
+    if (error && error.code !== '23505') return { error: error.message };
+  } else {
+    const { error } = await supabase
+      .from('assistant_availability_marks')
+      .delete()
+      .eq('row_key', rowKey)
+      .eq('instructor_id', assistantId);
+    if (error) return { error: error.message };
+  }
+  revalidatePath('/dashboard/assistants');
+  return {};
+}
+
+/**
  * 같은 날 sub 충돌 체크 — sessions, external, selfstudy 세 가지 소스 통합.
  * self 매개변수 중 하나만 채워서 호출 — 자기 자신 제외용.
  */

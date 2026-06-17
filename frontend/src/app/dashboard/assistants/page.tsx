@@ -55,7 +55,7 @@ export default async function AssistantsPage({ searchParams }: Props) {
 
   const supabase = createAdminClient();
 
-  const [assistantsRes, sessionsRes, cohortsRes, externalEventsRes, selfStudyAsgRes] =
+  const [assistantsRes, sessionsRes, cohortsRes, externalEventsRes, selfStudyAsgRes, availMarksRes] =
     await Promise.all([
       supabase.from('instructors').select('id, name').eq('kind', 'sub').order('name'),
       supabase
@@ -81,7 +81,10 @@ export default async function AssistantsPage({ searchParams }: Props) {
         .from('cohort_self_study_assignments')
         .select('cohort_id, on_date, instructor_id')
         .gte('on_date', start)
-        .lt('on_date', end)
+        .lt('on_date', end),
+      supabase
+        .from('assistant_availability_marks')
+        .select('row_key, instructor_id')
     ]);
 
   const assistants = assistantsRes.data ?? [];
@@ -116,6 +119,14 @@ export default async function AssistantsPage({ searchParams }: Props) {
     selfAsgMap.set(k, arr);
   }
 
+  // 가용 인원 마크 매핑 row_key → [instructor_id]
+  const availMap = new Map<string, string[]>();
+  for (const m of ((availMarksRes.data ?? []) as unknown as { row_key: string; instructor_id: string }[])) {
+    const arr = availMap.get(m.row_key) ?? [];
+    arr.push(m.instructor_id);
+    availMap.set(m.row_key, arr);
+  }
+
   // 통합 row
   type Row = {
     id: string;
@@ -128,6 +139,7 @@ export default async function AssistantsPage({ searchParams }: Props) {
     cohortName: string;
     category: string; // 'general' | 'champion' | 'experts' | 'special' | 'external' | 'other'
     assignedAssistantIds: string[];
+    markedAssistantIds: string[]; // 운영자가 미리 표시한 가용 보조강사
     kind: 'lesson' | 'selfstudy' | 'external';
     notRequired: boolean;
   };
@@ -140,6 +152,7 @@ export default async function AssistantsPage({ searchParams }: Props) {
     const subIds = s.session_instructors
       .filter((si) => si.role === 'sub')
       .map((si) => si.instructor_id);
+    const rowKey = `session::${s.id}`;
     rows.push({
       id: s.id,
       realSessionId: s.id,
@@ -151,6 +164,7 @@ export default async function AssistantsPage({ searchParams }: Props) {
       cohortName: s.cohorts?.name ?? '',
       category: s.cohorts?.category ?? 'other',
       assignedAssistantIds: subIds,
+      markedAssistantIds: availMap.get(rowKey) ?? [],
       kind: 'lesson',
       notRequired: s.assistant_not_required
     });
@@ -162,8 +176,9 @@ export default async function AssistantsPage({ searchParams }: Props) {
     for (const d of days) {
       if (!withinMonth(d, start, end)) continue;
       const assigned = selfAsgMap.get(`${c.id}::${d}`) ?? [];
+      const rowKey = `selfstudy::${c.id}::${d}`;
       rows.push({
-        id: `selfstudy::${c.id}::${d}`,
+        id: rowKey,
         realSessionId: null,
         externalEventId: null,
         selfStudy: { cohortId: c.id, onDate: d },
@@ -173,6 +188,7 @@ export default async function AssistantsPage({ searchParams }: Props) {
         cohortName: c.name,
         category: c.category ?? 'other',
         assignedAssistantIds: assigned,
+        markedAssistantIds: availMap.get(rowKey) ?? [],
         kind: 'selfstudy',
         notRequired: false
       });
@@ -182,17 +198,19 @@ export default async function AssistantsPage({ searchParams }: Props) {
   // 3) 외부 일정
   for (const e of ((externalEventsRes.data ?? []) as unknown as RowExternal[])) {
     const assigned = (e.assistant_external_assignments ?? []).map((x) => x.instructor_id);
+    const rowKey = `external::${e.id}`;
     rows.push({
-      id: `external::${e.id}`,
+      id: rowKey,
       realSessionId: null,
       externalEventId: e.id,
       selfStudy: null,
       date: e.on_date,
       title: e.title,
-      cohortId: `external::${e.id}`,
+      cohortId: rowKey,
       cohortName: e.organization ?? e.title,
       category: 'external',
       assignedAssistantIds: assigned,
+      markedAssistantIds: availMap.get(rowKey) ?? [],
       kind: 'external',
       notRequired: false
     });

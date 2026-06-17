@@ -2151,6 +2151,32 @@ export type Database = {
         ];
       };
 
+      assistant_availability_marks: {
+        Row: {
+          row_key: string;
+          instructor_id: string;
+          created_at: string;
+        };
+        Insert: {
+          row_key: string;
+          instructor_id: string;
+          created_at?: string;
+        };
+        Update: {
+          row_key?: string;
+          instructor_id?: string;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'assistant_availability_marks_instructor_id_fkey';
+            columns: ['instructor_id'];
+            referencedRelation: 'instructors';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+
       cohort_self_study_assignments: {
         Row: {
           cohort_id: string;

@@ -7,6 +7,7 @@ import {
   createExternalEvent,
   deleteExternalEvent,
   toggleAssistantAssignment,
+  toggleAvailabilityMark,
   toggleExternalAssistant,
   toggleSelfStudyAssistant,
   toggleSessionNotRequired
@@ -26,6 +27,7 @@ type Row = {
   cohortName: string;
   category: string;
   assignedAssistantIds: string[];
+  markedAssistantIds: string[];
   kind: 'lesson' | 'selfstudy' | 'external';
   notRequired: boolean;
 };
@@ -88,6 +90,7 @@ export function AssistantsMatrix({ year, month, assistants, rows }: Props) {
   // 낙관적 표시
   const [optimistic, setOptimistic] = useState<Map<string, boolean>>(new Map());
   const [optimisticNotReq, setOptimisticNotReq] = useState<Map<string, boolean>>(new Map());
+  const [optimisticMark, setOptimisticMark] = useState<Map<string, boolean>>(new Map());
 
   const filteredRows = useMemo(
     () => rows.filter((r) => filterCategories.has(r.category)),
@@ -126,6 +129,34 @@ export function AssistantsMatrix({ year, month, assistants, rows }: Props) {
     const o = optimisticNotReq.get(row.id);
     if (o !== undefined) return o;
     return row.notRequired;
+  };
+
+  const isMarked = (row: Row, assistantId: string): boolean => {
+    const o = optimisticMark.get(optimisticKey(row.id, assistantId));
+    if (o !== undefined) return o;
+    return row.markedAssistantIds.includes(assistantId);
+  };
+
+  const handleToggleMark = (row: Row, assistantId: string) => {
+    const next = !isMarked(row, assistantId);
+    setError(null);
+    setOptimisticMark((prev) => {
+      const m = new Map(prev);
+      m.set(optimisticKey(row.id, assistantId), next);
+      return m;
+    });
+    startTransition(async () => {
+      const r = await toggleAvailabilityMark(row.id, assistantId, next);
+      if (r.error) {
+        setError(r.error);
+        setOptimisticMark((prev) => {
+          const m = new Map(prev);
+          m.delete(optimisticKey(row.id, assistantId));
+          return m;
+        });
+      }
+      router.refresh();
+    });
   };
 
   const handleToggle = (row: Row, assistantId: string) => {
@@ -463,6 +494,14 @@ export function AssistantsMatrix({ year, month, assistants, rows }: Props) {
                               </span>
                             ))
                           )}
+                          {!notReq && r.markedAssistantIds.length > 0 && (
+                            <span
+                              className='inline-block rounded-sm bg-amber-50 px-1 text-[10px] font-semibold text-amber-700 dark:bg-amber-950/40 dark:text-amber-300'
+                              title={`가능 표시 ${r.markedAssistantIds.length}명`}
+                            >
+                              ★{r.markedAssistantIds.length}
+                            </span>
+                          )}
                         </div>
                       </button>
                     );
@@ -489,9 +528,11 @@ export function AssistantsMatrix({ year, month, assistants, rows }: Props) {
           assistants={assistants}
           available={availableAssistantsForDate(openRow.date, openRow.id)}
           isAssigned={(aid) => isAssigned(openRow, aid)}
+          isMarked={(aid) => isMarked(openRow, aid)}
           isNotRequired={isNotRequired(openRow)}
           pending={pending}
           onToggle={(aid) => handleToggle(openRow, aid)}
+          onToggleMark={(aid) => handleToggleMark(openRow, aid)}
           onToggleNotRequired={() => handleToggleNotRequired(openRow)}
           onDeleteExternal={() => handleDeleteExternal(openRow)}
           onClose={() => setOpenRowId(null)}
@@ -506,9 +547,11 @@ function AssignmentModal({
   assistants,
   available,
   isAssigned,
+  isMarked,
   isNotRequired,
   pending,
   onToggle,
+  onToggleMark,
   onToggleNotRequired,
   onDeleteExternal,
   onClose
@@ -517,9 +560,11 @@ function AssignmentModal({
   assistants: Assistant[];
   available: Assistant[];
   isAssigned: (aid: string) => boolean;
+  isMarked: (aid: string) => boolean;
   isNotRequired: boolean;
   pending: boolean;
   onToggle: (aid: string) => void;
+  onToggleMark: (aid: string) => void;
   onToggleNotRequired: () => void;
   onDeleteExternal: () => void;
   onClose: () => void;
@@ -595,6 +640,36 @@ function AssignmentModal({
           </div>
         )}
 
+        {/* 가용 인원 마크 */}
+        {!isNotRequired && (
+          <div className='mb-4'>
+            <div className='mb-1.5 text-xs font-semibold text-muted-foreground'>
+              ★ 이 회차에 가능한 보조강사 (사전 표시)
+            </div>
+            <div className='flex flex-wrap gap-1.5'>
+              {assistants.map((a) => {
+                const m = isMarked(a.id);
+                return (
+                  <button
+                    key={a.id}
+                    type='button'
+                    onClick={() => onToggleMark(a.id)}
+                    disabled={pending}
+                    className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+                      m
+                        ? 'border-amber-400 bg-amber-50 text-amber-800 dark:bg-amber-950/30 dark:text-amber-200'
+                        : 'border-muted bg-background text-muted-foreground hover:bg-muted'
+                    } disabled:opacity-50`}
+                  >
+                    <span>{m ? '★' : '☆'}</span>
+                    <span>{a.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* 보조강사 토글 */}
         {!isNotRequired && (
           <>
@@ -606,6 +681,7 @@ function AssignmentModal({
                 const on = isAssigned(a.id);
                 const isAvail = available.some((x) => x.id === a.id);
                 const blocked = !on && !isAvail;
+                const marked = isMarked(a.id);
                 return (
                   <button
                     key={a.id}
@@ -617,10 +693,15 @@ function AssignmentModal({
                         ? 'border-blue-500 bg-blue-50 text-blue-900 dark:bg-blue-950/40 dark:text-blue-100'
                         : blocked
                           ? 'cursor-not-allowed border-rose-200 bg-rose-50/60 text-rose-600 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-300'
-                          : 'bg-background text-muted-foreground hover:bg-muted'
+                          : marked
+                            ? 'border-amber-300 bg-amber-50/50 text-amber-900 dark:bg-amber-950/20 dark:text-amber-200'
+                            : 'bg-background text-muted-foreground hover:bg-muted'
                     } disabled:opacity-60`}
                   >
-                    <span>{a.name}</span>
+                    <span className='flex items-center gap-1'>
+                      {marked && <span className='text-amber-500'>★</span>}
+                      {a.name}
+                    </span>
                     {on && <span className='text-base font-bold'>✓</span>}
                     {blocked && <span className='text-[10px] font-bold'>충돌</span>}
                   </button>
