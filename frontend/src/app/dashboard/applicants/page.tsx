@@ -105,8 +105,11 @@ export default async function ApplicantsPage({ searchParams }: Props) {
         ? facetQuery.ilike('name', `%${search}%`)
         : facetQuery.or(`name.ilike.%${search}%,phone.ilike.%${search}%`);
     }
-    const { data: facetRows, error: facetError } =
-      await facetQuery.returns<{ category: string | null }[]>();
+    // Supabase JS 기본 limit 1000 → applicants 2000+ row 일 때 facet 통계가 잘림.
+    // 충분히 큰 range 로 풀 사이즈 받아 카테고리 정확히 집계.
+    const { data: facetRows, error: facetError } = await facetQuery
+      .range(0, 49999)
+      .returns<{ category: string | null }[]>();
     if (facetError) throw new Error(facetError.message);
 
     const categoryCounts: CategoryCounts = {};
