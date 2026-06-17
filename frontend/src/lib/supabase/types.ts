@@ -832,6 +832,7 @@ export type Database = {
           break_start_time: string | null;
           break_end_time: string | null;
           location_id: string | null;
+          assistant_not_required: boolean;
           created_at: string;
           updated_at: string;
         };
@@ -847,6 +848,7 @@ export type Database = {
           break_start_time?: string | null;
           break_end_time?: string | null;
           location_id?: string | null;
+          assistant_not_required?: boolean;
           created_at?: string;
           updated_at?: string;
         };
@@ -862,6 +864,7 @@ export type Database = {
           break_start_time?: string | null;
           break_end_time?: string | null;
           location_id?: string | null;
+          assistant_not_required?: boolean;
           created_at?: string;
           updated_at?: string;
         };
@@ -2080,6 +2083,104 @@ export type Database = {
             foreignKeyName: 'issues_owner_id_fkey';
             columns: ['owner_id'];
             referencedRelation: 'operators';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+
+      assistant_external_events: {
+        Row: {
+          id: string;
+          on_date: string;
+          title: string;
+          organization: string | null;
+          required_count: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          on_date: string;
+          title: string;
+          organization?: string | null;
+          required_count?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          on_date?: string;
+          title?: string;
+          organization?: string | null;
+          required_count?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+
+      assistant_external_assignments: {
+        Row: {
+          event_id: string;
+          instructor_id: string;
+          created_at: string;
+        };
+        Insert: {
+          event_id: string;
+          instructor_id: string;
+          created_at?: string;
+        };
+        Update: {
+          event_id?: string;
+          instructor_id?: string;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'assistant_external_assignments_event_id_fkey';
+            columns: ['event_id'];
+            referencedRelation: 'assistant_external_events';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'assistant_external_assignments_instructor_id_fkey';
+            columns: ['instructor_id'];
+            referencedRelation: 'instructors';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+
+      cohort_self_study_assignments: {
+        Row: {
+          cohort_id: string;
+          on_date: string;
+          instructor_id: string;
+          created_at: string;
+        };
+        Insert: {
+          cohort_id: string;
+          on_date: string;
+          instructor_id: string;
+          created_at?: string;
+        };
+        Update: {
+          cohort_id?: string;
+          on_date?: string;
+          instructor_id?: string;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'cohort_self_study_assignments_cohort_id_fkey';
+            columns: ['cohort_id'];
+            referencedRelation: 'cohorts';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'cohort_self_study_assignments_instructor_id_fkey';
+            columns: ['instructor_id'];
+            referencedRelation: 'instructors';
             referencedColumns: ['id'];
           }
         ];

@@ -3,7 +3,14 @@
 import { useMemo, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { toggleAssistantAssignment } from '../_actions';
+import {
+  createExternalEvent,
+  deleteExternalEvent,
+  toggleAssistantAssignment,
+  toggleExternalAssistant,
+  toggleSelfStudyAssistant,
+  toggleSessionNotRequired
+} from '../_actions';
 import { colorForCohort } from './cohort-color';
 
 type Assistant = { id: string; name: string; count: number };
@@ -11,14 +18,15 @@ type Assistant = { id: string; name: string; count: number };
 type Row = {
   id: string;
   realSessionId: string | null;
+  externalEventId: string | null;
+  selfStudy: { cohortId: string; onDate: string } | null;
   date: string;
   title: string;
   cohortId: string;
   cohortName: string;
   assignedAssistantIds: string[];
-  availableNote: string;
-  kind: 'lesson' | 'ot' | 'selfstudy';
-  isVirtual: boolean;
+  kind: 'lesson' | 'selfstudy' | 'external';
+  notRequired: boolean;
 };
 
 type Props = {
@@ -58,8 +66,10 @@ export function AssistantsMatrix({ year, month, assistants, rows }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [filterCohort, setFilterCohort] = useState<string>('all');
   const [openRowId, setOpenRowId] = useState<string | null>(null);
-  // 낙관적 표시 — key = `${realSessionId}::${assistantId}` → 새 boolean
+  const [showExternalForm, setShowExternalForm] = useState(false);
+  // 낙관적 표시
   const [optimistic, setOptimistic] = useState<Map<string, boolean>>(new Map());
+  const [optimisticNotReq, setOptimisticNotReq] = useState<Map<string, boolean>>(new Map());
 
   const cohortOptions = useMemo(() => {
     const m = new Map<string, string>();
@@ -80,7 +90,6 @@ export function AssistantsMatrix({ year, month, assistants, rows }: Props) {
     return m;
   }, [filteredRows]);
 
-  // 충돌 감지용 — 같은 날 모든 row (필터 무관)
   const allRowsByDate = useMemo(() => {
     const m = new Map<string, Row[]>();
     for (const r of rows) {
@@ -91,27 +100,86 @@ export function AssistantsMatrix({ year, month, assistants, rows }: Props) {
     return m;
   }, [rows]);
 
-  const optimisticKey = (sid: string, aid: string) => `${sid}::${aid}`;
+  const optimisticKey = (rid: string, aid: string) => `${rid}::${aid}`;
 
   const isAssigned = (row: Row, assistantId: string): boolean => {
-    if (!row.realSessionId) return false;
-    const o = optimistic.get(optimisticKey(row.realSessionId, assistantId));
+    const o = optimistic.get(optimisticKey(row.id, assistantId));
     if (o !== undefined) return o;
     return row.assignedAssistantIds.includes(assistantId);
   };
 
+  const isNotRequired = (row: Row): boolean => {
+    const o = optimisticNotReq.get(row.id);
+    if (o !== undefined) return o;
+    return row.notRequired;
+  };
+
   const handleToggle = (row: Row, assistantId: string) => {
-    if (!row.realSessionId) return; // 가상 row 는 토글 불가
+    if (row.kind === 'lesson' && isNotRequired(row)) return;
     const next = !isAssigned(row, assistantId);
     setError(null);
     setOptimistic((prev) => {
       const m = new Map(prev);
-      m.set(optimisticKey(row.realSessionId!, assistantId), next);
+      m.set(optimisticKey(row.id, assistantId), next);
       return m;
     });
     startTransition(async () => {
-      const r = await toggleAssistantAssignment(row.realSessionId!, assistantId, next);
+      let r: { error?: string } = {};
+      if (row.kind === 'lesson' && row.realSessionId) {
+        r = await toggleAssistantAssignment(row.realSessionId, assistantId, next);
+      } else if (row.kind === 'external' && row.externalEventId) {
+        r = await toggleExternalAssistant(row.externalEventId, assistantId, next);
+      } else if (row.kind === 'selfstudy' && row.selfStudy) {
+        r = await toggleSelfStudyAssistant(
+          row.selfStudy.cohortId,
+          row.selfStudy.onDate,
+          assistantId,
+          next
+        );
+      }
+      if (r.error) {
+        setError(r.error);
+        // 실패 시 낙관적 표시 롤백
+        setOptimistic((prev) => {
+          const m = new Map(prev);
+          m.delete(optimisticKey(row.id, assistantId));
+          return m;
+        });
+      }
+      router.refresh();
+    });
+  };
+
+  const handleToggleNotRequired = (row: Row) => {
+    if (!row.realSessionId) return;
+    const next = !isNotRequired(row);
+    setError(null);
+    setOptimisticNotReq((prev) => {
+      const m = new Map(prev);
+      m.set(row.id, next);
+      return m;
+    });
+    startTransition(async () => {
+      const r = await toggleSessionNotRequired(row.realSessionId!, next);
+      if (r.error) {
+        setError(r.error);
+        setOptimisticNotReq((prev) => {
+          const m = new Map(prev);
+          m.delete(row.id);
+          return m;
+        });
+      }
+      router.refresh();
+    });
+  };
+
+  const handleDeleteExternal = (row: Row) => {
+    if (!row.externalEventId) return;
+    if (!confirm('이 외부 일정 카드를 삭제하시겠습니까?')) return;
+    startTransition(async () => {
+      const r = await deleteExternalEvent(row.externalEventId!);
       if (r.error) setError(r.error);
+      setOpenRowId(null);
       router.refresh();
     });
   };
@@ -121,11 +189,12 @@ export function AssistantsMatrix({ year, month, assistants, rows }: Props) {
   const cells = useMemo(() => buildCells(year, month), [year, month]);
 
   const onCsv = () => {
-    const lines: string[] = ['날짜,요일,기수,회차,종류,' + assistants.map((a) => a.name).join(',')];
+    const lines: string[] = ['날짜,요일,기수/기관,일정,종류,' + assistants.map((a) => a.name).join(',')];
     const sorted = [...filteredRows].sort((a, b) => a.date.localeCompare(b.date));
     for (const r of sorted) {
       const date = new Date(`${r.date}T00:00:00`);
-      const kindLabel = r.kind === 'selfstudy' ? '셀프스터디' : r.kind === 'ot' ? 'OT' : '수업';
+      const kindLabel =
+        r.kind === 'selfstudy' ? '셀프스터디' : r.kind === 'external' ? '외부일정' : '수업';
       const row = [
         r.date,
         DOW[date.getDay()],
@@ -148,9 +217,18 @@ export function AssistantsMatrix({ year, month, assistants, rows }: Props) {
   const todayIso = new Date().toISOString().slice(0, 10);
   const openRow = openRowId ? rows.find((r) => r.id === openRowId) : null;
 
+  // 모달용 — 이 날 가용 보조강사 (다른 곳에 배정 안 됨)
+  const availableAssistantsForDate = (date: string, selfRowId: string) => {
+    const dayRows = allRowsByDate.get(date) ?? [];
+    return assistants.filter((a) => {
+      // 자기 자신은 가용 list 에서 제외 (배정/미배정 상관 없이 다른 곳 기준)
+      const conflict = dayRows.find((r) => r.id !== selfRowId && isAssigned(r, a.id));
+      return !conflict;
+    });
+  };
+
   return (
     <div className='space-y-4'>
-      {/* 상단 컨트롤 */}
       <div className='flex flex-wrap items-center gap-3 rounded-xl border bg-card px-4 py-3'>
         <Link
           href={`?ym=${prev.y}-${String(prev.m).padStart(2, '0')}`}
@@ -173,13 +251,20 @@ export function AssistantsMatrix({ year, month, assistants, rows }: Props) {
           onChange={(e) => setFilterCohort(e.target.value)}
           className='ml-auto h-9 rounded-md border bg-background px-3 text-sm'
         >
-          <option value='all'>전체 기수 ({rows.length}일)</option>
+          <option value='all'>전체 일정 ({rows.length})</option>
           {cohortOptions.map(([id, name]) => (
             <option key={id} value={id}>
               {name}
             </option>
           ))}
         </select>
+        <button
+          type='button'
+          onClick={() => setShowExternalForm(true)}
+          className='rounded-md bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700'
+        >
+          + 외부 일정
+        </button>
         <button
           type='button'
           onClick={onCsv}
@@ -190,7 +275,7 @@ export function AssistantsMatrix({ year, month, assistants, rows }: Props) {
       </div>
 
       <div className='rounded-xl border bg-card p-4'>
-        <div className='mb-3 text-xs font-bold text-muted-foreground'>이달 배정 건수 (실제 회차만)</div>
+        <div className='mb-3 text-xs font-bold text-muted-foreground'>이달 배정 건수</div>
         <div className='flex flex-wrap gap-2'>
           {assistants.map((a) => (
             <div
@@ -272,6 +357,8 @@ export function AssistantsMatrix({ year, month, assistants, rows }: Props) {
                       .filter((a) => isAssigned(r, a.id))
                       .map((a) => a.name);
                     const isSelf = r.kind === 'selfstudy';
+                    const isExt = r.kind === 'external';
+                    const notReq = isNotRequired(r);
                     return (
                       <button
                         key={r.id}
@@ -280,8 +367,10 @@ export function AssistantsMatrix({ year, month, assistants, rows }: Props) {
                         className={`group rounded-md border-l-[3px] px-2 py-1.5 text-left transition-colors hover:bg-muted ${
                           isSelf
                             ? 'border-dashed bg-slate-50/60 dark:bg-slate-900/30'
-                            : 'bg-background'
-                        }`}
+                            : isExt
+                              ? 'bg-indigo-50/40 dark:bg-indigo-950/20'
+                              : 'bg-background'
+                        } ${notReq ? 'opacity-50' : ''}`}
                         style={{ borderLeftColor: color }}
                         title={`${r.cohortName} · ${r.title}`}
                       >
@@ -300,20 +389,25 @@ export function AssistantsMatrix({ year, month, assistants, rows }: Props) {
                               셀프
                             </span>
                           )}
+                          {isExt && (
+                            <span className='shrink-0 rounded-sm bg-indigo-200 px-1 text-[9px] font-semibold text-indigo-700 dark:bg-indigo-800 dark:text-indigo-200'>
+                              외부
+                            </span>
+                          )}
                         </div>
                         {r.title && !isSelf && (
-                          <div className='truncate text-[10px] text-muted-foreground'>{r.title}</div>
+                          <div className='truncate text-[10px] text-muted-foreground'>
+                            {r.title}
+                          </div>
                         )}
                         <div className='mt-1 flex flex-wrap gap-0.5'>
-                          {assignedNames.length === 0 ? (
-                            <span
-                              className={`inline-block rounded-sm px-1 text-[10px] font-semibold ${
-                                isSelf
-                                  ? 'bg-slate-100 text-slate-500 dark:bg-slate-800/60 dark:text-slate-500'
-                                  : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
-                              }`}
-                            >
-                              {isSelf ? '배정 대상 X' : '미배정'}
+                          {notReq ? (
+                            <span className='inline-block rounded-sm bg-slate-200 px-1 text-[10px] font-semibold text-slate-600 dark:bg-slate-700 dark:text-slate-300'>
+                              불필요
+                            </span>
+                          ) : assignedNames.length === 0 ? (
+                            <span className='inline-block rounded-sm bg-amber-100 px-1 text-[10px] font-semibold text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'>
+                              미배정
                             </span>
                           ) : (
                             assignedNames.map((n) => (
@@ -336,100 +430,310 @@ export function AssistantsMatrix({ year, month, assistants, rows }: Props) {
         </div>
       </div>
 
+      {/* 외부 일정 추가 모달 */}
+      {showExternalForm && (
+        <ExternalEventForm
+          onClose={() => setShowExternalForm(false)}
+          onError={setError}
+        />
+      )}
+
+      {/* 배정 모달 */}
       {openRow && (
-        <div
-          className='fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4'
-          onClick={() => setOpenRowId(null)}
-        >
-          <div
-            className='w-full max-w-md rounded-2xl bg-background p-6 shadow-2xl'
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className='mb-4'>
-              <div className='text-xs font-semibold text-muted-foreground'>
-                {openRow.date} · {DOW[new Date(`${openRow.date}T00:00:00`).getDay()]}요일
-              </div>
-              <div className='mt-1 flex items-center gap-2'>
-                <span
-                  className='inline-block h-3 w-3 rounded-full'
-                  style={{ backgroundColor: colorForCohort(openRow.cohortName) }}
-                />
-                <h2 className='text-base font-bold'>{openRow.cohortName}</h2>
-              </div>
-              {openRow.title && (
-                <div className='mt-0.5 text-sm text-muted-foreground'>{openRow.title}</div>
-              )}
-            </div>
+        <AssignmentModal
+          row={openRow}
+          assistants={assistants}
+          available={availableAssistantsForDate(openRow.date, openRow.id)}
+          isAssigned={(aid) => isAssigned(openRow, aid)}
+          isNotRequired={isNotRequired(openRow)}
+          pending={pending}
+          onToggle={(aid) => handleToggle(openRow, aid)}
+          onToggleNotRequired={() => handleToggleNotRequired(openRow)}
+          onDeleteExternal={() => handleDeleteExternal(openRow)}
+          onClose={() => setOpenRowId(null)}
+        />
+      )}
+    </div>
+  );
+}
 
-            {openRow.isVirtual ? (
-              <div className='rounded-md border border-dashed border-slate-300 bg-slate-50 px-3 py-3 text-xs text-slate-600 dark:bg-slate-900/30 dark:text-slate-300'>
-                셀프스터디는 cohort.self_study_* 기간으로 자동 표시되는 가상 일정이라 보조강사 배정 대상이 아닙니다.
-                필요하면 lessons 페이지에서 셀프스터디 회차를 별도로 등록하세요.
-              </div>
-            ) : (
-              <>
-                <div className='mb-4 text-xs font-semibold text-muted-foreground'>
-                  보조강사 선택 — 같은 날 다른 회차에 이미 배정된 인원은 선택 불가
-                </div>
-                <div className='grid grid-cols-2 gap-2'>
-                  {assistants.map((a) => {
-                    const on = isAssigned(openRow, a.id);
-                    const sameDay = allRowsByDate.get(openRow.date) ?? [];
-                    const conflictWith = sameDay.find(
-                      (other) =>
-                        other.realSessionId &&
-                        other.realSessionId !== openRow.realSessionId &&
-                        isAssigned(other, a.id)
-                    );
-                    const blocked = !!conflictWith && !on;
-                    return (
-                      <button
-                        key={a.id}
-                        type='button'
-                        onClick={() => handleToggle(openRow, a.id)}
-                        disabled={pending || blocked}
-                        title={
-                          blocked && conflictWith
-                            ? `${conflictWith.cohortName} 에 이미 배정됨`
-                            : undefined
-                        }
-                        className={`flex flex-col items-start gap-0.5 rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors ${
-                          on
-                            ? 'border-blue-500 bg-blue-50 text-blue-900 dark:bg-blue-950/40 dark:text-blue-100'
-                            : blocked
-                              ? 'cursor-not-allowed border-rose-200 bg-rose-50/60 text-rose-700 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-300'
-                              : 'bg-background text-muted-foreground hover:bg-muted'
-                        } disabled:opacity-50`}
-                      >
-                        <div className='flex w-full items-center justify-between'>
-                          <span>{a.name}</span>
-                          {on && <span className='text-base font-bold'>✓</span>}
-                          {blocked && <span className='text-[10px] font-bold'>충돌</span>}
-                        </div>
-                        {blocked && conflictWith && (
-                          <div className='text-[10px] leading-tight text-rose-600/80 dark:text-rose-300/80'>
-                            {conflictWith.cohortName}
-                          </div>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </>
-            )}
+function AssignmentModal({
+  row,
+  assistants,
+  available,
+  isAssigned,
+  isNotRequired,
+  pending,
+  onToggle,
+  onToggleNotRequired,
+  onDeleteExternal,
+  onClose
+}: {
+  row: Row;
+  assistants: Assistant[];
+  available: Assistant[];
+  isAssigned: (aid: string) => boolean;
+  isNotRequired: boolean;
+  pending: boolean;
+  onToggle: (aid: string) => void;
+  onToggleNotRequired: () => void;
+  onDeleteExternal: () => void;
+  onClose: () => void;
+}) {
+  const kindLabel =
+    row.kind === 'selfstudy' ? '셀프스터디' : row.kind === 'external' ? '외부 일정' : '수업';
 
-            <div className='mt-5 flex justify-end'>
+  return (
+    <div
+      className='fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4'
+      onClick={onClose}
+    >
+      <div
+        className='w-full max-w-md rounded-2xl bg-background p-6 shadow-2xl'
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className='mb-4'>
+          <div className='flex items-center justify-between text-xs font-semibold text-muted-foreground'>
+            <span>
+              {row.date} · {DOW[new Date(`${row.date}T00:00:00`).getDay()]}요일 · {kindLabel}
+            </span>
+            {row.kind === 'external' && (
               <button
                 type='button'
-                onClick={() => setOpenRowId(null)}
-                className='rounded-md border bg-background px-4 py-2 text-sm font-semibold hover:bg-muted'
+                onClick={onDeleteExternal}
+                className='text-rose-500 hover:underline'
               >
-                닫기
+                삭제
               </button>
-            </div>
+            )}
           </div>
+          <div className='mt-1 flex items-center gap-2'>
+            <span
+              className='inline-block h-3 w-3 rounded-full'
+              style={{ backgroundColor: colorForCohort(row.cohortName) }}
+            />
+            <h2 className='text-base font-bold'>{row.cohortName}</h2>
+          </div>
+          {row.title && row.kind !== 'selfstudy' && (
+            <div className='mt-0.5 text-sm text-muted-foreground'>{row.title}</div>
+          )}
         </div>
-      )}
+
+        {/* 배정 대상 아님 토글 (lesson 만) */}
+        {row.kind === 'lesson' && (
+          <label className='mb-4 flex cursor-pointer items-center gap-2 rounded-md border bg-muted/30 px-3 py-2 text-sm'>
+            <input
+              type='checkbox'
+              checked={isNotRequired}
+              onChange={onToggleNotRequired}
+              disabled={pending}
+              className='h-4 w-4'
+            />
+            <span>이 회차는 보조강사 배정 대상 아님</span>
+          </label>
+        )}
+
+        {/* 가용 인원 요약 */}
+        {!isNotRequired && (
+          <div className='mb-4 rounded-md border border-emerald-200 bg-emerald-50/60 px-3 py-2 text-xs dark:border-emerald-900/40 dark:bg-emerald-950/30'>
+            <div className='mb-1 font-semibold text-emerald-800 dark:text-emerald-300'>
+              이 날 가용 보조강사 ({available.length}명)
+            </div>
+            {available.length === 0 ? (
+              <div className='text-emerald-700/80 dark:text-emerald-400/80'>
+                모두 다른 일정에 배정돼 있습니다.
+              </div>
+            ) : (
+              <div className='text-emerald-700 dark:text-emerald-300'>
+                {available.map((a) => a.name).join(', ')}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 보조강사 토글 */}
+        {!isNotRequired && (
+          <>
+            <div className='mb-2 text-xs font-semibold text-muted-foreground'>
+              보조강사 선택 — 같은 날 다른 일정에 이미 있는 인원은 선택 불가
+            </div>
+            <div className='grid grid-cols-2 gap-2'>
+              {assistants.map((a) => {
+                const on = isAssigned(a.id);
+                const isAvail = available.some((x) => x.id === a.id);
+                const blocked = !on && !isAvail;
+                return (
+                  <button
+                    key={a.id}
+                    type='button'
+                    onClick={() => onToggle(a.id)}
+                    disabled={pending || blocked}
+                    className={`flex items-center justify-between rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors ${
+                      on
+                        ? 'border-blue-500 bg-blue-50 text-blue-900 dark:bg-blue-950/40 dark:text-blue-100'
+                        : blocked
+                          ? 'cursor-not-allowed border-rose-200 bg-rose-50/60 text-rose-600 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-300'
+                          : 'bg-background text-muted-foreground hover:bg-muted'
+                    } disabled:opacity-60`}
+                  >
+                    <span>{a.name}</span>
+                    {on && <span className='text-base font-bold'>✓</span>}
+                    {blocked && <span className='text-[10px] font-bold'>충돌</span>}
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        )}
+
+        <div className='mt-5 flex justify-end'>
+          <button
+            type='button'
+            onClick={onClose}
+            className='rounded-md border bg-background px-4 py-2 text-sm font-semibold hover:bg-muted'
+          >
+            닫기
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ExternalEventForm({
+  onClose,
+  onError
+}: {
+  onClose: () => void;
+  onError: (s: string | null) => void;
+}) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [title, setTitle] = useState('');
+  const [organization, setOrganization] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [requiredCount, setRequiredCount] = useState(1);
+
+  const onSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onError(null);
+    startTransition(async () => {
+      const r = await createExternalEvent({
+        title,
+        organization,
+        startDate,
+        endDate,
+        requiredCount
+      });
+      if (r.error) {
+        onError(r.error);
+        return;
+      }
+      onClose();
+      router.refresh();
+    });
+  };
+
+  return (
+    <div
+      className='fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4'
+      onClick={onClose}
+    >
+      <form
+        onSubmit={onSubmit}
+        onClick={(e) => e.stopPropagation()}
+        className='w-full max-w-md space-y-4 rounded-2xl bg-background p-6 shadow-2xl'
+      >
+        <h2 className='text-base font-bold'>외부 일정 추가</h2>
+        <p className='text-xs text-muted-foreground'>
+          cohort 가 아닌 일정 (출장, 기관 행사 등). 시작~종료일 매일 1 row 가 만들어집니다.
+        </p>
+
+        <div className='grid gap-3'>
+          <label className='block'>
+            <span className='mb-1 block text-xs font-semibold text-muted-foreground'>
+              제목 *
+            </span>
+            <input
+              type='text'
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              required
+              placeholder='예: 신입 직원 교육'
+              className='w-full rounded-md border bg-background px-3 py-2 text-sm'
+            />
+          </label>
+          <label className='block'>
+            <span className='mb-1 block text-xs font-semibold text-muted-foreground'>
+              기관·소속
+            </span>
+            <input
+              type='text'
+              value={organization}
+              onChange={(e) => setOrganization(e.target.value)}
+              placeholder='예: 서울교통공사'
+              className='w-full rounded-md border bg-background px-3 py-2 text-sm'
+            />
+          </label>
+          <div className='grid grid-cols-2 gap-3'>
+            <label className='block'>
+              <span className='mb-1 block text-xs font-semibold text-muted-foreground'>
+                시작일 *
+              </span>
+              <input
+                type='date'
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                required
+                className='w-full rounded-md border bg-background px-3 py-2 text-sm'
+              />
+            </label>
+            <label className='block'>
+              <span className='mb-1 block text-xs font-semibold text-muted-foreground'>
+                종료일 *
+              </span>
+              <input
+                type='date'
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                required
+                className='w-full rounded-md border bg-background px-3 py-2 text-sm'
+              />
+            </label>
+          </div>
+          <label className='block'>
+            <span className='mb-1 block text-xs font-semibold text-muted-foreground'>
+              필요 보조강사 수
+            </span>
+            <input
+              type='number'
+              min={1}
+              max={10}
+              value={requiredCount}
+              onChange={(e) => setRequiredCount(Number(e.target.value))}
+              className='w-24 rounded-md border bg-background px-3 py-2 text-sm'
+            />
+          </label>
+        </div>
+
+        <div className='flex justify-end gap-2'>
+          <button
+            type='button'
+            onClick={onClose}
+            className='rounded-md border px-4 py-2 text-sm font-semibold hover:bg-muted'
+          >
+            취소
+          </button>
+          <button
+            type='submit'
+            disabled={pending}
+            className='rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50'
+          >
+            {pending ? '추가 중...' : '추가'}
+          </button>
+        </div>
+      </form>
     </div>
   );
 }
