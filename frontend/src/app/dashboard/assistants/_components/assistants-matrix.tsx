@@ -15,6 +15,7 @@ type Session = {
   cohortId: string;
   cohortName: string;
   assignedAssistantIds: string[];
+  kind: 'lesson' | 'ot' | 'selfstudy';
 };
 
 type Props = {
@@ -271,26 +272,50 @@ export function AssistantsMatrix({ year, month, assistants, sessions }: Props) {
                     const assignedNames = assistants
                       .filter((a) => isAssigned(s.id, a.id))
                       .map((a) => a.name);
+                    const isSelf = s.kind === 'selfstudy';
                     return (
                       <button
                         key={s.id}
                         type='button'
                         onClick={() => setOpenSessionId(s.id)}
-                        className='group rounded-md border-l-[3px] bg-background px-2 py-1.5 text-left transition-colors hover:bg-muted'
+                        className={`group rounded-md border-l-[3px] px-2 py-1.5 text-left transition-colors hover:bg-muted ${
+                          isSelf
+                            ? 'border-dashed bg-slate-50/60 dark:bg-slate-900/30'
+                            : 'bg-background'
+                        }`}
                         style={{ borderLeftColor: color }}
                         title={`${s.cohortName} · ${s.title}`}
                       >
-                        <div className='truncate text-[11px] font-semibold text-slate-900 dark:text-slate-100'>
-                          {s.cohortName}
+                        <div className='flex items-center gap-1'>
+                          <span
+                            className={`truncate text-[11px] font-semibold ${
+                              isSelf
+                                ? 'text-slate-600 dark:text-slate-400'
+                                : 'text-slate-900 dark:text-slate-100'
+                            }`}
+                          >
+                            {s.cohortName}
+                          </span>
+                          {isSelf && (
+                            <span className='shrink-0 rounded-sm bg-slate-200 px-1 text-[9px] font-semibold text-slate-600 dark:bg-slate-700 dark:text-slate-300'>
+                              셀프
+                            </span>
+                          )}
                         </div>
-                        {s.title && (
+                        {s.title && !isSelf && (
                           <div className='truncate text-[10px] text-muted-foreground'>
                             {s.title}
                           </div>
                         )}
                         <div className='mt-1 flex flex-wrap gap-0.5'>
                           {assignedNames.length === 0 ? (
-                            <span className='inline-block rounded-sm bg-amber-100 px-1 text-[10px] font-semibold text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'>
+                            <span
+                              className={`inline-block rounded-sm px-1 text-[10px] font-semibold ${
+                                isSelf
+                                  ? 'bg-slate-100 text-slate-500 dark:bg-slate-800/60 dark:text-slate-500'
+                                  : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
+                              }`}
+                            >
                               미배정
                             </span>
                           ) : (

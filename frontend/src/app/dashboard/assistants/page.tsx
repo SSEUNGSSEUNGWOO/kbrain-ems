@@ -65,14 +65,26 @@ export default async function AssistantsPage({ searchParams }: Props) {
     const subIds = new Set(
       s.session_instructors.filter((si) => si.role === 'sub').map((si) => si.instructor_id)
     );
+    const title = s.title ?? '';
+    const isSelfStudy = /셀프스터디/.test(title);
+    const isOT = /OT|오리엔테이션/i.test(title);
     return {
       id: s.id,
       session_date: s.session_date,
-      title: s.title ?? '',
+      title,
       cohortId: s.cohort_id,
       cohortName: s.cohorts?.name ?? '',
-      assignedAssistantIds: Array.from(subIds)
+      assignedAssistantIds: Array.from(subIds),
+      kind: isSelfStudy ? ('selfstudy' as const) : isOT ? ('ot' as const) : ('lesson' as const)
     };
+  });
+
+  // 같은 날 안에서 정렬: lesson(집중교육) > ot > selfstudy, 그 안에서 cohort 이름 가나다순
+  const KIND_ORDER: Record<string, number> = { lesson: 0, ot: 1, selfstudy: 2 };
+  sessions.sort((a, b) => {
+    if (a.session_date !== b.session_date) return a.session_date.localeCompare(b.session_date);
+    if (a.kind !== b.kind) return KIND_ORDER[a.kind] - KIND_ORDER[b.kind];
+    return a.cohortName.localeCompare(b.cohortName, 'ko');
   });
 
   // 인원별 배정 건수 (이번 달 기준)
