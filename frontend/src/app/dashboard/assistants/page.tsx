@@ -61,13 +61,13 @@ export default async function AssistantsPage({ searchParams }: Props) {
       supabase
         .from('sessions')
         .select(
-          'id, session_date, title, cohort_id, assistant_not_required, cohorts(name), session_instructors(instructor_id, role)'
+          'id, session_date, title, cohort_id, assistant_not_required, cohorts(name, category), session_instructors(instructor_id, role)'
         )
         .gte('session_date', start)
         .lt('session_date', end),
       supabase
         .from('cohorts')
-        .select('id, name, self_study_start_at, self_study_end_at')
+        .select('id, name, category, self_study_start_at, self_study_end_at')
         .not('self_study_start_at', 'is', null)
         .not('self_study_end_at', 'is', null),
       supabase
@@ -92,7 +92,7 @@ export default async function AssistantsPage({ searchParams }: Props) {
     title: string | null;
     cohort_id: string;
     assistant_not_required: boolean;
-    cohorts: { name: string } | null;
+    cohorts: { name: string; category: string | null } | null;
     session_instructors: { instructor_id: string; role: string | null }[];
   };
 
@@ -126,6 +126,7 @@ export default async function AssistantsPage({ searchParams }: Props) {
     title: string;
     cohortId: string;
     cohortName: string;
+    category: string; // 'general' | 'champion' | 'experts' | 'special' | 'external' | 'other'
     assignedAssistantIds: string[];
     kind: 'lesson' | 'selfstudy' | 'external';
     notRequired: boolean;
@@ -148,6 +149,7 @@ export default async function AssistantsPage({ searchParams }: Props) {
       title,
       cohortId: s.cohort_id,
       cohortName: s.cohorts?.name ?? '',
+      category: s.cohorts?.category ?? 'other',
       assignedAssistantIds: subIds,
       kind: 'lesson',
       notRequired: s.assistant_not_required
@@ -169,6 +171,7 @@ export default async function AssistantsPage({ searchParams }: Props) {
         title: '셀프스터디',
         cohortId: c.id,
         cohortName: c.name,
+        category: c.category ?? 'other',
         assignedAssistantIds: assigned,
         kind: 'selfstudy',
         notRequired: false
@@ -188,6 +191,7 @@ export default async function AssistantsPage({ searchParams }: Props) {
       title: e.title,
       cohortId: `external::${e.id}`,
       cohortName: e.organization ?? e.title,
+      category: 'external',
       assignedAssistantIds: assigned,
       kind: 'external',
       notRequired: false

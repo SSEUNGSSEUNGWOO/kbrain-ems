@@ -24,10 +24,19 @@ type Row = {
   title: string;
   cohortId: string;
   cohortName: string;
+  category: string;
   assignedAssistantIds: string[];
   kind: 'lesson' | 'selfstudy' | 'external';
   notRequired: boolean;
 };
+
+const CATEGORY_OPTIONS: { value: string; label: string; color: string }[] = [
+  { value: 'general', label: '일반과정', color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' },
+  { value: 'champion', label: 'AI 챔피언', color: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300' },
+  { value: 'experts', label: '전문인재', color: 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300' },
+  { value: 'special', label: '특화교육', color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' },
+  { value: 'external', label: '외부 일정', color: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' }
+];
 
 type Props = {
   year: number;
@@ -64,21 +73,26 @@ export function AssistantsMatrix({ year, month, assistants, rows }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [filterCohort, setFilterCohort] = useState<string>('all');
+  const [filterCategories, setFilterCategories] = useState<Set<string>>(
+    new Set(CATEGORY_OPTIONS.map((c) => c.value))
+  );
+  const toggleCategory = (v: string) =>
+    setFilterCategories((prev) => {
+      const next = new Set(prev);
+      if (next.has(v)) next.delete(v);
+      else next.add(v);
+      return next;
+    });
   const [openRowId, setOpenRowId] = useState<string | null>(null);
   const [showExternalForm, setShowExternalForm] = useState(false);
   // 낙관적 표시
   const [optimistic, setOptimistic] = useState<Map<string, boolean>>(new Map());
   const [optimisticNotReq, setOptimisticNotReq] = useState<Map<string, boolean>>(new Map());
 
-  const cohortOptions = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const r of rows) if (r.cohortId) m.set(r.cohortId, r.cohortName);
-    return Array.from(m.entries()).sort((a, b) => a[1].localeCompare(b[1], 'ko'));
-  }, [rows]);
-
-  const filteredRows =
-    filterCohort === 'all' ? rows : rows.filter((r) => r.cohortId === filterCohort);
+  const filteredRows = useMemo(
+    () => rows.filter((r) => filterCategories.has(r.category)),
+    [rows, filterCategories]
+  );
 
   const rowsByDate = useMemo(() => {
     const m = new Map<string, Row[]>();
@@ -246,22 +260,10 @@ export function AssistantsMatrix({ year, month, assistants, rows }: Props) {
           다음 달 →
         </Link>
 
-        <select
-          value={filterCohort}
-          onChange={(e) => setFilterCohort(e.target.value)}
-          className='ml-auto h-9 rounded-md border bg-background px-3 text-sm'
-        >
-          <option value='all'>전체 일정 ({rows.length})</option>
-          {cohortOptions.map(([id, name]) => (
-            <option key={id} value={id}>
-              {name}
-            </option>
-          ))}
-        </select>
         <button
           type='button'
           onClick={() => setShowExternalForm(true)}
-          className='rounded-md bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700'
+          className='ml-auto rounded-md bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700'
         >
           + 외부 일정
         </button>
@@ -271,6 +273,48 @@ export function AssistantsMatrix({ year, month, assistants, rows }: Props) {
           className='rounded-md border bg-background px-3 py-1.5 text-sm font-semibold hover:bg-muted'
         >
           CSV 다운로드
+        </button>
+      </div>
+
+      {/* 카테고리 체크박스 필터 */}
+      <div className='flex flex-wrap items-center gap-2 rounded-xl border bg-card px-4 py-3'>
+        <span className='text-xs font-bold text-muted-foreground'>카테고리</span>
+        {CATEGORY_OPTIONS.map((c) => {
+          const count = rows.filter((r) => r.category === c.value).length;
+          const on = filterCategories.has(c.value);
+          return (
+            <label
+              key={c.value}
+              className={`flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
+                on ? c.color + ' border-current' : 'bg-background text-muted-foreground hover:bg-muted'
+              }`}
+            >
+              <input
+                type='checkbox'
+                checked={on}
+                onChange={() => toggleCategory(c.value)}
+                className='h-3.5 w-3.5'
+              />
+              <span>{c.label}</span>
+              <span className='tabular-nums opacity-70'>({count})</span>
+            </label>
+          );
+        })}
+        <button
+          type='button'
+          onClick={() =>
+            setFilterCategories(new Set(CATEGORY_OPTIONS.map((c) => c.value)))
+          }
+          className='ml-auto text-xs text-muted-foreground hover:underline'
+        >
+          전체 선택
+        </button>
+        <button
+          type='button'
+          onClick={() => setFilterCategories(new Set())}
+          className='text-xs text-muted-foreground hover:underline'
+        >
+          전체 해제
         </button>
       </div>
 
