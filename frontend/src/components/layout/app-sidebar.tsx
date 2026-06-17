@@ -379,6 +379,20 @@ export default function AppSidebar() {
               </SidebarMenuButton>
             </SidebarMenuItem>
 
+            {/* 보조강사 배정 — 글로벌 */}
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                tooltip='보조강사 배정'
+                isActive={pathname.startsWith('/dashboard/assistants')}
+              >
+                <Link href='/dashboard/assistants'>
+                  <Icons.user2 className='text-pink-600 dark:text-pink-400' />
+                  <span>보조강사 배정</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+
             {/* 평가위원 — 글로벌 */}
             <SidebarMenuItem>
               <SidebarMenuButton
