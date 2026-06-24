@@ -1,7 +1,7 @@
 {
   "_meta": {
-    "source": "260519_1630_NIA 2026년 종합교육과정 및 일반과정 사전문항.hwpx",
-    "note": "공통문항 5개 + 단일 과정 ①~⑧ 각 6 지식 + OX + 활용성(다중선택 + 100자 계획) / 종합과정 G·B 각 사전학습 + 10 지식(7 객관식 + 3 OX) + 활용성. OX는 single로 처리. 적용계획 text는 usability 섹션에 포함.",
+    "source": "260624_1300 자동화용 시트 (그린2/블루3/⑥ 노코드 AI 서비스 구현) — 외부 DATABUS 사전설문 포맷 갱신본",
+    "note": "공통문항 7개 (개인메일·직위 신규 추가) + 단일 과정 ①~⑧ 각 6 지식 + OX + 활용성 / 종합과정 G·B 각 사전학습 + 13 지식(7 객관식 + 3 객관식 + 3 OX) + 활용성. 그린·블루의 G-8~10/B-8~10이 기존 OX → 4지선다 객관식으로 교체되고, G-11~13/B-11~13에 OX 슬롯 신규 추가. ⑥-6의 OX 본문도 통일 stem으로 변경. ⓘ 신규 OX 본문(G-11~13·B-11~13·⑥-6)은 외부 시스템 표시본 미수신 → question_text에 TODO 마커 보존, 본문 수신 후 일괄 갱신 필요. ⓘ C2 소속 형태는 응답 prefix(5=공공기관)와 기존 6선지 번호(④=공공기관) 불일치 — 추가 옵션 가능성, 본문 미확인으로 기존 6선지 유지.",
     "section_values": ["common", "pre_learning", "self_diagnosis", "knowledge", "usability"],
     "question_type_values": ["single", "multi", "likert5", "text"],
     "difficulty_values": ["beginner", "intermediate", "advanced"],
@@ -45,6 +45,12 @@
       "question_text": "선발 안내를 위해 귀하의 【 사무실 번호 】를 정확하게 입력해주세요. (예: 02-000-0000, 지역 번호 및 하이픈 필수)"
     },
     {
+      "question_no": "C-EMAIL",
+      "section": "common",
+      "question_type": "text",
+      "question_text": "귀하의 【 외부 메일 계정 】을 정확하게 입력해주세요."
+    },
+    {
       "question_no": "C5",
       "section": "common",
       "question_type": "single",
@@ -52,11 +58,22 @@
       "choices": [
         { "key": "①", "text": "행정 (일반행정, 교육행정, 감사, 사서, 법무 등)" },
         { "key": "②", "text": "전산 (전산, 정보보안, 통신 등)" },
-        { "key": "③", "text": "기술직군 (전산 제외 공업, 농업, 녹지, 환경, 시설, 토목, 건축 등)" },
+        { "key": "③", "text": "기술 (전산 제외 공업, 농업, 녹지, 환경, 시설, 토목, 건축 등)" },
         { "key": "④", "text": "특수 (경찰, 소방, 외무, 군무원 등)" },
         { "key": "⑤", "text": "연구 및 지도 (학예 연구, 기상 연구, 농촌지도 등)" },
         { "key": "⑥", "text": "보건·의료 (사회복지, 보건, 간호, 식품위생 등)" },
         { "key": "⑦", "text": "관리 운영 및 기타 (방호, 시설관리, 운전 등)" }
+      ]
+    },
+    {
+      "question_no": "C-POSITION",
+      "section": "common",
+      "question_type": "single",
+      "question_text": "귀하의 현재 【 직급(직위) 】를 선택해주세요.",
+      "choices": [
+        { "key": "①", "text": "실무자 (9~6급 / 사원~대리)" },
+        { "key": "②", "text": "중간관리자 (5급 / 팀장 / 과장급)" },
+        { "key": "③", "text": "상위 관리자 (4급↑ / 부서장 이상)" }
       ]
     }
   ],
@@ -687,7 +704,7 @@
           "section": "knowledge",
           "difficulty": "beginner",
           "question_type": "single",
-          "question_text": "바이브 코딩(Vibe Coding)은 코드 문법을 직접 외워 타이핑하는 행위가 아니라, 무엇을 만들고 싶은지·누가 쓰는지·어떤 제약이 있는지를 자연어로 설명하고 결과를 검수·보정하는 반복 흐름을 핵심으로 한다.",
+          "question_text": "제시된 보기의 내용이 사실과 부합하는지 판단해 보세요. (※ TODO: 외부 시스템 표시본 본문 미수신 — 운영 측 수신 후 본 항목 question_text 갱신 필요)",
           "choices": [
             { "key": "①", "text": "O (맞다)" },
             { "key": "②", "text": "X (틀리다)" }
@@ -943,11 +960,11 @@
           "question_no": "P1",
           "section": "pre_learning",
           "question_type": "single",
-          "question_text": "귀하는 본 과정의 권장 사전학습(이러닝) 【 ① AI 리터러시, ② 데이터 리터러시 】 과정을 이수하셨습니까?",
+          "question_text": "⬛ 귀하는 본 과정의 권장 사전학습(이러닝) 「① AI 리터러시, ② 데이터 리터러시」 과정을 이수하셨습니까?",
           "choices": [
             { "key": "①", "text": "2개 과정 이수 완료" },
-            { "key": "②", "text": "① AI 리터러시 1개 과정만 이수 완료" },
-            { "key": "③", "text": "② 데이터 리터러시 1개 과정만 이수 완료" },
+            { "key": "②", "text": "「2026년 ① AI 리터러시와 업무활용」 1개 과정만 이수 완료" },
+            { "key": "③", "text": "「2026년 ② 데이터 리터러시」 1개 과정만 이수 완료" },
             { "key": "④", "text": "2개 과정 미수강" }
           ]
         },
@@ -1054,19 +1071,49 @@
           "section": "knowledge",
           "difficulty": "beginner",
           "question_type": "single",
-          "question_text": "노코드 데이터분석에서 생성형 AI가 코드를 자동으로 생성해 주더라도, 데이터 품질 검증·결측 처리 기준·차트 메시지 해석 등 분석 판단의 책임은 여전히 사람에게 남는다.",
+          "question_text": "단일 HTML 파일로 만든 도구에서, 브라우저를 닫았다 열어도 입력 데이터가 유지되도록 서버 없이 활용할 수 있는 브라우저 저장소는?",
           "choices": [
-            { "key": "①", "text": "O (맞다)" },
-            { "key": "②", "text": "X (틀리다)" }
+            { "key": "①", "text": "외부 데이터베이스 서버(PostgreSQL) 구축" },
+            { "key": "②", "text": "브라우저 로컬 스토리지(localStorage) 활용" },
+            { "key": "③", "text": "매번 엑셀(CSV)로 수동 백업" },
+            { "key": "④", "text": "FastAPI 백엔드 서버 연동" }
           ],
-          "correct_choice": "①"
+          "correct_choice": "②"
         },
         {
           "question_no": "G-9",
           "section": "knowledge",
           "difficulty": "beginner",
           "question_type": "single",
-          "question_text": "단일 HTML(Single HTML)은 코드와 외부 라이브러리를 한 파일에 포함하여 더블클릭만으로 실행되므로, 외부망 접속이 제한된 공공 폐쇄망 환경에서도 부서 내 도구 배포에 적합하다.",
+          "question_text": "엑셀에서 마우스 조작만으로 부서별, 월별 금액의 합계를 보여주는 요약·집계 교차표를 만들 때 가장 적합한 기능은?",
+          "choices": [
+            { "key": "①", "text": "파워 쿼리(Power Query)" },
+            { "key": "②", "text": "피벗 테이블(Pivot Table)" },
+            { "key": "③", "text": "텍스트 나누기(Text to Columns)" },
+            { "key": "④", "text": "매크로 기록기(Macro Recorder)" }
+          ],
+          "correct_choice": "②"
+        },
+        {
+          "question_no": "G-10",
+          "section": "knowledge",
+          "difficulty": "beginner",
+          "question_type": "single",
+          "question_text": "보도자료를 카드뉴스로 변환하기 위해 생성형 AI에 프롬프트를 작성할 때, 가장 적절하지 않은 지시는?",
+          "choices": [
+            { "key": "①", "text": "통계 수치·시행일·장소 등 사실 값은 변경 없이 그대로 유지한다" },
+            { "key": "②", "text": "행정 용어는 시민 눈높이에 맞게 쉬운 표현으로 바꾼다" },
+            { "key": "③", "text": "분량은 줄이되 핵심 메시지는 빠뜨리지 않는다" },
+            { "key": "④", "text": "시각적 효과를 위해 원문에 없던 통계 수치를 그럴듯하게 추가한다" }
+          ],
+          "correct_choice": "④"
+        },
+        {
+          "question_no": "G-11",
+          "section": "knowledge",
+          "difficulty": "beginner",
+          "question_type": "single",
+          "question_text": "제시된 보기의 내용이 사실과 부합하는지 판단해 보세요. (※ TODO: 외부 시스템 표시본 본문 미수신 — 운영 측 수신 후 본 항목 question_text 갱신 필요)",
           "choices": [
             { "key": "①", "text": "O (맞다)" },
             { "key": "②", "text": "X (틀리다)" }
@@ -1074,11 +1121,23 @@
           "correct_choice": "①"
         },
         {
-          "question_no": "G-10",
+          "question_no": "G-12",
           "section": "knowledge",
           "difficulty": "beginner",
           "question_type": "single",
-          "question_text": "Lovable·Bolt·v0 같은 풀스택 노코드 도구는 자연어 프롬프트만으로 즉시 작동하는 결과물을 만들 수 있으므로, 행 수준 보안(RLS)·환경 변수·인증 흐름 등 운영 고려 사항 점검 없이 곧바로 공공 행정 시스템에 그대로 배포해도 안전하다.",
+          "question_text": "제시된 보기의 내용이 사실과 부합하는지 판단해 보세요. (※ TODO: 외부 시스템 표시본 본문 미수신 — 운영 측 수신 후 본 항목 question_text 갱신 필요)",
+          "choices": [
+            { "key": "①", "text": "O (맞다)" },
+            { "key": "②", "text": "X (틀리다)" }
+          ],
+          "correct_choice": "①"
+        },
+        {
+          "question_no": "G-13",
+          "section": "knowledge",
+          "difficulty": "beginner",
+          "question_type": "single",
+          "question_text": "제시된 보기의 내용이 사실과 부합하는지 판단해 보세요. (※ TODO: 외부 시스템 표시본 본문 미수신 — 운영 측 수신 후 본 항목 question_text 갱신 필요)",
           "choices": [
             { "key": "①", "text": "O (맞다)" },
             { "key": "②", "text": "X (틀리다)" }
@@ -1117,11 +1176,11 @@
           "question_no": "P1",
           "section": "pre_learning",
           "question_type": "single",
-          "question_text": "귀하는 본 과정의 권장 사전학습(이러닝) 【 ① AI 리터러시, ② 데이터 리터러시 】 과정을 이수하셨습니까?",
+          "question_text": "귀하는 본 【 Ⓑ AI 챔피언 블루(중급) 】의 권장 사전학습(이러닝) 과정을 이수하셨습니까?",
           "choices": [
             { "key": "①", "text": "2개 과정 이수 완료" },
-            { "key": "②", "text": "① AI 리터러시 1개 과정만 이수 완료" },
-            { "key": "③", "text": "② 데이터 리터러시 1개 과정만 이수 완료" },
+            { "key": "②", "text": "「2026년 ① AI 리터러시와 업무활용」 1개 과정만 이수 완료" },
+            { "key": "③", "text": "「2026년 ② 데이터 리터러시」 1개 과정만 이수 완료" },
             { "key": "④", "text": "2개 과정 미수강" }
           ]
         },
@@ -1226,9 +1285,51 @@
         {
           "question_no": "B-8",
           "section": "knowledge",
+          "difficulty": "advanced",
+          "question_type": "single",
+          "question_text": "민원 자동분류 모델에서 실제 긴급 민원을 놓치지 않고 최대한 많이 찾아내기(누락 최소화)를 위해 우선적으로 높여야 할 평가지표는?",
+          "choices": [
+            { "key": "①", "text": "정밀도(Precision)" },
+            { "key": "②", "text": "재현율(Recall)" },
+            { "key": "③", "text": "정확도(Accuracy)" },
+            { "key": "④", "text": "학습 속도(Training Speed)" }
+          ],
+          "correct_choice": "②"
+        },
+        {
+          "question_no": "B-9",
+          "section": "knowledge",
+          "difficulty": "advanced",
+          "question_type": "single",
+          "question_text": "데이터 스케일링(표준화) 진행 시 데이터 누설(Data Leakage)을 방지하기 위한 가장 올바른 절차는?",
+          "choices": [
+            { "key": "①", "text": "전체 데이터로 스케일러를 fit한 뒤 학습용/평가용으로 나눈다" },
+            { "key": "②", "text": "학습용/평가용으로 먼저 나눈 뒤, 학습 데이터로만 스케일러를 fit하고 그 기준으로 평가 데이터를 변환한다" },
+            { "key": "③", "text": "학습 데이터와 평가 데이터를 각각 따로 fit한다" },
+            { "key": "④", "text": "스케일링은 결과에 영향이 없으므로 순서는 상관없다" }
+          ],
+          "correct_choice": "②"
+        },
+        {
+          "question_no": "B-10",
+          "section": "knowledge",
+          "difficulty": "advanced",
+          "question_type": "single",
+          "question_text": "두 데이터프레임을 병합(merge)한 후 전체 행 수가 예상보다 줄어들었을 때, 가장 먼저 의심해야 할 원인과 해결책은?",
+          "choices": [
+            { "key": "①", "text": "내부 조인(inner join)이 적용되어 한쪽에만 있는 키가 제외된 것 — 필요 시 왼쪽 조인(left join)으로 변경한다" },
+            { "key": "②", "text": "결측치(NaN)가 자동 삭제된 것 — fillna로 채우면 행 수가 복구된다" },
+            { "key": "③", "text": "중복 행이 자동 생성된 것 — drop_duplicates로 줄이면 된다" },
+            { "key": "④", "text": "데이터 타입이 달라 행이 늘어난 것 — astype으로 통일하면 된다" }
+          ],
+          "correct_choice": "①"
+        },
+        {
+          "question_no": "B-11",
+          "section": "knowledge",
           "difficulty": "beginner",
           "question_type": "single",
-          "question_text": "AI 서비스 기획 단계에서 메타 프롬프트(Meta Prompt)는 LLM이 먼저 사용자에게 역질문을 던져 정보를 끌어내게 하는 방식으로, 사용자가 스스로 결핍과 요구사항을 정교화하는 데 효과적이다.",
+          "question_text": "제시된 보기의 내용이 사실과 부합하는지 판단해 보세요. (※ TODO: 외부 시스템 표시본 본문 미수신 — 운영 측 수신 후 본 항목 question_text 갱신 필요)",
           "choices": [
             { "key": "①", "text": "O (맞다)" },
             { "key": "②", "text": "X (틀리다)" }
@@ -1236,11 +1337,11 @@
           "correct_choice": "①"
         },
         {
-          "question_no": "B-9",
+          "question_no": "B-12",
           "section": "knowledge",
           "difficulty": "beginner",
           "question_type": "single",
-          "question_text": "분류(Classification) 모델 평가는 정확도(Accuracy) 한 지표만으로 충분하며, 불균형 데이터(예: 퇴직자 5% vs 재직자 95%)에서도 정확도만 높으면 모델 성능이 우수하다고 결론지을 수 있다.",
+          "question_text": "제시된 보기의 내용이 사실과 부합하는지 판단해 보세요. (※ TODO: 외부 시스템 표시본 본문 미수신 — 운영 측 수신 후 본 항목 question_text 갱신 필요)",
           "choices": [
             { "key": "①", "text": "O (맞다)" },
             { "key": "②", "text": "X (틀리다)" }
@@ -1248,11 +1349,11 @@
           "correct_choice": "②"
         },
         {
-          "question_no": "B-10",
+          "question_no": "B-13",
           "section": "knowledge",
           "difficulty": "beginner",
           "question_type": "single",
-          "question_text": "머신러닝 모델을 학습할 때 \"예측 시점 이후에만 알 수 있는 변수(예: 퇴직 후 채워지는 사직 사유)\"가 학습 데이터에 포함되면, 평가 점수는 과도하게 높게 나오지만 실제 운영 환경에서는 작동하지 않는 데이터 누설(Data Leakage) 문제가 발생할 수 있다.",
+          "question_text": "제시된 보기의 내용이 사실과 부합하는지 판단해 보세요. (※ TODO: 외부 시스템 표시본 본문 미수신 — 운영 측 수신 후 본 항목 question_text 갱신 필요)",
           "choices": [
             { "key": "①", "text": "O (맞다)" },
             { "key": "②", "text": "X (틀리다)" }

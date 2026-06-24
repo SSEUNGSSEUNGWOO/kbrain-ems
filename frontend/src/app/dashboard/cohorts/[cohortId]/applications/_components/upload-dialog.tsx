@@ -52,9 +52,9 @@ export function UploadDialog({ cohortId, questions, trigger }: Props) {
     setError(null);
     setFileName(file.name);
     try {
-      const text = await file.text();
-      const { parseXlsHtml, buildPreview } = await import('@/lib/applications-xls-parser');
-      const rows = parseXlsHtml(text);
+      const buf = await file.arrayBuffer();
+      const { parseAnyXls, buildPreview } = await import('@/lib/applications-xls-parser');
+      const rows = parseAnyXls(buf);
       const pv = buildPreview(rows, questions);
       const preRows = rows.filter((r) => r.surveyType === '사전설문');
       setParsedRows(preRows);

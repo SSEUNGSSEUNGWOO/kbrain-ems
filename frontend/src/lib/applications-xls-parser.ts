@@ -1,8 +1,10 @@
-// 외부 신청 시스템 (.xls 위장 HTML) 파서 + 매핑 로직
-// 헤더: NO / 아이디 / 이름 / 전화번호 / 이메일 / 소속기관구분 / 소속기관 / 설문분류 / 설문항목 1~13
+// 외부 신청 시스템 파서 + 매핑 로직
+// 헤더: NO / 아이디 / 이름 / 전화번호 / 이메일 / 소속기관구분 / 소속기관 / 설문분류 / 설문항목 1~N
+// 입력 포맷 자동 분기 — BIFF .xls (D0CF11E0) / .xlsx ZIP (PK) / HTML 위장 .xls
 // universal (브라우저·서버 둘 다 사용)
 
 import { parse } from 'node-html-parser';
+import * as XLSX from 'xlsx';
 
 export type AppChoice = { key: string; text: string };
 
@@ -101,6 +103,67 @@ export function mapAnswerValue(
 
 // 외부 헤더의 메타 컬럼 수 (NO/아이디/이름/전화/이메일/소속기관구분/소속기관/설문분류)
 const META_COLUMN_COUNT = 8;
+
+// 파일 시그니처로 BIFF(.xls 바이너리)·ZIP(.xlsx)·HTML(텍스트) 자동 분기.
+// 외부 시스템이 export 포맷을 BIFF .xls로 바꾼 뒤로는 ArrayBuffer 경로만 실제 사용됨.
+export function parseAnyXls(input: ArrayBuffer | Uint8Array | string): ParsedRow[] {
+  if (typeof input === 'string') {
+    return parseXlsHtml(input);
+  }
+  const bytes = input instanceof Uint8Array ? input : new Uint8Array(input);
+  const isBiff =
+    bytes[0] === 0xd0 && bytes[1] === 0xcf && bytes[2] === 0x11 && bytes[3] === 0xe0;
+  const isZip = bytes[0] === 0x50 && bytes[1] === 0x4b;
+  if (isBiff || isZip) {
+    return parseXlsBinary(bytes);
+  }
+  return parseXlsHtml(new TextDecoder('utf-8').decode(bytes));
+}
+
+function parseXlsBinary(bytes: Uint8Array): ParsedRow[] {
+  const wb = XLSX.read(bytes, { type: 'array' });
+  const firstSheet = wb.SheetNames[0];
+  if (!firstSheet) return [];
+  const ws = wb.Sheets[firstSheet];
+  const aoa = XLSX.utils.sheet_to_json<unknown[]>(ws, {
+    header: 1,
+    defval: null,
+    raw: false
+  });
+  if (aoa.length === 0) return [];
+
+  const header = (aoa[0] ?? []) as unknown[];
+  const totalCols = header.length;
+  if (totalCols <= META_COLUMN_COUNT) return [];
+  const responseCount = totalCols - META_COLUMN_COUNT;
+
+  const rows: ParsedRow[] = [];
+  for (let r = 1; r < aoa.length; r++) {
+    const row = (aoa[r] ?? []) as unknown[];
+    const v0 = row[0];
+    if (v0 === null || v0 === undefined) continue;
+    if (!/^\d+$/.test(String(v0).trim())) continue;
+    const cell = (i: number): string => {
+      const v = row[i];
+      if (v === null || v === undefined) return '';
+      return String(v).replace(/\s+/g, ' ').trim();
+    };
+    const rawValues: string[] = [];
+    for (let i = 0; i < responseCount; i++) rawValues.push(cell(META_COLUMN_COUNT + i));
+    rows.push({
+      rowIndex: rows.length + 1,
+      externalId: cell(1),
+      name: cell(2),
+      phone: cell(3),
+      email: cell(4),
+      organizationCategoryRaw: cell(5),
+      organizationName: cell(6),
+      surveyType: cell(7),
+      rawValues
+    });
+  }
+  return rows;
+}
 
 export function parseXlsHtml(html: string): ParsedRow[] {
   const root = parse(html);

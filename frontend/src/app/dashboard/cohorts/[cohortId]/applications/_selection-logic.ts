@@ -205,7 +205,7 @@ export function computeQuotas(
 }
 
 /**
- * 카테고리별 쿼터 + 사전학습 단계 + 단방향 흘러내림.
+ * 카테고리별 쿼터 + 사전학습 단계 + 단방향 흘러내림 + **점진적 기관 cap**.
  *
  * 정렬 키 (cohort에 prereq가 있는 경우):
  *  1) prereq_done_count desc (2개수료 > 1개 > 0)
@@ -214,11 +214,19 @@ export function computeQuotas(
  *  4) 정성평가 글자수 desc
  * cohort prereq_max=0이면 prereq 정렬·제외 비활성.
  *
- * Phase 1: 각 카테고리 풀에서 쿼터까지 점수순으로 채움.
- * Phase 2: 미달 쿼터는 우선순위 아래 카테고리들 통합 풀에서 보충 (단방향).
- *   중앙 미달 → (지자체+공공+기타) / 지자체 미달 → (공공+기타) / 공공 미달 → (기타).
+ * **점진적 cap 라운드** (maxPerOrg > 0인 경우):
+ *  round 1: cap=1 → 풀 얕은 기관까지 1자리 보장
+ *  round 2: cap=2 → 잔여 쿼터를 풀 깊은 기관에서 추가 충원
+ *  ...
+ *  round maxPerOrg: cap=maxPerOrg 까지 누적 진행, 정원 차면 조기 종료.
+ * 이전 라운드 결과는 그대로 유지된 채 잔여 쿼터만 다음 라운드로 이월.
+ * maxPerOrg=0(무제한)이면 라운드 1회 cap=∞로 기존 1-pass 동작.
  *
- * @param maxPerOrg 기관당 최대 (0 = 무제한)
+ * 라운드 내부 흐름:
+ *  Phase 1: 각 카테고리 풀에서 잔여 쿼터까지 점수순으로 채움.
+ *  Phase 2: 미달 쿼터는 우선순위 아래 카테고리 풀에서 보충 (단방향).
+ *
+ * @param maxPerOrg 기관당 최대 (0 = 무제한 — 한 라운드만 cap=∞로 진행)
  * @param excludeNoPrereq cohort prereq가 있고 true면 부분 수료(1/2 등)·미수료(0) 모두 강제 제외
  *                        — 전체 수료(prereq_done_count >= prereq_max)만 통과
  */
@@ -248,60 +256,71 @@ export function recommendByQuotas(
   });
 
   const quotas = computeQuotas(Math.max(0, totalCapacity), ratio);
-  const cap = maxPerOrg > 0 ? maxPerOrg : Number.POSITIVE_INFINITY;
   const pCap = parentOrgCap > 0 ? parentOrgCap : Number.POSITIVE_INFINITY;
   const orgCount = new Map<string, number>();
   const parentCount = new Map<string, number>();
   const selectedSet = new Set<string>();
   const selectedIds: string[] = [];
 
-  const tryAdd = (c: ScoredCandidate): boolean => {
-    if (selectedSet.has(c.application_id)) return false;
-    const orgKey = c.organization ?? '';
-    const parent = parentOrgKey(c.organization);
-    if (orgKey) {
-      const used = orgCount.get(orgKey) ?? 0;
-      if (used >= cap) return false;
-    }
-    if (parent) {
-      const pused = parentCount.get(parent) ?? 0;
-      if (pused >= pCap) return false;
-    }
-    if (orgKey) orgCount.set(orgKey, (orgCount.get(orgKey) ?? 0) + 1);
-    if (parent) parentCount.set(parent, (parentCount.get(parent) ?? 0) + 1);
-    selectedSet.add(c.application_id);
-    selectedIds.push(c.application_id);
-    return true;
-  };
+  const capUnlimited = maxPerOrg <= 0;
+  const maxRound = capUnlimited ? 1 : maxPerOrg;
 
-  // Phase 1: 카테고리별 쿼터 채우기
-  for (const cat of SELECTION_CATEGORY_ORDER) {
-    if (quotas[cat] === 0) continue;
-    for (const c of scored) {
-      if (quotas[cat] === 0) break;
-      if (c.category !== cat) continue;
-      if (tryAdd(c)) quotas[cat]--;
-    }
-  }
+  for (let round = 1; round <= maxRound; round++) {
+    if (selectedIds.length >= totalCapacity) break;
+    const roundCap = capUnlimited ? Number.POSITIVE_INFINITY : round;
 
-  // Phase 2: 단방향 흘러내림 — sourceCat의 남은 쿼터를 우선순위 순으로 보충.
-  // 예: 중앙 부족 → local 풀에서 점수순으로 먼저 채우고, 거기서도 모자라면
-  //     public_edu, 그 다음 other 순으로 진행. 단순히 downstream 풀을 한 번에
-  //     섞어 점수만 보면 더 낮은 카테고리(예: other)의 고득점자가 중간
-  //     카테고리(local)보다 먼저 들어와 의도와 다름.
-  for (let i = 0; i < SELECTION_CATEGORY_ORDER.length; i++) {
-    const sourceCat = SELECTION_CATEGORY_ORDER[i];
-    if (quotas[sourceCat] === 0) continue;
-    for (let j = i + 1; j < SELECTION_CATEGORY_ORDER.length; j++) {
-      const targetCat = SELECTION_CATEGORY_ORDER[j];
-      if (quotas[sourceCat] === 0) break;
+    const tryAdd = (c: ScoredCandidate): boolean => {
+      if (selectedSet.has(c.application_id)) return false;
+      const orgKey = c.organization ?? '';
+      const parent = parentOrgKey(c.organization);
+      if (orgKey) {
+        const used = orgCount.get(orgKey) ?? 0;
+        if (used >= roundCap) return false;
+      }
+      if (parent) {
+        const pused = parentCount.get(parent) ?? 0;
+        if (pused >= pCap) return false;
+      }
+      if (orgKey) orgCount.set(orgKey, (orgCount.get(orgKey) ?? 0) + 1);
+      if (parent) parentCount.set(parent, (parentCount.get(parent) ?? 0) + 1);
+      selectedSet.add(c.application_id);
+      selectedIds.push(c.application_id);
+      return true;
+    };
+
+    // Phase 1: 카테고리별 잔여 쿼터 채우기 (이번 라운드 cap 한도 내)
+    for (const cat of SELECTION_CATEGORY_ORDER) {
+      if (quotas[cat] === 0) continue;
       for (const c of scored) {
+        if (quotas[cat] === 0) break;
+        if (c.category !== cat) continue;
+        if (tryAdd(c)) quotas[cat]--;
+      }
+    }
+
+    // Phase 2: 단방향 흘러내림 — sourceCat의 남은 쿼터를 우선순위 순으로 보충.
+    // 예: 중앙 부족 → local 풀에서 점수순으로 먼저 채우고, 거기서도 모자라면
+    //     public_edu, 그 다음 other 순으로 진행. 단순히 downstream 풀을 한 번에
+    //     섞어 점수만 보면 더 낮은 카테고리(예: other)의 고득점자가 중간
+    //     카테고리(local)보다 먼저 들어와 의도와 다름.
+    for (let i = 0; i < SELECTION_CATEGORY_ORDER.length; i++) {
+      const sourceCat = SELECTION_CATEGORY_ORDER[i];
+      if (quotas[sourceCat] === 0) continue;
+      for (let j = i + 1; j < SELECTION_CATEGORY_ORDER.length; j++) {
+        const targetCat = SELECTION_CATEGORY_ORDER[j];
         if (quotas[sourceCat] === 0) break;
-        if (c.category !== targetCat) continue;
-        if (tryAdd(c)) quotas[sourceCat]--;
+        for (const c of scored) {
+          if (quotas[sourceCat] === 0) break;
+          if (c.category !== targetCat) continue;
+          if (tryAdd(c)) quotas[sourceCat]--;
+        }
       }
     }
   }
+
+  // 동점자 컷오프(Phase 3)는 라운드 종료 후 한 번만 적용. 마지막 라운드의 cap(=maxPerOrg
+  // 또는 ∞)을 기준으로 동점자도 cap·parentCap을 못 넘는다.
+  const finalCap = capUnlimited ? Number.POSITIVE_INFINITY : maxPerOrg;
 
   // Phase 3: 커트라인 동점자 포함 — 카테고리별로 합격자 중 가장 낮은 점수 튜플
   // (= 그 카테고리의 컷오프)과 동일한 미선발자를 같은 카테고리 안에서만 통과시킨다.
@@ -322,7 +341,7 @@ export function recommendByQuotas(
     // 동점자 추가도 cap 체크 — 상위부처/기관 cap이 hard limit으로 작동
     const orgKey = c.organization ?? '';
     const parent = parentOrgKey(c.organization);
-    if (orgKey && (orgCount.get(orgKey) ?? 0) >= cap) continue;
+    if (orgKey && (orgCount.get(orgKey) ?? 0) >= finalCap) continue;
     if (parent && (parentCount.get(parent) ?? 0) >= pCap) continue;
     if (orgKey) orgCount.set(orgKey, (orgCount.get(orgKey) ?? 0) + 1);
     if (parent) parentCount.set(parent, (parentCount.get(parent) ?? 0) + 1);
