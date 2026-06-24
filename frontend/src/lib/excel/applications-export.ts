@@ -136,6 +136,7 @@ const COMMON_COLUMNS: ColumnDef[] = [
   { key: 'name', header: '이름', width: 12 },
   { key: 'category', header: '분류', width: 14 },
   { key: 'organization', header: '소속기관', width: 28 },
+  { key: 'department', header: '실·국·과명', width: 30 },
   { key: 'prereq', header: '사전학습', width: 10 },
   { key: 'knowledge', header: '지식평가', width: 14 },
   { key: 'multiCheck', header: '업무활용성', width: 12 },
