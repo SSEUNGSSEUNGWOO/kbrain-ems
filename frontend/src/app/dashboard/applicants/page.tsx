@@ -1,13 +1,22 @@
 import PageContainer from '@/components/layout/page-container';
 import { createAdminClient } from '@/lib/supabase/server';
+import { fetchAllPages } from '@/lib/supabase/fetch-all';
 import { isViewer } from '@/lib/auth';
+import { isTestStudent } from '@/lib/students';
 import { Button } from '@/components/ui/button';
 import { ApplicantSheet } from './_components/applicant-sheet';
 import { ApplicantTable, type CategoryCounts } from './_components/applicant-table';
-import { APPLICANTS_PAGE_SIZE, applicantsSearchParamsCache } from './_search-params';
+import {
+  APPLICANTS_PAGE_SIZE,
+  applicantsSearchParamsCache,
+  type ApplicantSort
+} from './_search-params';
 
-// 분류는 신청자가 직접 고른 C2 응답(applicants.category)을 그대로 사용.
-// 6개 값 + NULL(미응답/수동 추가) = '미분류'
+const sanitizeSearch = (s: string) =>
+  s.replace(/[%,()\\]/g, ' ').replace(/\s+/g, ' ').trim();
+const cmpName = (a: { name: string }, b: { name: string }) =>
+  a.name.localeCompare(b.name, 'ko');
+
 const CATEGORY_KEYS = [
   '중앙부처',
   '광역지자체',
@@ -23,18 +32,51 @@ type Props = {
 
 export default async function ApplicantsPage({ searchParams }: Props) {
   try {
-    const { page, q, category } = applicantsSearchParamsCache.parse(await searchParams);
+    const { page, q, category, unselected, sort } = applicantsSearchParamsCache.parse(
+      await searchParams
+    );
     const supabase = createAdminClient();
     const hidePersonal = await isViewer();
     const pageSize = APPLICANTS_PAGE_SIZE;
-    const from = (page - 1) * pageSize;
-    const to = from + pageSize - 1;
-    // PostgREST or 필터에서 ,/)/%/(/\\ 가 특수문자로 해석되므로 검색어에서 제거.
-    // % 는 와일드카드라 사용자가 그대로 입력해도 검색 의도 표현 X.
-    const sanitizeSearch = (s: string) => s.replace(/[%,()\\]/g, ' ').replace(/\s+/g, ' ').trim();
     const search = sanitizeSearch(q.trim());
     const categoryFilter = category || null;
+    const unselectedOnly = unselected === '1';
+    const sortKey: ApplicantSort = sort;
 
+    // ---------- 1. applications 전체 집계 — applicant_id 별 count & cohort 이름 ----------
+    type AppJoin = {
+      applicant_id: string;
+      status: string;
+      cohorts: { name: string } | null;
+    };
+    const appAggRows = await fetchAllPages<AppJoin>((from, to) =>
+      supabase
+        .from('applications')
+        .select('applicant_id, status, cohorts(name)')
+        .range(from, to)
+        .returns<AppJoin[]>()
+    );
+
+    type Stats = {
+      applied: string[];
+      selected: string[];
+      rejected: string[];
+    };
+    const statsByApplicant = new Map<string, Stats>();
+    for (const a of appAggRows) {
+      const entry = statsByApplicant.get(a.applicant_id) ?? {
+        applied: [],
+        selected: [],
+        rejected: []
+      };
+      const cName = a.cohorts?.name ?? '(이름 없음)';
+      entry.applied.push(cName);
+      if (a.status === 'selected') entry.selected.push(cName);
+      else if (a.status === 'rejected') entry.rejected.push(cName);
+      statsByApplicant.set(a.applicant_id, entry);
+    }
+
+    // ---------- 2. applicants 전체 (검색·카테고리 필터 적용) ----------
     type ApplicantRow = {
       id: string;
       name: string;
@@ -50,114 +92,110 @@ export default async function ApplicantsPage({ searchParams }: Props) {
       organizations: { name: string } | null;
     };
 
-    // viewer는 phone/email 네트워크 응답에서도 제외 (서버 select 단계에서 빼기)
     const selectCols = hidePersonal
       ? 'id, name, category, department, job_title, job_role, birth_date, notes, organizations(name)'
       : 'id, name, category, department, job_title, job_role, birth_date, email, personal_email, phone, notes, organizations(name)';
 
-    let rowsQuery = supabase
-      .from('applicants')
-      .select(selectCols, { count: 'exact' })
-      .order('name', { ascending: true })
-      .range(from, to);
-
-    if (search) {
-      // viewer는 phone 검색 불가, 이름만
-      rowsQuery = hidePersonal
-        ? rowsQuery.ilike('name', `%${search}%`)
-        : rowsQuery.or(`name.ilike.%${search}%,phone.ilike.%${search}%`);
-    }
-    if (categoryFilter) {
-      if (categoryFilter === '미분류') {
-        rowsQuery = rowsQuery.is('category', null);
-      } else {
-        // @ts-expect-error supabase types.ts에 applicants.category 미반영 (마이그레이션 후 regen)
-        rowsQuery = rowsQuery.eq('category', categoryFilter);
+    const applicantRows = await fetchAllPages<ApplicantRow>((from, to) => {
+      let q = supabase.from('applicants').select(selectCols).range(from, to);
+      if (search) {
+        q = hidePersonal
+          ? q.ilike('name', `%${search}%`)
+          : q.or(`name.ilike.%${search}%,phone.ilike.%${search}%`);
       }
-    }
-
-    const {
-      data: applicantRows,
-      count: totalCount,
-      error: applicantError
-    } = await rowsQuery.returns<ApplicantRow[]>();
-    if (applicantError) throw new Error(applicantError.message);
-
-    const rows = (applicantRows ?? []).map((r) => ({
-      id: r.id,
-      name: r.name,
-      organizationName: r.organizations?.name ?? null,
-      category: r.category,
-      department: r.department,
-      job_title: r.job_title,
-      job_role: r.job_role,
-      birth_date: r.birth_date,
-      email: r.email ?? null,
-      personal_email: r.personal_email ?? null,
-      phone: r.phone ?? null,
-      notes: r.notes
-    }));
-
-    // facet count: 검색만 적용, 카테고리 미적용. applicants.category 직접 그룹화
-    let facetQuery = supabase.from('applicants').select('category');
-    if (search) {
-      facetQuery = hidePersonal
-        ? facetQuery.ilike('name', `%${search}%`)
-        : facetQuery.or(`name.ilike.%${search}%,phone.ilike.%${search}%`);
-    }
-    // Supabase JS 기본 limit 1000 → applicants 2000+ row 일 때 facet 통계가 잘림.
-    // 충분히 큰 range 로 풀 사이즈 받아 카테고리 정확히 집계.
-    const { data: facetRows, error: facetError } = await facetQuery
-      .range(0, 49999)
-      .returns<{ category: string | null }[]>();
-    if (facetError) throw new Error(facetError.message);
-
-    const categoryCounts: CategoryCounts = {};
-    for (const f of facetRows ?? []) {
-      const key = f.category ?? '미분류';
-      categoryCounts[key] = (categoryCounts[key] ?? 0) + 1;
-    }
-    const facetTotal = facetRows?.length ?? 0;
-
-    // applications 집계: 페이지 내 applicant id만 + cohort 이름까지 join (tooltip용)
-    const pageIds = rows.map((r) => r.id);
-    type AppJoin = {
-      applicant_id: string;
-      status: string;
-      cohorts: { name: string } | null;
-    };
-    const cohortMap = new Map<string, { applied: string[]; selected: string[] }>();
-    if (pageIds.length > 0) {
-      const { data: applicationRows, error: applicationError } = await supabase
-        .from('applications')
-        .select('applicant_id, status, cohorts(name)')
-        .in('applicant_id', pageIds)
-        .returns<AppJoin[]>();
-      if (applicationError) throw new Error(applicationError.message);
-
-      for (const a of applicationRows ?? []) {
-        const entry = cohortMap.get(a.applicant_id) ?? { applied: [], selected: [] };
-        const cName = a.cohorts?.name ?? '(이름 없음)';
-        entry.applied.push(cName);
-        if (a.status === 'selected') entry.selected.push(cName);
-        cohortMap.set(a.applicant_id, entry);
+      if (categoryFilter) {
+        if (categoryFilter === '미분류') {
+          q = q.is('category', null);
+        } else {
+          // @ts-expect-error supabase types.ts에 applicants.category 미반영
+          q = q.eq('category', categoryFilter);
+        }
       }
-    }
+      return q.returns<ApplicantRow[]>();
+    });
 
-    const mapped = rows.map((r) => {
-      const entry = cohortMap.get(r.id) ?? { applied: [], selected: [] };
+    // 테스트 학생(이름 "테스트" 시작) 제외 + 지원 이력 0건 제외
+    // (마스터에만 등록된 2025 인증자 roster 등은 "지원자 관리" 의미에 안 맞음)
+    const realApplicants = applicantRows.filter(
+      (r) => !isTestStudent(r.name) && statsByApplicant.has(r.id)
+    );
+
+    // ---------- 3. merge stats + filter unselected + sort + slice ----------
+    const merged = realApplicants.map((r) => {
+      const s = statsByApplicant.get(r.id) ?? { applied: [], selected: [], rejected: [] };
       return {
-        ...r,
-        applicationCount: entry.applied.length,
-        selectedCount: entry.selected.length,
-        appliedCohorts: entry.applied,
-        selectedCohorts: entry.selected
+        id: r.id,
+        name: r.name,
+        organizationName: r.organizations?.name ?? null,
+        category: r.category,
+        department: r.department,
+        job_title: r.job_title,
+        job_role: r.job_role,
+        birth_date: r.birth_date,
+        email: r.email ?? null,
+        personal_email: r.personal_email ?? null,
+        phone: r.phone ?? null,
+        notes: r.notes,
+        applicationCount: s.applied.length,
+        selectedCount: s.selected.length,
+        rejectedCount: s.rejected.length,
+        appliedCohorts: s.applied,
+        selectedCohorts: s.selected,
+        rejectedCohorts: s.rejected
       };
     });
 
-    const total = totalCount ?? 0;
+    const filtered = unselectedOnly
+      ? merged.filter((r) => r.applicationCount >= 1 && r.selectedCount === 0)
+      : merged;
+
+    const sorted = filtered.toSorted((a, b) => {
+      switch (sortKey) {
+        case 'app_desc':
+          return b.applicationCount - a.applicationCount || cmpName(a, b);
+        case 'app_asc':
+          return a.applicationCount - b.applicationCount || cmpName(a, b);
+        case 'selected_desc':
+          return b.selectedCount - a.selectedCount || cmpName(a, b);
+        case 'selected_asc':
+          return a.selectedCount - b.selectedCount || cmpName(a, b);
+        case 'rejected_desc':
+          return b.rejectedCount - a.rejectedCount || cmpName(a, b);
+        case 'rejected_asc':
+          return a.rejectedCount - b.rejectedCount || cmpName(a, b);
+        default:
+          return cmpName(a, b);
+      }
+    });
+
+    const total = sorted.length;
     const pageCount = Math.max(1, Math.ceil(total / pageSize));
-    const hasFilter = Boolean(search || category);
+    const from = (page - 1) * pageSize;
+    const mapped = sorted.slice(from, from + pageSize);
+
+    // ---------- 4. facet count (카테고리) — 검색만 적용, 테스트 + 지원 0건 제외 ----------
+    type FacetRow = { id: string; name: string; category: string | null };
+    const facetRows = await fetchAllPages<FacetRow>((from, to) => {
+      let q = supabase.from('applicants').select('id, name, category').range(from, to);
+      if (search) {
+        q = hidePersonal
+          ? q.ilike('name', `%${search}%`)
+          : q.or(`name.ilike.%${search}%,phone.ilike.%${search}%`);
+      }
+      return q.returns<FacetRow[]>();
+    });
+
+    const realFacetRows = facetRows.filter(
+      (f) => !isTestStudent(f.name) && statsByApplicant.has(f.id)
+    );
+    const categoryCounts: CategoryCounts = {};
+    for (const f of realFacetRows) {
+      const key = f.category ?? '미분류';
+      categoryCounts[key] = (categoryCounts[key] ?? 0) + 1;
+    }
+    const facetTotal = realFacetRows.length;
+
+    const hasFilter = Boolean(search || category || unselectedOnly);
 
     return (
       <PageContainer
@@ -177,6 +215,8 @@ export default async function ApplicantsPage({ searchParams }: Props) {
           categoryKeys={[...CATEGORY_KEYS, '미분류']}
           facetTotal={facetTotal}
           hidePersonal={hidePersonal}
+          unselectedOnly={unselectedOnly}
+          sort={sortKey}
         />
       </PageContainer>
     );

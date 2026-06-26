@@ -3,12 +3,13 @@
 import { useEffect, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { parseAsInteger, parseAsString, useQueryStates } from 'nuqs';
+import { parseAsInteger, parseAsString, parseAsStringEnum, useQueryStates } from 'nuqs';
 import { useAuth } from '@/lib/auth-context';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
+import { APPLICANT_SORT_KEYS, type ApplicantSort } from '../_search-params';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -28,8 +29,10 @@ import { ApplicantSheet, type Applicant } from './applicant-sheet';
 type ApplicantRow = Applicant & {
   applicationCount: number;
   selectedCount: number;
+  rejectedCount: number;
   appliedCohorts: string[];
   selectedCohorts: string[];
+  rejectedCohorts: string[];
 };
 
 export type CategoryCounts = Record<string, number>;
@@ -44,10 +47,14 @@ type Props = {
   categoryKeys: string[];
   facetTotal: number;
   hidePersonal?: boolean;
+  unselectedOnly: boolean;
+  sort: ApplicantSort;
 };
 
 const STATUS_BADGE_CLASS =
   'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300';
+const REJECTED_BADGE_CLASS =
+  'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300';
 
 // C2 응답 한글 라벨 → 색상 톤
 const CATEGORY_CLASS: Record<string, string> = {
@@ -75,16 +82,47 @@ export function ApplicantTable({
   categoryCounts,
   categoryKeys,
   facetTotal,
-  hidePersonal = false
+  hidePersonal = false,
+  unselectedOnly,
+  sort
 }: Props) {
   const [{ q, category }, setParams] = useQueryStates(
     {
       q: parseAsString.withDefault(''),
       category: parseAsString.withDefault(''),
-      page: parseAsInteger.withDefault(1)
+      page: parseAsInteger.withDefault(1),
+      unselected: parseAsString.withDefault(''),
+      sort: parseAsStringEnum<ApplicantSort>([...APPLICANT_SORT_KEYS]).withDefault('name')
     },
     { shallow: false }
   );
+
+  const onToggleUnselected = () => {
+    void setParams({ unselected: unselectedOnly ? null : '1', page: null });
+  };
+
+  const onToggleSort = (col: 'app' | 'selected' | 'rejected') => {
+    const desc = `${col}_desc` as ApplicantSort;
+    const asc = `${col}_asc` as ApplicantSort;
+    const next: ApplicantSort = sort === desc ? asc : sort === asc ? 'name' : desc;
+    void setParams({ sort: next === 'name' ? null : next, page: null });
+  };
+
+  const sortIndicator = (col: 'app' | 'selected' | 'rejected') => {
+    if (sort === `${col}_desc`) return '↓';
+    if (sort === `${col}_asc`) return '↑';
+    return '';
+  };
+
+  const exportUrl = (() => {
+    const params = new URLSearchParams();
+    if (q) params.set('q', q);
+    if (category) params.set('category', category);
+    if (unselectedOnly) params.set('unselected', '1');
+    if (sort !== 'name') params.set('sort', sort);
+    const qs = params.toString();
+    return `/api/applicants/export${qs ? `?${qs}` : ''}`;
+  })();
 
   const [inputValue, setInputValue] = useState(q);
   useEffect(() => {
@@ -174,7 +212,7 @@ export function ApplicantTable({
     });
   };
 
-  const hasFilter = Boolean(q || category);
+  const hasFilter = Boolean(q || category || unselectedOnly);
   const isEmpty = applicants.length === 0;
   const firstIndex = isEmpty ? 0 : (page - 1) * pageSize + 1;
   const lastIndex = isEmpty ? 0 : (page - 1) * pageSize + applicants.length;
@@ -201,6 +239,20 @@ export function ApplicantTable({
             </button>
           )}
         </div>
+        <Button
+          type='button'
+          variant={unselectedOnly ? 'default' : 'outline'}
+          size='sm'
+          onClick={onToggleUnselected}
+        >
+          {unselectedOnly ? '✓ ' : ''}선발 0회만 보기
+        </Button>
+        <Button asChild type='button' variant='outline' size='sm' className='ml-auto'>
+          <a href={exportUrl} download>
+            <Icons.download className='mr-1 size-4' />
+            CSV 다운로드
+          </a>
+        </Button>
       </div>
 
       <CategoryFilter
@@ -252,8 +304,33 @@ export function ApplicantTable({
                 <th className='px-4 py-3 text-left font-medium'>직책</th>
                 <th className='whitespace-nowrap px-4 py-3 text-left font-medium'>생년월일</th>
                 {!hidePersonal && <th className='px-4 py-3 text-left font-medium'>연락처</th>}
-                <th className='whitespace-nowrap px-4 py-3 text-center font-medium'>지원</th>
-                <th className='whitespace-nowrap px-4 py-3 text-center font-medium'>합격</th>
+                <th className='whitespace-nowrap px-4 py-3 text-center font-medium'>
+                  <button
+                    type='button'
+                    onClick={() => onToggleSort('app')}
+                    className='hover:text-foreground inline-flex items-center gap-0.5'
+                  >
+                    지원<span className='tabular-nums'>{sortIndicator('app')}</span>
+                  </button>
+                </th>
+                <th className='whitespace-nowrap px-4 py-3 text-center font-medium'>
+                  <button
+                    type='button'
+                    onClick={() => onToggleSort('selected')}
+                    className='hover:text-foreground inline-flex items-center gap-0.5'
+                  >
+                    합격<span className='tabular-nums'>{sortIndicator('selected')}</span>
+                  </button>
+                </th>
+                <th className='whitespace-nowrap px-4 py-3 text-center font-medium'>
+                  <button
+                    type='button'
+                    onClick={() => onToggleSort('rejected')}
+                    className='hover:text-foreground inline-flex items-center gap-0.5'
+                  >
+                    불합격<span className='tabular-nums'>{sortIndicator('rejected')}</span>
+                  </button>
+                </th>
                 <th className='w-20 px-4 py-3'></th>
               </tr>
             </thead>
@@ -330,6 +407,27 @@ export function ApplicantTable({
                           <TooltipContent side='top' className='max-w-72'>
                             <p className='text-xs leading-relaxed'>
                               {a.selectedCohorts.join(', ')}
+                            </p>
+                          </TooltipContent>
+                        </Tooltip>
+                      ) : (
+                        <span className='text-muted-foreground'>-</span>
+                      )}
+                    </td>
+                    <td className='px-4 py-3 text-center'>
+                      {a.rejectedCount > 0 ? (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Badge
+                              variant='outline'
+                              className={`cursor-default ${REJECTED_BADGE_CLASS}`}
+                            >
+                              {a.rejectedCount}
+                            </Badge>
+                          </TooltipTrigger>
+                          <TooltipContent side='top' className='max-w-72'>
+                            <p className='text-xs leading-relaxed'>
+                              {a.rejectedCohorts.join(', ')}
                             </p>
                           </TooltipContent>
                         </Tooltip>
