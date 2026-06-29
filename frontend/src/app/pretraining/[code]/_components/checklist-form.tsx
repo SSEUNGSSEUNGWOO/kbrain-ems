@@ -79,9 +79,9 @@ function VerifyStep({
   };
 
   return (
-    <form onSubmit={onSubmit} className='rounded-xl border bg-white px-6 py-6 shadow-sm'>
-      <h2 className='mb-1 text-base font-bold text-slate-900'>본인 확인</h2>
-      <p className='mb-4 text-xs text-slate-500'>
+    <form onSubmit={onSubmit} className='border-border bg-card rounded-xl border px-6 py-6 shadow-sm'>
+      <h2 className='text-foreground mb-1 text-base font-bold'>본인 확인</h2>
+      <p className='text-muted-foreground mb-4 text-xs'>
         등록된 교육생 명단과 매칭됩니다. 이름과 연락처 뒷 4자리를 입력해주세요.
       </p>
       <div className='grid gap-3'>
@@ -110,10 +110,10 @@ function VerifyStep({
       </div>
 
       {error && (
-        <div className='mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700'>
+        <div className='bg-destructive/10 text-destructive mt-3 rounded-md px-3 py-2 text-sm'>
           {error}
           {inquiryPhones && inquiryPhones.length > 0 && (
-            <div className='mt-1.5 text-xs text-red-800'>
+            <div className='text-destructive mt-1.5 text-xs'>
               📞 운영팀 문의:{' '}
               {inquiryPhones.map((p, i) => (
                 <span key={p}>
@@ -210,19 +210,19 @@ function AnswerStep({
   return (
     <div className='flex flex-col gap-5'>
       {/* 응답자 확인 카드 — 비편집 */}
-      <section className='rounded-xl border bg-white px-6 py-4 shadow-sm'>
+      <section className='border-border bg-card rounded-xl border px-6 py-4 shadow-sm'>
         <div className='flex items-start justify-between gap-3'>
           <div className='flex flex-col gap-0.5'>
-            <div className='text-xs font-semibold text-slate-500'>응답자</div>
-            <div className='text-base font-bold text-slate-900'>{student.name}</div>
+            <div className='text-muted-foreground text-xs font-semibold'>응답자</div>
+            <div className='text-foreground text-base font-bold'>{student.name}</div>
             {student.organizationName && (
-              <div className='text-xs text-slate-500'>{student.organizationName}</div>
+              <div className='text-muted-foreground text-xs'>{student.organizationName}</div>
             )}
           </div>
           <button
             type='button'
             onClick={onBack}
-            className='text-xs text-slate-400 hover:text-slate-600 underline'
+            className='text-muted-foreground hover:text-foreground text-xs underline'
           >
             본인 아님
           </button>
@@ -234,17 +234,17 @@ function AnswerStep({
         {visibleItems.map((it) => {
           const ans = answers[it.id];
           return (
-            <div key={it.id} className='rounded-xl border bg-white px-5 py-4 shadow-sm'>
+            <div key={it.id} className='border-border bg-card rounded-xl border px-5 py-4 shadow-sm'>
               <div className='flex items-start gap-2'>
                 <span className='text-muted-foreground mt-0.5 font-mono text-xs'>{it.question_no}.</span>
                 <div className='flex-1'>
-                  <div className='text-sm text-slate-900'>{it.text}</div>
+                  <div className='text-foreground text-sm'>{it.text}</div>
                   {it.guide_url && (
                     <a
                       href={it.guide_url}
                       target='_blank'
                       rel='noreferrer'
-                      className='mt-1 inline-block text-xs text-blue-600 hover:underline'
+                      className='text-primary mt-1 inline-block text-xs hover:underline'
                     >
                       {it.guide_url}
                     </a>
@@ -258,7 +258,7 @@ function AnswerStep({
                   className={`flex-1 rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors ${
                     ans === 'yes'
                       ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
-                      : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                      : 'border-border bg-card text-foreground hover:bg-muted'
                   }`}
                 >
                   예
@@ -269,7 +269,7 @@ function AnswerStep({
                   className={`flex-1 rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors ${
                     ans === 'no'
                       ? 'border-rose-500 bg-rose-50 text-rose-700'
-                      : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                      : 'border-border bg-card text-foreground hover:bg-muted'
                   }`}
                 >
                   아니오
@@ -283,7 +283,7 @@ function AnswerStep({
         })}
       </section>
 
-      {error && <div className='rounded-md bg-red-50 px-4 py-3 text-sm text-red-700'>{error}</div>}
+      {error && <div className='bg-destructive/10 text-destructive rounded-md px-4 py-3 text-sm'>{error}</div>}
 
       {hasNo && (
         <div className='rounded-md border-l-2 border-amber-400 bg-amber-50 px-4 py-3 text-sm text-amber-800'>

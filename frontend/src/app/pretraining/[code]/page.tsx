@@ -43,7 +43,7 @@ export default async function PretrainingPublicPage({ params }: Props) {
     : null;
   if (checklist.closes_at && new Date(checklist.closes_at) <= new Date()) {
     return (
-      <div className='rounded-xl border bg-white px-6 py-12 text-center text-muted-foreground shadow-sm'>
+      <div className='border-border bg-card text-muted-foreground rounded-xl border px-6 py-12 text-center shadow-sm'>
         이 체크리스트는 응답이 마감되었습니다.
       </div>
     );
@@ -58,15 +58,15 @@ export default async function PretrainingPublicPage({ params }: Props) {
 
   return (
     <div className='flex flex-col gap-5'>
-      <header className='rounded-xl border bg-white px-6 py-5 shadow-sm'>
+      <header className='border-border bg-card rounded-xl border px-6 py-5 shadow-sm'>
         {cohortRow?.name && (
-          <div className='mb-1.5 inline-flex items-center rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-semibold tracking-tight text-blue-700'>
+          <div className='bg-accent text-accent-foreground mb-1.5 inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold tracking-tight'>
             {cohortRow.name}
           </div>
         )}
-        <h1 className='text-lg font-bold text-slate-900'>{checklist.title}</h1>
+        <h1 className='text-foreground text-lg font-bold'>{checklist.title}</h1>
         {checklist.description && (
-          <p className='mt-2 whitespace-pre-line text-sm text-slate-600'>
+          <p className='text-muted-foreground mt-2 text-sm whitespace-pre-line'>
             {checklist.description}
           </p>
         )}
@@ -75,7 +75,7 @@ export default async function PretrainingPublicPage({ params }: Props) {
             href={checklist.guide_url}
             target='_blank'
             rel='noreferrer'
-            className='mt-3 inline-flex items-center gap-1 rounded-md bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100'
+            className='bg-accent text-accent-foreground hover:bg-accent/80 mt-3 inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-medium'
           >
             설치·가입 가이드 보기 →
           </a>

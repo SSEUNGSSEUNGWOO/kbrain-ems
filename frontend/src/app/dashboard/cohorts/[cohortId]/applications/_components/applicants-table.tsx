@@ -45,6 +45,12 @@ export type ApplicationRow = {
   knowledge_total_count: number | null;
   plan_char_count: number | null;
   prereq_done_count: number;
+  /** 자격연계형 cohort 한정: 자격증 답변 원문 텍스트.
+   *  운영자가 직접 보고 판단해야 하는 자유 서술 — "없음", "보유 예정",
+   *  "AICE Associate A2512..." 등 다양한 패턴이 섞여 있어 분류 자동화 위험.
+   *  null = 자격연계형이 아니거나 답변 자체가 없음.
+   */
+  cert_text: string | null;
   applied_at: string | null;
   applicant_edit: ApplicantEdit | null;
   can_edit: boolean;
@@ -65,7 +71,8 @@ const STATUS_LABEL: Record<string, string> = {
   pending: '심사중',
   selected: '선발',
   rejected: '탈락',
-  pre_cancel: '사전취소',
+  cancel_notice: '취소통보',
+  cancel_confirmed: '취소확정',
   same_day_cancel: '당일취소'
 };
 
@@ -74,7 +81,8 @@ const STATUS_TONE: Record<string, string> = {
   pending: 'bg-amber-50 text-amber-800 border-amber-200',
   selected: 'bg-emerald-50 text-emerald-800 border-emerald-200',
   rejected: 'bg-rose-50 text-rose-800 border-rose-200',
-  pre_cancel: 'bg-slate-50 text-slate-500 border-slate-200',
+  cancel_notice: 'bg-amber-50 text-amber-700 border-amber-200',
+  cancel_confirmed: 'bg-slate-50 text-slate-500 border-slate-200',
   same_day_cancel: 'bg-rose-50 text-rose-700 border-rose-200'
 };
 
@@ -89,10 +97,11 @@ type Props = {
   categoryCounts: Record<string, number>;
   statusCounts: Record<string, number>;
   prereqMax: number; // 0이면 사전학습 컬럼 숨김
+  hasCertQuestion: boolean; // 자격연계형 cohort 일 때만 true → 자격증 컬럼 노출
 };
 
 const CATEGORY_KEYS = ['central', 'metro_local', 'basic_local', 'public', 'education', 'other'] as const;
-const STATUS_KEYS = ['applied', 'pending', 'selected', 'rejected', 'pre_cancel', 'same_day_cancel'] as const;
+const STATUS_KEYS = ['applied', 'pending', 'selected', 'rejected', 'cancel_notice', 'cancel_confirmed', 'same_day_cancel'] as const;
 const SORTABLE_COLS = ['status', 'name', 'knowledge_score', 'applied_at'] as const;
 type SortableCol = (typeof SORTABLE_COLS)[number];
 
@@ -105,7 +114,8 @@ export function ApplicantsTable({
   totalCount,
   categoryCounts,
   statusCounts,
-  prereqMax
+  prereqMax,
+  hasCertQuestion
 }: Props) {
   const [{ q, category, status, sort }, setParams] = useQueryStates(
     {
@@ -240,6 +250,7 @@ export function ApplicantsTable({
                 </SortableHead>
                 <TableHead>분류</TableHead>
                 <TableHead>소속</TableHead>
+                {hasCertQuestion && <TableHead>자격증</TableHead>}
                 {prereqMax > 0 && (
                   <TableHead className='text-right'>사전학습</TableHead>
                 )}
@@ -295,6 +306,20 @@ export function ApplicantsTable({
                     <TableCell className='text-muted-foreground'>
                       {r.organization ?? '—'}
                     </TableCell>
+                    {hasCertQuestion && (
+                      <TableCell className='max-w-[220px]'>
+                        {r.cert_text ? (
+                          <span
+                            className='block truncate text-sm text-slate-700'
+                            title={r.cert_text}
+                          >
+                            {r.cert_text}
+                          </span>
+                        ) : (
+                          <span className='text-muted-foreground text-xs'>—</span>
+                        )}
+                      </TableCell>
+                    )}
                     {prereqMax > 0 && (
                       <TableCell
                         className={cn(

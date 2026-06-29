@@ -98,6 +98,14 @@ export default async function DiagnosisResponsePage({ params }: Props) {
     choices: q.options?.choices ?? null
   }));
 
+  // 서버 시각 기준 elapsed 계산 → 클라이언트 OS 시간(빠르거나 늦거나) 영향 차단
+  const initialElapsedSeconds = response.started_at
+    ? Math.max(
+        0,
+        Math.floor((Date.now() - new Date(response.started_at).getTime()) / 1000)
+      )
+    : null;
+
   return (
     <main className='min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 px-4 py-8'>
       <div className='mx-auto max-w-2xl'>
@@ -109,7 +117,7 @@ export default async function DiagnosisResponsePage({ params }: Props) {
           diagnosisTitle={diag.title}
           diagnosisType={diag.type}
           durationMinutes={diag.duration_minutes}
-          startedAt={response.started_at}
+          initialElapsedSeconds={initialElapsedSeconds}
           questions={questions}
         />
       </div>

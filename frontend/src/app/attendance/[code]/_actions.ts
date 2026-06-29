@@ -1,6 +1,7 @@
 'use server';
 
 import { createAdminClient } from '@/lib/supabase/server';
+import { inferAttendanceRole } from '@/lib/attendance';
 
 export type CheckinResult =
   | { ok: true; studentName: string; alreadyChecked: boolean; checkedAt: string; label: string }
@@ -71,8 +72,10 @@ export async function checkinByShareCode(
       .eq('applicant_id', student.applicant_id)
       .eq('cohort_id', session.cohort_id)
       .maybeSingle();
-    // 'selected' 외 'same_day_cancel'(당일취소)도 출결 가능. 'pre_cancel'·'rejected' 만 차단.
-    if (app && app.status !== 'selected' && app.status !== 'same_day_cancel') {
+    // 'selected' 외 'same_day_cancel'(당일취소), 'cancel_notice'(취소통보, 미확정) 도 출결 가능.
+    // 'cancel_confirmed'(취소확정)·'rejected' 만 차단.
+    const ALLOWED_FOR_ATTENDANCE = new Set(['selected', 'same_day_cancel', 'cancel_notice']);
+    if (app && !ALLOWED_FOR_ATTENDANCE.has(app.status)) {
       return {
         ok: false,
         error: '현재 출석 대상자가 아닙니다. 관리자에게 문의해주세요.'
@@ -123,10 +126,12 @@ export async function checkinByShareCode(
   }
 
   // 5) attendance_records 자동 반영
-  if (check.attendance_role === 'arrival') {
+  // role이 NULL이면 label로 추론(2026-06 누락 버그 안전망). 추론도 실패하면 동기화 생략.
+  const effectiveRole = check.attendance_role ?? inferAttendanceRole(check.label);
+  if (effectiveRole === 'arrival') {
     const isLate =
       !!check.criterion_at && new Date(checkedAt) > new Date(check.criterion_at);
-    await supabase.from('attendance_records').upsert(
+    const { error: arErr } = await supabase.from('attendance_records').upsert(
       {
         session_id: check.session_id,
         student_id: student.id,
@@ -135,7 +140,14 @@ export async function checkinByShareCode(
       },
       { onConflict: 'session_id,student_id' }
     );
-  } else if (check.attendance_role === 'departure') {
+    if (arErr) {
+      console.error('[attendance] arrival upsert 실패', {
+        sessionId: check.session_id,
+        studentId: student.id,
+        error: arErr.message
+      });
+    }
+  } else if (effectiveRole === 'departure') {
     // 마감 체크인 — departure_time 만 갱신. status 는 기존 값 유지 (없으면 present).
     const { data: existing } = await supabase
       .from('attendance_records')
@@ -143,7 +155,7 @@ export async function checkinByShareCode(
       .eq('session_id', check.session_id)
       .eq('student_id', student.id)
       .maybeSingle();
-    await supabase.from('attendance_records').upsert(
+    const { error: arErr } = await supabase.from('attendance_records').upsert(
       {
         session_id: check.session_id,
         student_id: student.id,
@@ -152,6 +164,18 @@ export async function checkinByShareCode(
       },
       { onConflict: 'session_id,student_id' }
     );
+    if (arErr) {
+      console.error('[attendance] departure upsert 실패', {
+        sessionId: check.session_id,
+        studentId: student.id,
+        error: arErr.message
+      });
+    }
+  } else {
+    console.error('[attendance] role 추론 실패 — attendance_records 미동기화', {
+      checkId: check.id,
+      label: check.label
+    });
   }
 
   return {

@@ -53,32 +53,32 @@ export default function LockPage() {
   // 환영 화면
   if (welcome) {
     return (
-      <div className='fixed inset-0 z-50 flex items-center justify-center bg-white'>
+      <div className='fixed inset-0 z-50 flex items-center justify-center bg-background'>
         <div className='flex flex-col items-center gap-3'>
           <div
-            className='text-3xl font-bold text-slate-900'
+            className='text-foreground text-3xl font-bold'
             style={{ animation: 'welcomeFadeUp 0.6s ease-out forwards', opacity: 0 }}
           >
             {welcome.name}
           </div>
           <div
-            className='text-lg font-medium text-blue-600'
+            className='text-primary text-lg font-medium'
             style={{ animation: 'welcomeFadeUp 0.6s ease-out 0.4s forwards', opacity: 0 }}
           >
             {welcome.title}님
           </div>
           <div
-            className='mt-2 text-base text-slate-500'
+            className='text-muted-foreground mt-2 text-base'
             style={{ animation: 'welcomeFadeUp 0.6s ease-out 0.8s forwards', opacity: 0 }}
           >
             안녕하세요, 오늘도 좋은 하루 되세요
           </div>
           <div
-            className='mt-6 h-0.5 w-32 overflow-hidden rounded-full bg-muted'
+            className='bg-muted mt-6 h-0.5 w-32 overflow-hidden rounded-full'
             style={{ animation: 'welcomeFadeUp 0.4s ease-out 1.2s forwards', opacity: 0 }}
           >
             <div
-              className='h-full rounded-full bg-gradient-to-r from-blue-500 to-violet-500'
+              className='bg-primary h-full rounded-full'
               style={{ animation: 'welcomeProgress 1.2s ease-in-out 1.3s forwards', width: '0%' }}
             />
           </div>
@@ -98,18 +98,18 @@ export default function LockPage() {
   }
 
   return (
-    <div className='flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 to-blue-50 px-4'>
+    <div className='bg-background flex min-h-screen items-center justify-center px-4'>
       <div className='w-full max-w-sm'>
-        <div className='mx-auto mb-6 h-1 w-16 rounded-full bg-gradient-to-r from-blue-500 to-violet-500' />
+        <div className='bg-primary mx-auto mb-6 h-1 w-16 rounded-full' />
 
-        <div className='rounded-2xl border bg-white/80 px-8 py-10 shadow-lg backdrop-blur'>
+        <div className='border-border bg-card rounded-2xl border px-8 py-10 shadow-lg'>
           <div className='mb-8 flex flex-col items-center gap-2'>
             <Logo variant='color' size={36} withWordmark endorsed />
           </div>
 
           <div className='mb-6 text-center'>
-            <h1 className='text-lg font-semibold text-slate-900'>운영자 로그인</h1>
-            <p className='mt-1 text-sm text-slate-500'>이메일과 비밀번호를 입력해주세요</p>
+            <h1 className='text-foreground text-lg font-semibold'>운영자 로그인</h1>
+            <p className='text-muted-foreground mt-1 text-sm'>이메일과 비밀번호를 입력해주세요</p>
           </div>
 
           <form onSubmit={handleSubmit} className='space-y-3'>
@@ -120,7 +120,7 @@ export default function LockPage() {
                 onChange={(e) => { setEmail(e.target.value); setError(''); }}
                 placeholder='이메일'
                 autoComplete='email'
-                className='w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-base text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20'
+                className='border-border bg-background text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/20 w-full rounded-lg border px-4 py-3 text-base outline-none transition-colors focus:ring-2'
               />
             </div>
 
@@ -131,12 +131,12 @@ export default function LockPage() {
                 onChange={(e) => { setPassword(e.target.value); setError(''); }}
                 placeholder='비밀번호'
                 autoComplete='current-password'
-                className='w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-base text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20'
+                className='border-border bg-background text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/20 w-full rounded-lg border px-4 py-3 text-base outline-none transition-colors focus:ring-2'
               />
             </div>
 
             {error && (
-              <div className='rounded-lg bg-red-50 px-4 py-2.5 text-center text-sm font-medium text-red-600'>
+              <div className='bg-destructive/10 text-destructive rounded-lg px-4 py-2.5 text-center text-sm font-medium'>
                 {error}
               </div>
             )}
@@ -144,14 +144,14 @@ export default function LockPage() {
             <button
               type='submit'
               disabled={loading || !email.trim() || !password}
-              className='w-full rounded-lg bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-3 text-sm font-semibold text-white transition-all hover:from-blue-700 hover:to-blue-800 disabled:cursor-not-allowed disabled:opacity-50'
+              className='bg-primary text-primary-foreground hover:bg-primary/90 w-full rounded-lg px-4 py-3 text-sm font-semibold transition-all disabled:cursor-not-allowed disabled:opacity-50'
             >
               {loading ? '확인 중...' : '입장하기'}
             </button>
           </form>
         </div>
 
-        <p className='mt-4 text-center text-xs text-slate-400'>
+        <p className='text-muted-foreground mt-4 text-center text-xs'>
           등록된 운영자만 입장할 수 있습니다
         </p>
       </div>

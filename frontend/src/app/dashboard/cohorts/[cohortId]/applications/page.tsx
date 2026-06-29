@@ -98,6 +98,7 @@ export default async function CohortApplicationsPage({ params, searchParams }: P
   const questionCount = questions?.length ?? 0;
   const finalQuestion = questions?.find((q) => q.question_no === 'Plan') ?? null;
   const c2Question = questions?.find((q) => q.question_no === 'C2') ?? null;
+  const certQuestion = questions?.find((q) => q.question_no === 'C-CERT') ?? null;
   const allAppIds = (statsRows ?? []).map((r) => r.id);
 
   // C2 응답을 코호트 전체에 대해 fetch (facet + 필터링)
@@ -218,6 +219,22 @@ export default async function CohortApplicationsPage({ params, searchParams }: P
     }
   }
 
+  // 자격연계형 cohort 한정: 페이지 내 신청자의 C-CERT 답변 텍스트 fetch.
+  // "예정"·"보유 안함"·실제 자격증명 등 자유 서술이라 자동 분류하지 않고 원문 그대로
+  // 셀에 노출 — 운영자가 보고 판단.
+  const certTextMap = new Map<string, string>();
+  if (certQuestion && pageAppIds.length > 0) {
+    const { data: certAnswers } = await supabase
+      .from('application_answers')
+      .select('application_id, answer_value')
+      .eq('question_id', certQuestion.id)
+      .in('application_id', pageAppIds);
+    for (const a of certAnswers ?? []) {
+      const text = typeof a.answer_value === 'string' ? a.answer_value.trim() : '';
+      if (text) certTextMap.set(a.application_id, text);
+    }
+  }
+
   // 사전학습 수료 매칭 — cohort에 prereq 과목이 있을 때만 lms_completions 조회.
   // 페이지에 보이는 신청자(20명)의 phone/email만 in()으로 좁혀 조회한다.
   // 전체 chunked range로 lms_completions 23,000+ 행을 매번 끌어오면 카테고리 필터 클릭
@@ -316,6 +333,7 @@ export default async function CohortApplicationsPage({ params, searchParams }: P
     knowledge_total_count: a.knowledge_total_count,
     plan_char_count: planCharMap.get(a.id) ?? null,
     prereq_done_count: computePrereqDone(a.applicants?.phone ?? null, a.applicants?.email ?? null),
+    cert_text: certQuestion ? (certTextMap.get(a.id) ?? null) : null,
     applied_at: a.applied_at,
     applicant_edit: a.applicants
       ? {
@@ -443,6 +461,7 @@ export default async function CohortApplicationsPage({ params, searchParams }: P
             categoryCounts={categoryCounts}
             statusCounts={statusCounts}
             prereqMax={prereqMax}
+            hasCertQuestion={!!certQuestion}
           />
         )}
       </div>

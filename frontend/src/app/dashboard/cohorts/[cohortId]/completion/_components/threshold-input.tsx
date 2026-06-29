@@ -1,17 +1,22 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { parseAsInteger, useQueryStates } from 'nuqs';
+import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useDebouncedCallback } from '@/hooks/use-debounced-callback';
+import { saveMinAttendance } from '../_actions';
 
 type Props = {
+  cohortId: string;
   defaultMin: number;
+  savedMin: number | null;
   totalSessions: number;
 };
 
-export function ThresholdInput({ defaultMin, totalSessions }: Props) {
+export function ThresholdInput({ cohortId, defaultMin, savedMin, totalSessions }: Props) {
   const [{ min }, setParams] = useQueryStates(
     { min: parseAsInteger.withDefault(defaultMin) },
     { shallow: false }
@@ -36,6 +41,20 @@ export function ThresholdInput({ defaultMin, totalSessions }: Props) {
     debouncedSet(Math.min(Math.max(1, Math.floor(n)), Math.max(1, totalSessions)));
   };
 
+  const [pending, startTransition] = useTransition();
+  const currentNum = Number(value);
+  const isValid = Number.isFinite(currentNum) && currentNum > 0;
+  const canSave = isValid && Math.floor(currentNum) !== savedMin;
+
+  const onSave = () => {
+    if (!canSave) return;
+    startTransition(async () => {
+      const res = await saveMinAttendance(cohortId, Math.floor(currentNum));
+      if (res.ok) toast.success(`수료 기준 ${Math.floor(currentNum)}회로 저장됨`);
+      else toast.error(res.error);
+    });
+  };
+
   return (
     <div className='flex items-center gap-2'>
       <Label htmlFor='min-attendance' className='text-muted-foreground text-sm'>
@@ -51,6 +70,19 @@ export function ThresholdInput({ defaultMin, totalSessions }: Props) {
         className='h-8 w-20 tabular-nums'
       />
       <span className='text-muted-foreground text-sm'>회 이상 출석</span>
+      <Button
+        size='sm'
+        variant='outline'
+        disabled={!canSave || pending}
+        onClick={onSave}
+      >
+        {pending ? '저장 중…' : '저장'}
+      </Button>
+      {savedMin !== null && (
+        <span className='text-muted-foreground text-xs'>
+          (저장된 값: {savedMin}회)
+        </span>
+      )}
     </div>
   );
 }

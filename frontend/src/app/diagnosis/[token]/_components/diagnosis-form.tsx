@@ -21,7 +21,8 @@ type Props = {
   diagnosisTitle: string;
   diagnosisType: string;
   durationMinutes: number;
-  startedAt: string | null;
+  /** 서버 시각 기준 경과초. 아직 시작 전이면 null. 클라이언트 OS 시간 의존을 피하기 위해 서버에서 계산해 내려준다. */
+  initialElapsedSeconds: number | null;
   questions: Question[];
 };
 
@@ -68,22 +69,21 @@ export function DiagnosisForm({
   diagnosisTitle,
   diagnosisType,
   durationMinutes,
-  startedAt: serverStartedAt,
+  initialElapsedSeconds,
   questions
 }: Props) {
   const testDurationSeconds = durationMinutes * 60;
 
-  // 서버 started_at 기준 elapsed 계산 (디바이스/브라우저 불문 동일).
-  const computeRemain = (startedAtIso: string | null): number => {
-    if (!startedAtIso) return testDurationSeconds;
-    const elapsed = Math.floor((Date.now() - new Date(startedAtIso).getTime()) / 1000);
-    return testDurationSeconds - elapsed;
-  };
-  const initialRemain = computeRemain(serverStartedAt);
-  const isExpired = serverStartedAt != null && initialRemain <= 0;
+  // 서버에서 계산해 내려준 elapsed 기반으로 잔여시간 산출.
+  // 클라이언트 Date.now() 절대 사용 금지 — 응시자 OS 시간이 어긋나도 영향 없게.
+  const isStarted = initialElapsedSeconds != null;
+  const initialRemain = isStarted
+    ? Math.max(0, testDurationSeconds - initialElapsedSeconds)
+    : testDurationSeconds;
+  const isExpired = isStarted && initialRemain <= 0;
 
   const [step, setStep] = useState<Step>(
-    serverStartedAt != null && initialRemain > 0 ? 'test' : 'confirm'
+    isStarted && initialRemain > 0 ? 'test' : 'confirm'
   );
   const [answers, setAnswers] = useState<Record<number, string>>({});
   const [reviewed, setReviewed] = useState<Set<number>>(new Set());
@@ -301,9 +301,9 @@ export function DiagnosisForm({
                       );
                       return;
                     }
-                    const remain = computeRemain(r.startedAt);
+                    const remain = Math.max(0, testDurationSeconds - r.elapsedSeconds);
                     if (remain <= 0) {
-                      // 서버 시각 기준으로 이미 만료 — 시작 안 함.
+                      // 서버 시각 기준 이미 만료 — 시작 안 함.
                       setError(
                         '응답 가능 시간이 종료되었습니다. 운영자에게 문의해주세요.'
                       );

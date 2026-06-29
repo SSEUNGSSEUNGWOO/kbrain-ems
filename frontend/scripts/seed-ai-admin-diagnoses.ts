@@ -43,7 +43,7 @@ const QUESTIONS: Question[] = [
   {
     no: 1,
     type: 'multiple_choice',
-    text: '교재가 제시한 AI의 진화 단계에 대한 설명으로 옳은 것은?',
+    text: 'AI의 진화 단계에 대한 설명으로 옳은 것은?',
     weight: W,
     choices: [
       { key: '①', text: '2023년 AI는 공급처 선택·계약 초안까지 다루는 수준이었다' },
@@ -56,7 +56,7 @@ const QUESTIONS: Question[] = [
   {
     no: 2,
     type: 'multiple_choice',
-    text: '교재(및 MCP 공식 문서)가 MCP를 비유한 표현으로 옳은 것은?',
+    text: 'MCP 공식 문서가 MCP를 비유한 표현으로 옳은 것은?',
     weight: W,
     choices: [
       { key: '①', text: 'AI 애플리케이션을 외부 시스템에 연결하는 USB-C 같은 표준' },
@@ -69,7 +69,7 @@ const QUESTIONS: Question[] = [
   {
     no: 3,
     type: 'multiple_choice',
-    text: '교재가 설명하는 HTML과 Python의 역할 분담으로 옳은 것은?',
+    text: 'HTML과 Python의 역할 분담으로 옳은 것은?',
     weight: W,
     choices: [
       { key: '①', text: '보여주는 일은 Python, 처리하는 일은 HTML이 강하다' },
@@ -95,7 +95,7 @@ const QUESTIONS: Question[] = [
   {
     no: 5,
     type: 'multiple_choice',
-    text: "교재가 강조하는 '좋은 공공 AI 기획'의 출발점으로 가장 적절한 것은?",
+    text: "'좋은 공공 AI 기획'의 출발점으로 가장 적절한 것은?",
     weight: W,
     choices: [
       { key: '①', text: '가장 성능이 좋은 최신 모델을 먼저 고르는 것' },
@@ -108,7 +108,7 @@ const QUESTIONS: Question[] = [
   {
     no: 6,
     type: 'ox',
-    text: '교재는 "AI를 통한 행정 혁신은 전문 개발자만이 주체가 되며 일반 실무자는 어렵다"고 본다.',
+    text: 'AI를 통한 행정 혁신은 전문 개발자만이 주체가 되며, 일반 실무자는 어렵다.',
     weight: W,
     correct: 'X'
   },
@@ -136,7 +136,7 @@ const QUESTIONS: Question[] = [
   {
     no: 10,
     type: 'short_text',
-    text: '교재는 "AI 서비스 기획은 여러 기술 부품을 어떤 순서·세기로 조합할지 결정하는 ( )이다"라고 정의한다. ( )에 들어갈 말(지휘에 비유한 용어)을 쓰시오.',
+    text: 'AI 서비스 기획은 여러 기술 부품을 어떤 순서·세기로 조합할지 결정하는 ( )이다. ( )에 들어갈 말(지휘에 비유한 용어)을 쓰시오.',
     weight: W,
     correct_keywords: ['오케스트레이션', 'Orchestration', 'orchestration', 'ORCHESTRATION']
   },
@@ -156,7 +156,7 @@ const QUESTIONS: Question[] = [
   {
     no: 12,
     type: 'multiple_choice',
-    text: "교재의 '세 갈래 모델 공급 전략'에 해당하지 '않는' 것은?",
+    text: "'세 갈래 모델 공급 전략'에 해당하지 '않는' 것은?",
     weight: W,
     choices: [
       { key: '①', text: '프론티어 API 전략' },
@@ -189,14 +189,14 @@ const QUESTIONS: Question[] = [
   {
     no: 15,
     type: 'ox',
-    text: "교재는 조달 문서에서 '오픈소스', '오픈웨이트', 'API형 호스팅 모델'을 모두 같은 의미로 사용해도 무방하다고 본다.",
+    text: "조달 문서에서 '오픈소스', '오픈웨이트', 'API형 호스팅 모델'은 모두 같은 의미로 사용해도 무방하다.",
     weight: W,
     correct: 'X'
   },
   {
     no: 16,
     type: 'short_text',
-    text: '교재가 강조하는 공공 AI 기획의 설계 순서는 ‘( ㉠ ) → WHAT → HOW’이며, 이 순서를 뒤집으면 기술 설명이 문제 정의를 압도하게 된다. ㉠에 들어갈 영문 단어를 쓰시오.',
+    text: '공공 AI 기획의 설계 순서는 ‘( ㉠ ) → WHAT → HOW’이며, 이 순서를 뒤집으면 기술 설명이 문제 정의를 압도하게 된다. ㉠에 들어갈 영문 단어를 쓰시오.',
     weight: W,
     correct_keywords: ['WHY', 'Why', 'why', '와이']
   },

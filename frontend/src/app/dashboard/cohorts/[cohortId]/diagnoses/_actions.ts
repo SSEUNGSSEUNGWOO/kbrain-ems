@@ -130,6 +130,28 @@ export async function updateDiagnosisDuration(
 }
 
 /**
+ * 시간 초과·미제출 응답을 강제 마감. responseIds 가 비어 있으면 no-op.
+ * RPC 내부에서 started_at + duration < now() AND submitted_at IS NULL 조건을
+ * 다시 검증하므로, 운영자가 본 시점과 실제 처리 시점 사이에 학생이 제출한 경우엔 자동 스킵.
+ */
+export async function forceCloseDiagnosisResponses(
+  cohortId: string,
+  responseIds: string[]
+): Promise<{ error?: string; closed?: number; skipped?: number }> {
+  if (responseIds.length === 0) return { closed: 0, skipped: 0 };
+  const supabase = createAdminClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase.rpc as any)(
+    'force_close_diagnosis_responses',
+    { p_response_ids: responseIds }
+  );
+  if (error) return { error: error.message };
+  revalidatePath(`/dashboard/cohorts/${cohortId}/diagnoses`);
+  const res = data as { ok: boolean; closed: number; skipped: number };
+  return { closed: res.closed, skipped: res.skipped };
+}
+
+/**
  * 응답 가능 시각(opens_at / closes_at) 설정.
  */
 export async function updateDiagnosisSchedule(

@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { QrDialog } from '@/components/qr-dialog';
 import {
   ensureShareCode,
+  forceCloseDiagnosisResponses,
   linkDiagnosisToAttendanceCheck,
   updateDiagnosisDuration
 } from '../_actions';
@@ -44,6 +45,16 @@ type Props = {
   studentCount: number;
   attendanceCheckOptions: AttnCheckOpt[];
 };
+
+function isOvertimeUnsubmitted(
+  startedAt: string | null,
+  submittedAt: string | null,
+  durationMinutes: number
+): boolean {
+  if (!startedAt || submittedAt) return false;
+  const elapsedMs = Date.now() - new Date(startedAt).getTime();
+  return elapsedMs >= durationMinutes * 60_000;
+}
 
 function computeProgressStatus(
   startedAt: string | null,
@@ -216,6 +227,7 @@ export function DiagnosisCard({
   attendanceCheckOptions
 }: Props) {
   const [pending, startTransition] = useTransition();
+  const [closePending, startCloseTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
   const [showStatus, setShowStatus] = useState(false);
   const [origin, setOrigin] = useState('');
@@ -231,6 +243,42 @@ export function DiagnosisCard({
     submitted.length > 0
       ? submitted.reduce((s, r) => s + Number(r.total_score ?? 0), 0) / submitted.length
       : null;
+
+  const overtimeResponses = responses.filter((r) =>
+    isOvertimeUnsubmitted(r.started_at, r.submitted_at, diagnosis.duration_minutes)
+  );
+
+  const closeOne = (responseId: string, studentName: string) => {
+    if (closePending) return;
+    if (!window.confirm(`${studentName} 님 응답을 시간 초과로 마감합니다. 진행할까요?`)) return;
+    startCloseTransition(async () => {
+      const r = await forceCloseDiagnosisResponses(cohortId, [responseId]);
+      if (r.error) setMessage(`마감 오류: ${r.error}`);
+      else if ((r.closed ?? 0) === 0) setMessage('이미 제출됐거나 마감 대상이 아닙니다.');
+      else setMessage(`${studentName} 님 응답 마감 완료.`);
+    });
+  };
+
+  const closeAllOvertime = () => {
+    if (closePending) return;
+    if (overtimeResponses.length === 0) return;
+    if (
+      !window.confirm(
+        `시간 초과 미제출 ${overtimeResponses.length}명의 응답을 일괄 마감합니다. 진행할까요?`
+      )
+    )
+      return;
+    startCloseTransition(async () => {
+      const ids = overtimeResponses.map((r) => r.id);
+      const r = await forceCloseDiagnosisResponses(cohortId, ids);
+      if (r.error) setMessage(`마감 오류: ${r.error}`);
+      else
+        setMessage(
+          `일괄 마감 완료 — 처리 ${r.closed ?? 0}건` +
+            ((r.skipped ?? 0) > 0 ? `, 스킵 ${r.skipped}건` : '')
+        );
+    });
+  };
 
   const typeLabel = diagnosis.type === 'pre' ? '사전' : diagnosis.type === 'post' ? '사후' : diagnosis.type;
   const typeColor =
@@ -304,9 +352,21 @@ export function DiagnosisCard({
               QR 보기
             </Button>
           )}
-          {submittedCount > 0 && (
+          {(submittedCount > 0 || overtimeResponses.length > 0) && (
             <Button variant='outline' onClick={() => setShowStatus((v) => !v)}>
               {showStatus ? '현황 숨기기' : '응답 현황'}
+            </Button>
+          )}
+          {overtimeResponses.length > 0 && (
+            <Button
+              variant='outline'
+              onClick={closeAllOvertime}
+              disabled={closePending}
+              className='border-rose-300 text-rose-700 hover:bg-rose-50'
+            >
+              {closePending
+                ? '마감 중...'
+                : `시간 초과 일괄 마감 (${overtimeResponses.length})`}
             </Button>
           )}
         </div>
@@ -335,6 +395,7 @@ export function DiagnosisCard({
                 <th className='px-3 py-2 text-left font-semibold text-slate-600'>상태</th>
                 <th className='px-3 py-2 text-left font-semibold text-slate-600'>점수</th>
                 <th className='px-3 py-2 text-left font-semibold text-slate-600'>시각</th>
+                <th className='px-3 py-2 text-left font-semibold text-slate-600'>액션</th>
               </tr>
             </thead>
             <tbody className='divide-y'>
@@ -345,6 +406,11 @@ export function DiagnosisCard({
                 )
                 .map((r) => {
                   const stat = computeProgressStatus(
+                    r.started_at,
+                    r.submitted_at,
+                    diagnosis.duration_minutes
+                  );
+                  const overtime = isOvertimeUnsubmitted(
                     r.started_at,
                     r.submitted_at,
                     diagnosis.duration_minutes
@@ -365,6 +431,20 @@ export function DiagnosisCard({
                         {r.total_score != null ? Number(r.total_score) : '-'}
                       </td>
                       <td className='px-3 py-2 text-xs text-slate-500'>{stat.timeText}</td>
+                      <td className='px-3 py-2'>
+                        {overtime ? (
+                          <button
+                            type='button'
+                            onClick={() => closeOne(r.id, r.students?.name ?? '학생')}
+                            disabled={closePending}
+                            className='rounded-md border border-rose-300 px-2 py-0.5 text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50'
+                          >
+                            마감
+                          </button>
+                        ) : (
+                          <span className='text-xs text-slate-300'>-</span>
+                        )}
+                      </td>
                     </tr>
                   );
                 })}

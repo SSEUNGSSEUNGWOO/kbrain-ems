@@ -88,16 +88,17 @@ export default async function SessionAttendancePage({
 
   // 취하·탈락된 신청자만 명단에서 제외. application 자체가 없는 학생
   // (테스트·수동등록 등)은 통과. 매칭 키는 students.applicant_id ↔ applications.applicant_id.
-  // 'selected' 외 'same_day_cancel'(당일취소)도 출결판에 표시 (당일취소 뱃지로 구분).
-  // 'pre_cancel'(사전취소)·'rejected' 는 출결에서 제외.
+  // 출결판 표시: 'selected', 'same_day_cancel'(당일취소), 'cancel_notice'(취소통보, 미확정).
+  // 제외: 'cancel_confirmed'(취소확정)·'rejected'.
   const appStatusByApplicant = new Map(
     (appRes.data ?? []).map((a) => [a.applicant_id, a.status])
   );
+  const ATTENDANCE_VISIBLE = new Set(['selected', 'same_day_cancel', 'cancel_notice']);
   const studentRows = (studentRes.data ?? []).filter((s) => {
     if (!s.applicant_id) return true;
     const status = appStatusByApplicant.get(s.applicant_id);
     if (!status) return true;
-    return status === 'selected' || status === 'same_day_cancel';
+    return ATTENDANCE_VISIBLE.has(status);
   });
   const recordRows = recordRes.data ?? [];
 

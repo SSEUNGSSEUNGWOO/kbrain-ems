@@ -1,6 +1,7 @@
 'use server';
 
 import { createAdminClient } from '@/lib/supabase/server';
+import { inferAttendanceRole } from '@/lib/attendance';
 import { revalidatePath } from 'next/cache';
 
 type AttendanceRecord = {
@@ -73,6 +74,9 @@ export async function createAttendanceCheck(
     .limit(1);
   const nextOrder = ((existing?.[0]?.display_order as number | undefined) ?? 0) + 1;
 
+  // role 명시되지 않으면 label로 추론 ("입실/출석" → arrival, "퇴실" → departure)
+  const effectiveRole = attendanceRole ?? inferAttendanceRole(label);
+
   const { data, error } = await supabase
     .from('attendance_checks')
     .insert({
@@ -82,7 +86,7 @@ export async function createAttendanceCheck(
       display_order: nextOrder,
       opens_at: opensAt,
       closes_at: closesAt,
-      attendance_role: attendanceRole,
+      attendance_role: effectiveRole,
       criterion_at: criterionAt
     })
     .select('id')

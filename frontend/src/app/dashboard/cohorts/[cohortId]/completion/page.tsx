@@ -28,20 +28,21 @@ type Props = {
 export default async function CompletionPage({ params, searchParams }: Props) {
   const { cohortId } = await params;
   const sp = await searchParams;
-  const minParam = Number(typeof sp.min === 'string' ? sp.min : '');
-  const minAttendance =
-    Number.isFinite(minParam) && minParam > 0
-      ? Math.floor(minParam)
-      : DEFAULT_MIN_ATTENDANCE;
 
   const supabase = createAdminClient();
   const hidePersonal = await isViewer();
 
   const { data: cohortRow } = await supabase
     .from('cohorts')
-    .select('id, name, category')
+    .select('id, name, category, min_attendance')
     .eq('id', cohortId)
     .maybeSingle();
+
+  const savedMin = cohortRow?.min_attendance ?? null;
+  const minParam = Number(typeof sp.min === 'string' ? sp.min : '');
+  const minAttendance = Number.isFinite(minParam) && minParam > 0
+    ? Math.floor(minParam)
+    : (savedMin ?? DEFAULT_MIN_ATTENDANCE);
 
   if (cohortRow && cohortRow.category !== 'general') {
     return (
@@ -111,7 +112,12 @@ export default async function CompletionPage({ params, searchParams }: Props) {
 
   const headerAction = (
     <div className='flex items-center gap-3'>
-      <ThresholdInput defaultMin={minAttendance} totalSessions={totalSessions} />
+      <ThresholdInput
+        cohortId={cohortId}
+        defaultMin={minAttendance}
+        savedMin={savedMin}
+        totalSessions={totalSessions}
+      />
       <Button variant='outline' size='sm' asChild disabled={!canExport}>
         <a href={exportHref}>
           <Icons.download className='mr-1.5' />
