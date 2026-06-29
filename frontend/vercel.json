@@ -2,7 +2,8 @@
   "crons": [
     {
       "path": "/api/cron/close-overtime-diagnoses",
-      "schedule": "*/10 * * * *"
+      "schedule": "0 15 * * *"
     }
   ]
 }
+
