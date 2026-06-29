@@ -51,6 +51,8 @@ export type CandidateRow = {
   multi_choices_max: number; // 그 문항의 보기 총 개수
   prereq_done_count: number; // cohort prereq 과목 중 수료한 개수
   prereq_max: number; // cohort prereq 과목 총 개수 (0이면 prereq 요구 없음)
+  /** 자격연계형 cohort 한정. true=보유, false=없음/예정, null=자격연계형 아님 */
+  has_cert: boolean | null;
   current_status: string;
   // 같은 applicant가 다른 cohort에 지원한 active 이력 (applied/pending/selected만)
   other_applications: { cohort_id: string; cohort_name: string; status: string }[];
@@ -96,6 +98,8 @@ export type SelectionConfigSnapshot = {
   quotaRatio: QuotaRatio;
   maxPerOrg: number; // 0 = 무제한
   excludeNoPrereq: boolean;
+  /** 자격연계형 cohort 에서 자격증 미보유자 자동 제외 여부 (default true 권장) */
+  excludeNoCert: boolean;
   totalCapacity: number; // 사용자가 입력한 정원
   withReserve: boolean; // 110% 예비 적용 여부
   effectiveCapacity: number; // withReserve 적용 후 실제 사용된 정원
@@ -238,13 +242,18 @@ export function recommendByQuotas(
   ratio: QuotaRatio,
   maxPerOrg: number = 0,
   excludeNoPrereq: boolean = false,
-  parentOrgCap: number = 0 // 상위부처(공백 prefix) 절대 인원수, 0=비활성
+  parentOrgCap: number = 0, // 상위부처(공백 prefix) 절대 인원수, 0=비활성
+  excludeNoCert: boolean = false // 자격연계형: 자격증 미보유자 강제 제외
 ): { selectedIds: string[]; scored: ScoredCandidate[] } {
   const hasPrereq = candidates.some((c) => c.prereq_max > 0);
-  const filtered =
-    excludeNoPrereq && hasPrereq
-      ? candidates.filter((c) => c.prereq_done_count >= c.prereq_max)
-      : candidates;
+  const hasCertQ = candidates.some((c) => c.has_cert !== null);
+  let filtered = candidates;
+  if (excludeNoPrereq && hasPrereq) {
+    filtered = filtered.filter((c) => c.prereq_done_count >= c.prereq_max);
+  }
+  if (excludeNoCert && hasCertQ) {
+    filtered = filtered.filter((c) => c.has_cert === true);
+  }
 
   const scored = scoreAll(filtered, weights, knowledgeMax).toSorted((a, b) => {
     if (hasPrereq && b.prereq_done_count !== a.prereq_done_count) {

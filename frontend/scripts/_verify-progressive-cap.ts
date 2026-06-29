@@ -21,6 +21,7 @@ function makeCand(org: string, knowledgeScore: number): CandidateRow {
     multi_choices_max: 0,
     prereq_done_count: 0,
     prereq_max: 0,
+    has_cert: null,
     current_status: 'applied',
     other_applications: [],
     prior_certs: []

@@ -171,6 +171,7 @@ export async function loadSelectionPool(
     // 활용계획(Plan)·다수체크(U1)는 question_no로 명시 식별
     const finalQ = questions?.find((q) => q.question_no === 'Plan');
     const multiQ = questions?.find((q) => q.question_no === 'U1');
+    const certQ = questions?.find((q) => q.question_no === 'C-CERT');
     const multiChoicesMax = multiQ?.choices?.length ?? 0;
     const knowledgeMax = (questions ?? [])
       .filter((q) => q.section === 'knowledge')
@@ -184,8 +185,25 @@ export async function loadSelectionPool(
     const c2Map = new Map<string, string>();
     const planMap = new Map<string, string>();
     const multiCountMap = new Map<string, number>();
-    if (appIds.length > 0 && (c2 || finalQ || multiQ)) {
-      const targetIds = [c2?.id, finalQ?.id, multiQ?.id].filter((x): x is string => Boolean(x));
+    const certHasMap = new Map<string, boolean>();
+    // 자격증 미보유 판단 — page.tsx의 classifyCert와 동일 규칙. 'none'/'planned'/'has'.
+    // 자동선발에선 'has' 만 통과로 본다 ('planned'/'none'은 동일 취급, 운영자 결정 시 별도 확인).
+    const isCertHas = (raw: string): boolean => {
+      const v = raw.trim();
+      if (!v) return false;
+      const NONE_HEADS = ['없음', '미보유', '자격증 없', '해당 없', '해당없', '보유 없', '보유없'];
+      for (const h of NONE_HEADS) if (v.startsWith(h)) return false;
+      if (/^(x|X|-+|\.{2,})\s*[.,!?]?\s*$/.test(v)) return false;
+      if (/^n\/?a$/i.test(v)) return false;
+      if (/예정|취득\s*중|진행\s*중|준비\s*중|시험\s*예정|응시\s*예정|취득\s*예정/.test(v)) {
+        return false;
+      }
+      return true;
+    };
+    if (appIds.length > 0 && (c2 || finalQ || multiQ || certQ)) {
+      const targetIds = [c2?.id, finalQ?.id, multiQ?.id, certQ?.id].filter(
+        (x): x is string => Boolean(x)
+      );
       const chunk = 1000;
       for (let offset = 0; offset < 1_000_000; offset += chunk) {
         const { data: answers } = await supabase
@@ -202,6 +220,9 @@ export async function loadSelectionPool(
             // multi answer_value는 배열 형태 ["①","②","③"]
             const arr = Array.isArray(a.answer_value) ? a.answer_value : [];
             multiCountMap.set(a.application_id, arr.length);
+          } else if (a.question_id === certQ?.id) {
+            const t = typeof a.answer_value === 'string' ? a.answer_value : '';
+            certHasMap.set(a.application_id, isCertHas(t));
           }
         }
         if (!answers || answers.length < chunk) break;
@@ -281,6 +302,7 @@ export async function loadSelectionPool(
         multi_choices_max: multiChoicesMax,
         prereq_done_count: computePrereqDone(a.applicants?.phone ?? null, a.applicants?.email ?? null),
         prereq_max: prereqMax,
+        has_cert: certQ ? (certHasMap.get(a.id) ?? false) : null,
         current_status: a.status,
         other_applications: otherByApplicant.get(applicantId) ?? [],
         prior_certs: priorCertsByApplicant.get(applicantId) ?? []

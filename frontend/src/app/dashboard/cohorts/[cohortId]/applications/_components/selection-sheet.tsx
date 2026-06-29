@@ -55,6 +55,7 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
   const [withReserve, setWithReserve] = useState(true);
   const [maxPerOrg, setMaxPerOrg] = useState(3);
   const [excludeNoPrereq, setExcludeNoPrereq] = useState(true);
+  const [excludeNoCert, setExcludeNoCert] = useState(true);
   const [filterCategory, setFilterCategory] = useState<SelectionCategory | null>(null);
   // 다른 cohort에서 status='selected'인 신청자를 후보 풀에서 제외
   const [excludedCohortIds, setExcludedCohortIds] = useState<Set<string>>(new Set());
@@ -133,10 +134,11 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
       quotaRatio,
       maxPerOrg,
       excludeNoPrereq,
-      parentOrgCap
+      parentOrgCap,
+      excludeNoCert
     );
     return { scored, autoSelectedIds: new Set(selectedIds) };
-  }, [filteredCandidates, weights, effectiveCapacity, knowledgeMax, quotaRatio, maxPerOrg, excludeNoPrereq, parentOrgCap]);
+  }, [filteredCandidates, weights, effectiveCapacity, knowledgeMax, quotaRatio, maxPerOrg, excludeNoPrereq, parentOrgCap, excludeNoCert]);
 
   // 이미 selected/rejected가 있는 cohort라면, 시트 열릴 때 한 번만
   // manualToggles를 현재 DB 상태로 미리 채워서 알고리즘 추천이 덮어쓰지 않게 함.
@@ -207,6 +209,7 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
     setWithReserve(true);
     setMaxPerOrg(3);
     setExcludeNoPrereq(true);
+    setExcludeNoCert(true);
     setFilterCategory(null);
   };
 
@@ -244,6 +247,7 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
       quotaRatio,
       maxPerOrg,
       excludeNoPrereq,
+      excludeNoCert,
       totalCapacity,
       withReserve,
       effectiveCapacity,
@@ -326,6 +330,12 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
                 excludeNoPrereq={excludeNoPrereq}
                 onExcludeNoPrereqChange={(v) => {
                   setExcludeNoPrereq(v);
+                  setManualToggles(new Map());
+                }}
+                hasCertQuestion={candidates.some((c) => c.has_cert !== null)}
+                excludeNoCert={excludeNoCert}
+                onExcludeNoCertChange={(v) => {
+                  setExcludeNoCert(v);
                   setManualToggles(new Map());
                 }}
                 poolSize={filteredCandidates.length}
@@ -442,6 +452,9 @@ function WeightPanel({
   onMaxPerOrgChange,
   excludeNoPrereq,
   onExcludeNoPrereqChange,
+  hasCertQuestion,
+  excludeNoCert,
+  onExcludeNoCertChange,
   poolSize,
   selectedCount
 }: {
@@ -458,6 +471,9 @@ function WeightPanel({
   onMaxPerOrgChange: (v: number) => void;
   excludeNoPrereq: boolean;
   onExcludeNoPrereqChange: (v: boolean) => void;
+  hasCertQuestion: boolean;
+  excludeNoCert: boolean;
+  onExcludeNoCertChange: (v: boolean) => void;
   poolSize: number;
   selectedCount: number;
 }) {
@@ -567,6 +583,19 @@ function WeightPanel({
           사전학습 미수료자 강제 제외 (부분 수료 포함)
         </label>
       </div>
+
+      {hasCertQuestion && (
+        <div className='flex items-center justify-end gap-2 text-sm'>
+          <Checkbox
+            id='exclude-no-cert'
+            checked={excludeNoCert}
+            onCheckedChange={(v) => onExcludeNoCertChange(v === true)}
+          />
+          <label htmlFor='exclude-no-cert' className='cursor-pointer'>
+            자격증 미보유자 강제 제외 (예정·미보유 모두)
+          </label>
+        </div>
+      )}
     </div>
   );
 }
