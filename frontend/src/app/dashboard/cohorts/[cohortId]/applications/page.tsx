@@ -219,10 +219,24 @@ export default async function CohortApplicationsPage({ params, searchParams }: P
     }
   }
 
-  // 자격연계형 cohort 한정: 페이지 내 신청자의 C-CERT 답변 텍스트 fetch.
-  // "예정"·"보유 안함"·실제 자격증명 등 자유 서술이라 자동 분류하지 않고 원문 그대로
-  // 셀에 노출 — 운영자가 보고 판단.
+  // 자격연계형 cohort 한정: 페이지 내 신청자의 C-CERT 답변 텍스트 + 자동 분류.
+  // 자유 서술이라 1~2건 오분류 가능 → 운영자는 배지로 빠르게 스캔하고
+  // 애매한 케이스는 셀의 원문 텍스트(또는 hover 툴팁)로 확인.
+  type CertBucket = 'none' | 'planned' | 'has';
+  const classifyCert = (raw: string): CertBucket => {
+    const v = raw.trim();
+    if (!v) return 'none';
+    const NONE_HEADS = ['없음', '미보유', '자격증 없', '해당 없', '해당없', '보유 없', '보유없'];
+    for (const h of NONE_HEADS) if (v.startsWith(h)) return 'none';
+    if (/^(x|X|-+|\.{2,})\s*[.,!?]?\s*$/.test(v)) return 'none';
+    if (/^n\/?a$/i.test(v)) return 'none';
+    if (/예정|취득\s*중|진행\s*중|준비\s*중|시험\s*예정|응시\s*예정|취득\s*예정/.test(v)) {
+      return 'planned';
+    }
+    return 'has';
+  };
   const certTextMap = new Map<string, string>();
+  const certBucketMap = new Map<string, CertBucket>();
   if (certQuestion && pageAppIds.length > 0) {
     const { data: certAnswers } = await supabase
       .from('application_answers')
@@ -232,6 +246,7 @@ export default async function CohortApplicationsPage({ params, searchParams }: P
     for (const a of certAnswers ?? []) {
       const text = typeof a.answer_value === 'string' ? a.answer_value.trim() : '';
       if (text) certTextMap.set(a.application_id, text);
+      certBucketMap.set(a.application_id, classifyCert(text));
     }
   }
 
@@ -334,6 +349,7 @@ export default async function CohortApplicationsPage({ params, searchParams }: P
     plan_char_count: planCharMap.get(a.id) ?? null,
     prereq_done_count: computePrereqDone(a.applicants?.phone ?? null, a.applicants?.email ?? null),
     cert_text: certQuestion ? (certTextMap.get(a.id) ?? null) : null,
+    cert_bucket: certQuestion ? (certBucketMap.get(a.id) ?? 'none') : null,
     applied_at: a.applied_at,
     applicant_edit: a.applicants
       ? {

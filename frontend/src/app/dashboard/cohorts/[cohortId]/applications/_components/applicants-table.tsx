@@ -46,11 +46,14 @@ export type ApplicationRow = {
   plan_char_count: number | null;
   prereq_done_count: number;
   /** 자격연계형 cohort 한정: 자격증 답변 원문 텍스트.
-   *  운영자가 직접 보고 판단해야 하는 자유 서술 — "없음", "보유 예정",
-   *  "AICE Associate A2512..." 등 다양한 패턴이 섞여 있어 분류 자동화 위험.
    *  null = 자격연계형이 아니거나 답변 자체가 없음.
    */
   cert_text: string | null;
+  /** 자격증 자동 분류 (none/planned/has). 운영자 빠른 스캔용 보조 라벨.
+   *  자유 서술이라 1~2건 오분류 가능 — 애매하면 cert_text 원문으로 확인.
+   *  null = 자격연계형이 아니거나 답변 없음.
+   */
+  cert_bucket: 'none' | 'planned' | 'has' | null;
   applied_at: string | null;
   applicant_edit: ApplicantEdit | null;
   can_edit: boolean;
@@ -308,13 +311,35 @@ export function ApplicantsTable({
                     </TableCell>
                     {hasCertQuestion && (
                       <TableCell className='max-w-[220px]'>
-                        {r.cert_text ? (
-                          <span
-                            className='block truncate text-sm text-slate-700'
-                            title={r.cert_text}
-                          >
-                            {r.cert_text}
-                          </span>
+                        {r.cert_bucket ? (
+                          <div className='flex flex-col gap-1'>
+                            <Badge
+                              variant='outline'
+                              className={cn(
+                                'w-fit font-normal',
+                                r.cert_bucket === 'has' &&
+                                  'bg-emerald-50 text-emerald-700 border-emerald-200',
+                                r.cert_bucket === 'planned' &&
+                                  'bg-amber-50 text-amber-800 border-amber-200',
+                                r.cert_bucket === 'none' &&
+                                  'bg-rose-50 text-rose-700 border-rose-200'
+                              )}
+                            >
+                              {r.cert_bucket === 'has'
+                                ? '보유'
+                                : r.cert_bucket === 'planned'
+                                  ? '예정'
+                                  : '없음'}
+                            </Badge>
+                            {r.cert_text && (
+                              <span
+                                className='block truncate text-xs text-slate-600'
+                                title={r.cert_text}
+                              >
+                                {r.cert_text}
+                              </span>
+                            )}
+                          </div>
                         ) : (
                           <span className='text-muted-foreground text-xs'>—</span>
                         )}
