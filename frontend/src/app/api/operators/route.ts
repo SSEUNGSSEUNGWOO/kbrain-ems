@@ -7,7 +7,7 @@ export async function GET() {
   const [operatorsResult, usersResult] = await Promise.all([
     supabase
       .from('operators')
-      .select('id, name, role, title, auth_user_id, created_at')
+      .select('id, name, role, title, auth_user_id, instructor_id, created_at')
       .order('created_at', { ascending: true }),
     supabase.auth.admin.listUsers({ perPage: 1000 })
   ]);
@@ -26,6 +26,7 @@ export async function GET() {
     role: op.role,
     title: op.title,
     email: op.auth_user_id ? emailMap.get(op.auth_user_id) ?? null : null,
+    instructorId: op.instructor_id ?? null,
     createdAt: op.created_at
   }));
 
@@ -37,7 +38,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: '권한이 없습니다.' }, { status: 403 });
   }
 
-  const { name, email, password, role, title } = await req.json();
+  const { name, email, password, role, title, instructorId } = await req.json();
   if (!name?.trim()) {
     return NextResponse.json({ error: '이름을 입력해주세요.' }, { status: 400 });
   }
@@ -46,6 +47,9 @@ export async function POST(req: Request) {
   }
   if (!password || password.length < 8) {
     return NextResponse.json({ error: '비밀번호는 8자 이상이어야 합니다.' }, { status: 400 });
+  }
+  if (role === 'assistant' && !instructorId) {
+    return NextResponse.json({ error: '보조강사 권한은 강사 연결이 필요합니다.' }, { status: 400 });
   }
 
   const supabase = createAdminClient();
@@ -71,7 +75,8 @@ export async function POST(req: Request) {
       name: name.trim(),
       role: role || 'viewer',
       title: title || null,
-      auth_user_id: created.user.id
+      auth_user_id: created.user.id,
+      instructor_id: role === 'assistant' ? (instructorId ?? null) : null
     })
     .select()
     .single();
@@ -92,9 +97,12 @@ export async function PUT(req: Request) {
     return NextResponse.json({ error: '권한이 없습니다.' }, { status: 403 });
   }
 
-  const { id, name, email, password, role, title } = await req.json();
+  const { id, name, email, password, role, title, instructorId } = await req.json();
   if (!id || !name?.trim()) {
     return NextResponse.json({ error: '필수 항목이 누락되었습니다.' }, { status: 400 });
+  }
+  if (role === 'assistant' && !instructorId) {
+    return NextResponse.json({ error: '보조강사 권한은 강사 연결이 필요합니다.' }, { status: 400 });
   }
 
   const supabase = createAdminClient();
@@ -105,7 +113,8 @@ export async function PUT(req: Request) {
     .update({
       name: name.trim(),
       role: role || 'viewer',
-      title: title || null
+      title: title || null,
+      instructor_id: role === 'assistant' ? (instructorId ?? null) : null
     })
     .eq('id', id)
     .select('auth_user_id')

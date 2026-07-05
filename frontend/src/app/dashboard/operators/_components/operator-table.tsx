@@ -37,25 +37,40 @@ type Operator = {
   email: string | null;
   role: string;
   title: string | null;
+  instructorId: string | null;
   createdAt: string;
+};
+
+type InstructorOption = {
+  id: string;
+  name: string;
+  kind: string;
+  affiliation: string | null;
 };
 
 const ROLE_LABEL: Record<string, string> = {
   developer: '개발자',
   head: '총괄',
-  viewer: '운영자'
+  viewer: '운영자',
+  assistant: '보조강사'
 };
 
 const ROLE_CLASS: Record<string, string> = {
   developer: 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-300',
   head: 'border-purple-200 bg-purple-50 text-purple-700 dark:border-purple-900 dark:bg-purple-950/40 dark:text-purple-300',
-  viewer: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300'
+  viewer: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300',
+  assistant: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300'
 };
 
 export function OperatorTable() {
   const [ops, setOps] = useState<Operator[]>([]);
+  const [instructors, setInstructors] = useState<InstructorOption[]>([]);
   const [addOpen, setAddOpen] = useState(false);
+  const [addRole, setAddRole] = useState('viewer');
+  const [addInstructorId, setAddInstructorId] = useState<string>('');
   const [editTarget, setEditTarget] = useState<Operator | null>(null);
+  const [editRole, setEditRole] = useState<string>('viewer');
+  const [editInstructorId, setEditInstructorId] = useState<string>('');
   const [deleteTarget, setDeleteTarget] = useState<Operator | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -67,7 +82,21 @@ export function OperatorTable() {
     setOps(data);
   };
 
-  useEffect(() => { fetchOps(); }, []);
+  const fetchInstructors = async () => {
+    const res = await fetch('/api/instructors-list');
+    if (!res.ok) return;
+    const data = await res.json();
+    setInstructors(data);
+  };
+
+  useEffect(() => { fetchOps(); fetchInstructors(); }, []);
+
+  useEffect(() => {
+    if (editTarget) {
+      setEditRole(editTarget.role);
+      setEditInstructorId(editTarget.instructorId ?? '');
+    }
+  }, [editTarget]);
 
   const onAdd = (formData: FormData) => {
     setError(null);
@@ -79,8 +108,9 @@ export function OperatorTable() {
           name: formData.get('name'),
           email: formData.get('email'),
           password: formData.get('password'),
-          role: formData.get('role'),
-          title: formData.get('title')
+          role: addRole,
+          title: formData.get('title'),
+          instructorId: addRole === 'assistant' ? addInstructorId : null
         })
       });
       if (!res.ok) {
@@ -89,6 +119,8 @@ export function OperatorTable() {
         return;
       }
       setAddOpen(false);
+      setAddRole('viewer');
+      setAddInstructorId('');
       fetchOps();
     });
   };
@@ -106,8 +138,9 @@ export function OperatorTable() {
           name: formData.get('name'),
           email: formData.get('email'),
           password: password || undefined,
-          role: formData.get('role'),
-          title: formData.get('title')
+          role: editRole,
+          title: formData.get('title'),
+          instructorId: editRole === 'assistant' ? editInstructorId : null
         })
       });
       if (!res.ok) {
@@ -142,7 +175,12 @@ export function OperatorTable() {
   return (
     <>
       <div className='mb-4 flex justify-end'>
-        <Button onClick={() => { setError(null); setAddOpen(true); }}>
+        <Button onClick={() => {
+          setError(null);
+          setAddRole('viewer');
+          setAddInstructorId('');
+          setAddOpen(true);
+        }}>
           + 운영자 추가
         </Button>
       </div>
@@ -228,7 +266,7 @@ export function OperatorTable() {
             </div>
             <div className='grid gap-2'>
               <Label htmlFor='add-role'>권한</Label>
-              <Select name='role' defaultValue='viewer'>
+              <Select value={addRole} onValueChange={setAddRole}>
                 <SelectTrigger id='add-role'>
                   <SelectValue />
                 </SelectTrigger>
@@ -236,9 +274,34 @@ export function OperatorTable() {
                   <SelectItem value='viewer'>운영자</SelectItem>
                   <SelectItem value='head'>총괄</SelectItem>
                   <SelectItem value='developer'>개발자</SelectItem>
+                  <SelectItem value='assistant'>보조강사</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+            {addRole === 'assistant' && (
+              <div className='grid gap-2'>
+                <Label htmlFor='add-instructor'>연결할 강사 *</Label>
+                <Select value={addInstructorId} onValueChange={setAddInstructorId}>
+                  <SelectTrigger id='add-instructor'>
+                    <SelectValue placeholder='강사를 선택하세요' />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {instructors.map((i) => (
+                      <SelectItem key={i.id} value={i.id}>
+                        {i.name}
+                        <span className='text-muted-foreground ml-2 text-xs'>
+                          [{i.kind === 'sub' ? '보조' : '주강사'}]
+                          {i.affiliation ? ` ${i.affiliation}` : ''}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className='text-xs text-muted-foreground'>
+                  이 강사가 세션에 배정된 cohort만 사이드바에 표시되고, 모든 페이지가 읽기 전용입니다.
+                </p>
+              </div>
+            )}
             {error && <div className='text-destructive text-sm'>{error}</div>}
             <SheetFooter>
               <Button type='submit' disabled={pending}>{pending ? '추가 중...' : '추가'}</Button>
@@ -272,7 +335,7 @@ export function OperatorTable() {
             </div>
             <div className='grid gap-2'>
               <Label htmlFor='edit-role'>권한</Label>
-              <Select name='role' defaultValue={editTarget?.role ?? 'viewer'} key={editTarget?.id + '-role'}>
+              <Select value={editRole} onValueChange={setEditRole}>
                 <SelectTrigger id='edit-role'>
                   <SelectValue />
                 </SelectTrigger>
@@ -280,9 +343,34 @@ export function OperatorTable() {
                   <SelectItem value='viewer'>운영자</SelectItem>
                   <SelectItem value='head'>총괄</SelectItem>
                   <SelectItem value='developer'>개발자</SelectItem>
+                  <SelectItem value='assistant'>보조강사</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+            {editRole === 'assistant' && (
+              <div className='grid gap-2'>
+                <Label htmlFor='edit-instructor'>연결할 강사 *</Label>
+                <Select value={editInstructorId} onValueChange={setEditInstructorId}>
+                  <SelectTrigger id='edit-instructor'>
+                    <SelectValue placeholder='강사를 선택하세요' />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {instructors.map((i) => (
+                      <SelectItem key={i.id} value={i.id}>
+                        {i.name}
+                        <span className='text-muted-foreground ml-2 text-xs'>
+                          [{i.kind === 'sub' ? '보조' : '주강사'}]
+                          {i.affiliation ? ` ${i.affiliation}` : ''}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className='text-xs text-muted-foreground'>
+                  이 강사가 세션에 배정된 cohort만 사이드바에 표시되고, 모든 페이지가 읽기 전용입니다.
+                </p>
+              </div>
+            )}
             {error && <div className='text-destructive text-sm'>{error}</div>}
             <SheetFooter>
               <Button type='submit' disabled={pending}>{pending ? '저장 중...' : '저장'}</Button>

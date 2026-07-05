@@ -1,5 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/server';
-import { buildDisplayNoMap, computeFollowUpMap } from '@/lib/survey-display';
+import { computeFollowUpMap } from '@/lib/survey-display';
 import { notFound } from 'next/navigation';
 import { IndividualResponses, type QuestionInfo, type ResponseRow } from './individual-responses';
 import { SectionAverageChart } from './section-average-chart';
@@ -113,11 +113,15 @@ export async function ResultsView({
   const followUpTexts = new Map<string, { linked: string; entries: TextEntry[] }>();
 
   const followUpMap = computeFollowUpMap(questions);
-  const displayNo = buildDisplayNoMap(questions, followUpMap);
-  const getDisplayNo = (id: string) => displayNo.get(id) ?? '?';
+  // 원본 question_no를 그대로 표시 — xlsx export와 번호 일치
+  const questionNoById = new Map(questions.map((q) => [q.id, q.question_no] as const));
+  const getDisplayNo = (id: string) => String(questionNoById.get(id) ?? '?');
 
   for (const r of submitted) {
     const obj = (r.responses ?? {}) as Record<string, unknown>;
+    // 이 응답자가 각 강사에 대해 답한 문항 값들 (응답자별 강사 평균 계산용)
+    const perRespondentInstructorScores = new Map<string, number[]>();
+
     for (const q of questions) {
       const v = obj[q.id];
       if (v === undefined || v === null || v === '') continue;
@@ -132,13 +136,10 @@ export async function ResultsView({
         pushScore(bySectionNo.get(sec)!.stat, v);
 
         if (q.instructor_id) {
-          if (!byInstructorId.has(q.instructor_id)) {
-            byInstructorId.set(q.instructor_id, {
-              name: instructorNameById.get(q.instructor_id) ?? '강사',
-              stat: emptyStat()
-            });
+          if (!perRespondentInstructorScores.has(q.instructor_id)) {
+            perRespondentInstructorScores.set(q.instructor_id, []);
           }
-          pushScore(byInstructorId.get(q.instructor_id)!.stat, v);
+          perRespondentInstructorScores.get(q.instructor_id)!.push(v);
         }
 
         if (!byQuestion.has(q.id)) byQuestion.set(q.id, emptyStat());
@@ -158,6 +159,23 @@ export async function ResultsView({
         }
       }
     }
+
+    // 응답자별 강사 문항 평균을 강사 stat에 push (응답 건수 = 응답자 수)
+    for (const [instructorId, vals] of perRespondentInstructorScores) {
+      if (vals.length === 0) continue;
+      if (!byInstructorId.has(instructorId)) {
+        byInstructorId.set(instructorId, {
+          name: instructorNameById.get(instructorId) ?? '강사',
+          stat: emptyStat()
+        });
+      }
+      const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+      const rounded = Math.round(avg);
+      const stat = byInstructorId.get(instructorId)!.stat;
+      stat.count++;
+      stat.sum += avg;
+      if (rounded >= 1 && rounded <= 10) stat.distribution[rounded - 1]++;
+    }
   }
 
   finalize(overall);
@@ -171,11 +189,15 @@ export async function ResultsView({
 
   const sectionChartData = Array.from(bySectionNo.entries())
     .toSorted((a, b) => a[0] - b[0])
-    .map(([no, v]) => ({
-      name: `${no}. ${v.title.replace(/^섹션 \d+ — /, '').slice(0, 14)}`,
-      평균: Number(v.stat.avg?.toFixed(2) ?? 0),
-      응답수: v.stat.count
-    }));
+    .map(([no, v]) => {
+      // 섹션 라벨: 강사 만족도의 경우 강사명까지, 그 외는 섹션 제목 전체
+      const cleanedTitle = v.title.replace(/ — \[.+?\] \d+회차$/, '');
+      return {
+        name: `${no}. ${cleanedTitle}`,
+        평균: Number(v.stat.avg?.toFixed(2) ?? 0),
+        응답수: v.stat.count
+      };
+    });
 
   const instructorCards = Array.from(byInstructorId.entries()).map(([id, v]) => ({
     id,
@@ -212,8 +234,9 @@ export async function ResultsView({
     ).values()
   ).toSorted((a, b) => a.sectionNo - b.sectionNo);
 
+  // 서술형 = 서술형 섹션 문항 + follow-up 아닌 독립 text 문항 (원본 Q19 등)
   const narrativeQuestions = questions.filter(
-    (q) => q.section_title === '서술형' && q.type === 'text'
+    (q) => q.type === 'text' && !followUpMap.has(q.id)
   );
 
   const followUpQuestions = questions.filter((q) => followUpMap.has(q.id));
@@ -266,22 +289,59 @@ export async function ResultsView({
 
   return (
     <div className='max-w-4xl space-y-6 print:max-w-none print:space-y-3'>
-      {/* 보고용 헤더 — 공개 페이지에서는 항상, 운영자 페이지에서는 인쇄 시에만 노출 */}
-      <div
-        className={
-          showReportHeader
-            ? 'border-b pb-3'
-            : 'hidden border-b pb-3 print:block'
-        }
-      >
-        <div className='text-xs text-slate-500'>{cohortRes.data.name}</div>
-        <div className='mt-0.5 text-base font-bold text-slate-900'>
-          {survey.title} · 만족도 조사 결과보고
+      {/* 표지 페이지 — 공개/인쇄 페이지에서만 노출. 인쇄 시 다음 콘텐츠는 새 페이지에서 시작 */}
+      {showReportHeader ? (
+        <div className='flex min-h-[75vh] flex-col justify-between border-b pb-6 print:min-h-[240mm] print:border-0 print:pb-0 print:break-after-page'>
+          <div className='pt-4 print:pt-8'>
+            <div className='text-xs font-semibold tracking-wider text-blue-600 uppercase'>
+              Kbrain · 교육 결과 보고서
+            </div>
+            <div className='mt-2 text-sm text-slate-500'>{cohortRes.data.name}</div>
+          </div>
+
+          <div className='flex-1 py-10'>
+            <div className='text-[13px] font-medium text-slate-500'>만족도 조사 결과보고</div>
+            <h1 className='mt-2 text-3xl leading-tight font-black text-slate-900 print:text-4xl'>
+              {survey.title}
+            </h1>
+            <div className='mt-8 grid grid-cols-2 gap-x-8 gap-y-3 text-sm text-slate-700'>
+              <div>
+                <div className='text-[11px] font-semibold tracking-wider text-slate-500 uppercase'>교육 기수</div>
+                <div className='mt-0.5 font-semibold'>{cohortRes.data.name}</div>
+              </div>
+              <div>
+                <div className='text-[11px] font-semibold tracking-wider text-slate-500 uppercase'>응답 현황</div>
+                <div className='mt-0.5 font-semibold'>
+                  {submitted.length}명 응답 · 응답률 {responseRate}%
+                </div>
+              </div>
+              <div>
+                <div className='text-[11px] font-semibold tracking-wider text-slate-500 uppercase'>척도</div>
+                <div className='mt-0.5 font-semibold'>10점 척도</div>
+              </div>
+              <div>
+                <div className='text-[11px] font-semibold tracking-wider text-slate-500 uppercase'>출력일</div>
+                <div className='mt-0.5 font-semibold'>{printedAt}</div>
+              </div>
+            </div>
+          </div>
+
+          <div className='border-t border-slate-200 pt-3 text-[11px] text-slate-500'>
+            본 보고서는 응답자 익명 원칙에 따라 개인 식별 정보를 포함하지 않습니다.
+          </div>
         </div>
-        <div className='mt-0.5 text-[11px] text-slate-500'>
-          응답률 {responseRate}% ({submitted.length} / {totalStudents}명) · 출력일 {printedAt}
+      ) : (
+        // 운영자 대시보드 페이지 — 인쇄 시에만 컴팩트 헤더 노출
+        <div className='hidden border-b pb-3 print:block'>
+          <div className='text-xs text-slate-500'>{cohortRes.data.name}</div>
+          <div className='mt-0.5 text-base font-bold text-slate-900'>
+            {survey.title} · 만족도 조사 결과보고
+          </div>
+          <div className='mt-0.5 text-[11px] text-slate-500'>
+            응답률 {responseRate}% ({submitted.length} / {totalStudents}명) · 출력일 {printedAt}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* KPI */}
       <div className='grid grid-cols-2 gap-3 sm:grid-cols-4'>
@@ -381,7 +441,7 @@ export async function ResultsView({
         </section>
       )}
 
-      {instructorCards.length > 0 && (
+      {instructorCards.length > 1 && (
         <section className='rounded-xl border bg-card px-6 py-5 shadow-sm print:rounded-none print:border-0 print:px-0 print:py-2 print:shadow-none print:break-inside-avoid-page'>
           <h2 className='mb-4 text-sm font-bold'>강사 만족도 비교</h2>
           <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
@@ -426,9 +486,9 @@ export async function ResultsView({
 
       {followUpQuestions.length > 0 && (
         <section className='rounded-xl border bg-card px-6 py-5 shadow-sm print:rounded-none print:border-0 print:px-0 print:py-2 print:shadow-none print:break-inside-avoid-page'>
-          <h2 className='mb-1 text-sm font-bold'>불만족·개선 사유 (조건부 응답)</h2>
+          <h2 className='mb-1 text-sm font-bold'>불만족·개선 사유</h2>
           <p className='mb-4 text-xs text-muted-foreground'>
-            직전 척도 점수가 낮을 때만 노출된 사유 응답
+            척도 문항별로 응답자가 직접 남긴 개선 사유 응답
           </p>
           <div className='space-y-5'>
             {followUpQuestions.map((q) => {
@@ -558,8 +618,9 @@ function QuestionStatBlock({
           .toReversed()
           .map(({ score, count: c }) => {
             const pct = (c / total) * 100;
+            const isZero = c === 0;
             return (
-              <div key={score} className='flex items-center gap-2 text-[11px]'>
+              <div key={score} className={`flex items-center gap-2 text-[11px] ${isZero ? 'opacity-40' : ''}`}>
                 <span className='w-5 shrink-0 text-right tabular-nums text-muted-foreground'>{score}</span>
                 <div className='relative h-2 flex-1 overflow-hidden rounded-full bg-muted'>
                   <div
@@ -607,8 +668,9 @@ function InstructorBlock({
           .toReversed()
           .map(({ score, count }) => {
             const pct = (count / total) * 100;
+            const isZero = count === 0;
             return (
-              <div key={score} className='flex items-center gap-2 text-[11px]'>
+              <div key={score} className={`flex items-center gap-2 text-[11px] ${isZero ? 'opacity-40' : ''}`}>
                 <span className='w-5 shrink-0 text-right tabular-nums text-muted-foreground'>{score}</span>
                 <div className='relative h-2 flex-1 overflow-hidden rounded-full bg-muted'>
                   <div

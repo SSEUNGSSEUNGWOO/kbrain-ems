@@ -8,13 +8,17 @@ type AuthContextType = {
   role: OperatorRole;
   title: string;
   isDeveloper: boolean;
+  isAssistant: boolean;
+  isReadOnly: boolean;
 };
 
 const AuthContext = createContext<AuthContextType>({
   name: '',
   role: 'viewer',
   title: '',
-  isDeveloper: false
+  isDeveloper: false,
+  isAssistant: false,
+  isReadOnly: true
 });
 
 export function AuthProvider({
@@ -28,8 +32,11 @@ export function AuthProvider({
   title: string;
   children: React.ReactNode;
 }) {
+  const isAssistant = role === 'assistant';
+  const isReadOnly = role === 'viewer' || isAssistant;
+  const isDeveloper = !!name && !isReadOnly;
   return (
-    <AuthContext.Provider value={{ name, role, title, isDeveloper: !!name && role !== 'viewer' }}>
+    <AuthContext.Provider value={{ name, role, title, isDeveloper, isAssistant, isReadOnly }}>
       {children}
     </AuthContext.Provider>
   );

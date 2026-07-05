@@ -239,6 +239,7 @@ export type Database = {
           title: string | null;
           auth_user_id: string | null;
           cohort_order: string[];
+          instructor_id: string | null;
           created_at: string;
         };
         Insert: {
@@ -248,6 +249,7 @@ export type Database = {
           title?: string | null;
           auth_user_id?: string | null;
           cohort_order?: string[];
+          instructor_id?: string | null;
           created_at?: string;
         };
         Update: {
@@ -257,9 +259,17 @@ export type Database = {
           title?: string | null;
           auth_user_id?: string | null;
           cohort_order?: string[];
+          instructor_id?: string | null;
           created_at?: string;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: 'operators_instructor_id_fkey';
+            columns: ['instructor_id'];
+            referencedRelation: 'instructors';
+            referencedColumns: ['id'];
+          }
+        ];
       };
 
       organizations: {

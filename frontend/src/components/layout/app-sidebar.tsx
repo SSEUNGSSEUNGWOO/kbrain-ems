@@ -67,9 +67,18 @@ const DOMAINS = [
   { slug: 'dashboard', label: '누적 통계', icon: 'trendingUp' as const }
 ] as const;
 
+// 보조강사가 볼 수 있는 cohort 하위 도메인 — 나머지는 숨김.
+const ASSISTANT_DOMAIN_SLUGS: readonly string[] = [
+  'students',
+  'lessons',
+  'attendance',
+  'surveys',
+  'diagnoses'
+];
+
 export default function AppSidebar() {
   const pathname = usePathname();
-  const { isDeveloper } = useAuth();
+  const { isDeveloper, isAssistant } = useAuth();
 
   const activeCohortId = pathname.match(/^\/dashboard\/cohorts\/([^/]+)/)?.[1] ?? null;
   const isInsideCohorts = pathname.startsWith('/dashboard/cohorts');
@@ -118,7 +127,7 @@ export default function AppSidebar() {
     <Sidebar collapsible='icon' className='print:hidden'>
       <SidebarHeader className='border-sidebar-border border-b p-0'>
         <Link
-          href='/dashboard/overview'
+          href={isAssistant ? '/dashboard/cohorts' : '/dashboard/overview'}
           className='relative flex flex-col items-start gap-2 overflow-hidden px-5 py-5 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-3'
         >
           <div className='relative flex items-center gap-2 group-data-[collapsible=icon]:hidden'>
@@ -164,65 +173,73 @@ export default function AppSidebar() {
           <SidebarMenu>
 
             {/* 대시보드 */}
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                asChild
-                tooltip='대시보드'
-                isActive={pathname === '/dashboard/overview'}
-              >
-                <Link href='/dashboard/overview'>
-                  <Icons.dashboard />
-                  <span>대시보드</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
+            {!isAssistant && (
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  tooltip='대시보드'
+                  isActive={pathname === '/dashboard/overview'}
+                >
+                  <Link href='/dashboard/overview'>
+                    <Icons.dashboard />
+                    <span>대시보드</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )}
 
             {/* 캘린더 — 모든 cohort 일정 통합 */}
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                asChild
-                tooltip='캘린더'
-                isActive={pathname.startsWith('/dashboard/calendar')}
-              >
-                <Link href='/dashboard/calendar'>
-                  <Icons.calendar />
-                  <span>캘린더</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
+            {!isAssistant && (
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  tooltip='캘린더'
+                  isActive={pathname.startsWith('/dashboard/calendar')}
+                >
+                  <Link href='/dashboard/calendar'>
+                    <Icons.calendar />
+                    <span>캘린더</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )}
 
             {/* 알림 발송 inbox — 글로벌 */}
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                asChild
-                tooltip='알림 발송'
-                isActive={pathname === '/dashboard/notifications'}
-              >
-                <Link href='/dashboard/notifications'>
-                  <Icons.notification />
-                  <span>알림 발송 (beta)</span>
-                  {pendingDispatchCount > 0 && (
-                    <span className='ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white group-data-[collapsible=icon]:absolute group-data-[collapsible=icon]:right-1 group-data-[collapsible=icon]:top-1 group-data-[collapsible=icon]:ml-0 group-data-[collapsible=icon]:h-3.5 group-data-[collapsible=icon]:min-w-3.5'>
-                      {pendingDispatchCount}
-                    </span>
-                  )}
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
+            {!isAssistant && (
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  tooltip='알림 발송'
+                  isActive={pathname === '/dashboard/notifications'}
+                >
+                  <Link href='/dashboard/notifications'>
+                    <Icons.notification />
+                    <span>알림 발송 (beta)</span>
+                    {pendingDispatchCount > 0 && (
+                      <span className='ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white group-data-[collapsible=icon]:absolute group-data-[collapsible=icon]:right-1 group-data-[collapsible=icon]:top-1 group-data-[collapsible=icon]:ml-0 group-data-[collapsible=icon]:h-3.5 group-data-[collapsible=icon]:min-w-3.5'>
+                        {pendingDispatchCount}
+                      </span>
+                    )}
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )}
 
             {/* 운영관리 — 전체 회차 한눈에 */}
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                asChild
-                tooltip='운영관리'
-                isActive={pathname.startsWith('/dashboard/operations')}
-              >
-                <Link href='/dashboard/operations'>
-                  <Icons.adjustments />
-                  <span>운영관리</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
+            {!isAssistant && (
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  tooltip='운영관리'
+                  isActive={pathname.startsWith('/dashboard/operations')}
+                >
+                  <Link href='/dashboard/operations'>
+                    <Icons.adjustments />
+                    <span>운영관리</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )}
 
             {/* 기수 목록 — 펼치면 기수 트리 표시 */}
             <Collapsible
@@ -300,7 +317,10 @@ export default function AppSidebar() {
 
                                       <CollapsibleContent className='overflow-hidden collapsible-anim'>
                                         <SidebarMenuSub className='mr-0 pr-0'>
-                                          {DOMAINS.filter((d) => STAGE_DOMAINS[cohort.stage].includes(d.slug)).map((d) => {
+                                          {DOMAINS.filter((d) =>
+                                            STAGE_DOMAINS[cohort.stage].includes(d.slug) &&
+                                            (!isAssistant || ASSISTANT_DOMAIN_SLUGS.includes(d.slug))
+                                          ).map((d) => {
                                             const DomainIcon = Icons[d.icon];
                                             return (
                                               <SidebarMenuSubItem key={d.slug}>
@@ -361,60 +381,68 @@ export default function AppSidebar() {
             </Collapsible>
 
             {/* 지원자 관리 — 글로벌 (기수 무관) */}
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                asChild
-                tooltip='지원자 관리'
-                isActive={pathname.startsWith('/dashboard/applicants')}
-              >
-                <Link href='/dashboard/applicants'>
-                  <Icons.teams />
-                  <span>지원자 관리</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
+            {!isAssistant && (
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  tooltip='지원자 관리'
+                  isActive={pathname.startsWith('/dashboard/applicants')}
+                >
+                  <Link href='/dashboard/applicants'>
+                    <Icons.teams />
+                    <span>지원자 관리</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )}
 
             {/* 사전학습 명단 — 글로벌 */}
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                asChild
-                tooltip='사전학습 명단'
-                isActive={pathname.startsWith('/dashboard/lms-completions')}
-              >
-                <Link href='/dashboard/lms-completions'>
-                  <Icons.checks />
-                  <span>사전학습 명단</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
+            {!isAssistant && (
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  tooltip='사전학습 명단'
+                  isActive={pathname.startsWith('/dashboard/lms-completions')}
+                >
+                  <Link href='/dashboard/lms-completions'>
+                    <Icons.checks />
+                    <span>사전학습 명단</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )}
 
             {/* 강사풀 — 글로벌 */}
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                asChild
-                tooltip='강사풀'
-                isActive={pathname === '/dashboard/instructors' || pathname.startsWith('/dashboard/instructors/')}
-              >
-                <Link href='/dashboard/instructors'>
-                  <Icons.user2 />
-                  <span>강사풀</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
+            {!isAssistant && (
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  tooltip='강사풀'
+                  isActive={pathname === '/dashboard/instructors' || pathname.startsWith('/dashboard/instructors/')}
+                >
+                  <Link href='/dashboard/instructors'>
+                    <Icons.user2 />
+                    <span>강사풀</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )}
 
             {/* 보조강사 배정 — 글로벌 */}
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                asChild
-                tooltip='보조강사 배정'
-                isActive={pathname.startsWith('/dashboard/assistants')}
-              >
-                <Link href='/dashboard/assistants'>
-                  <Icons.user2 />
-                  <span>보조강사 배정</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
+            {!isAssistant && (
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  tooltip='보조강사 배정'
+                  isActive={pathname.startsWith('/dashboard/assistants')}
+                >
+                  <Link href='/dashboard/assistants'>
+                    <Icons.user2 />
+                    <span>보조강사 배정</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )}
 
             {/* 운영자 관리 — 개발자만 */}
             {isDeveloper && (

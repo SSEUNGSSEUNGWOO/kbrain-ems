@@ -19,7 +19,11 @@ export async function proxy(req: NextRequest) {
   if (PUBLIC_API_PREFIXES.some((p) => pathname.startsWith(p))) return NextResponse.next();
   if (pathname.startsWith('/_next') || pathname.includes('.')) return NextResponse.next();
 
-  let response = NextResponse.next({ request: req });
+  // Server Component에서 headers()로 현재 경로를 읽을 수 있도록 전파.
+  // assistant role 라우트 가드에서 사용.
+  const forwardedHeaders = new Headers(req.headers);
+  forwardedHeaders.set('x-pathname', pathname);
+  let response = NextResponse.next({ request: { headers: forwardedHeaders } });
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -31,7 +35,7 @@ export async function proxy(req: NextRequest) {
         },
         setAll(cookiesToSet) {
           for (const { name, value } of cookiesToSet) req.cookies.set(name, value);
-          response = NextResponse.next({ request: req });
+          response = NextResponse.next({ request: { headers: forwardedHeaders } });
           for (const { name, value, options } of cookiesToSet) {
             const opts = { ...options };
             delete opts.maxAge;

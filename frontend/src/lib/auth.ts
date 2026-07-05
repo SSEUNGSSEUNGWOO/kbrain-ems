@@ -1,6 +1,6 @@
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 
-export type OperatorRole = 'developer' | 'head' | 'viewer';
+export type OperatorRole = 'developer' | 'head' | 'viewer' | 'assistant';
 
 export type Operator = {
   id: string;
@@ -8,6 +8,7 @@ export type Operator = {
   role: OperatorRole;
   title: string;
   cohort_order: string[];
+  instructor_id: string | null;
 };
 
 /**
@@ -25,7 +26,7 @@ export async function getOperator(): Promise<Operator | null> {
   const admin = createAdminClient();
   const { data } = await admin
     .from('operators')
-    .select('id, name, role, title, cohort_order')
+    .select('id, name, role, title, cohort_order, instructor_id')
     .eq('auth_user_id', user.id)
     .maybeSingle();
 
@@ -35,17 +36,18 @@ export async function getOperator(): Promise<Operator | null> {
     name: data.name,
     role: data.role as OperatorRole,
     title: data.title ?? '',
-    cohort_order: data.cohort_order ?? []
+    cohort_order: data.cohort_order ?? [],
+    instructor_id: data.instructor_id ?? null
   };
 }
 
 /**
- * 권한 게이트. viewer를 제외한 모든 운영자에게 CRUD·관리 권한을 부여한다.
- * viewer는 추가·수정·삭제·일괄작업 등 변경 액션이 모두 차단된다.
+ * 권한 게이트. viewer·assistant를 제외한 모든 운영자에게 CRUD·관리 권한을 부여한다.
+ * viewer는 개인정보 마스킹 + 변경 액션 차단. assistant는 배정 cohort만 읽기 전용.
  */
 export async function isDeveloper(): Promise<boolean> {
   const op = await getOperator();
-  return op !== null && op.role !== 'viewer';
+  return op !== null && op.role !== 'viewer' && op.role !== 'assistant';
 }
 
 /**
@@ -55,4 +57,41 @@ export async function isDeveloper(): Promise<boolean> {
 export async function isViewer(): Promise<boolean> {
   const op = await getOperator();
   return op?.role === 'viewer';
+}
+
+/**
+ * 보조강사 여부. 사이드바·라우트 가드에서 시야 필터링에 사용.
+ */
+export async function isAssistant(): Promise<boolean> {
+  const op = await getOperator();
+  return op?.role === 'assistant';
+}
+
+/**
+ * 보조강사가 접근 가능한 cohort_id 집합을 반환.
+ * operators.instructor_id → session_instructors → sessions.cohort_id 경로로 계산.
+ * assistant가 아니거나 instructor_id 매핑이 없으면 빈 배열.
+ */
+export async function getVisibleCohortIds(op: Operator): Promise<string[]> {
+  if (op.role !== 'assistant' || !op.instructor_id) return [];
+
+  const admin = createAdminClient();
+  const { data: links } = await admin
+    .from('session_instructors')
+    .select('session_id')
+    .eq('instructor_id', op.instructor_id);
+
+  const sessionIds = (links ?? []).map((r) => r.session_id);
+  if (sessionIds.length === 0) return [];
+
+  const { data: sessions } = await admin
+    .from('sessions')
+    .select('cohort_id')
+    .in('id', sessionIds);
+
+  const ids = new Set<string>();
+  for (const s of sessions ?? []) {
+    if (s.cohort_id) ids.add(s.cohort_id);
+  }
+  return [...ids];
 }

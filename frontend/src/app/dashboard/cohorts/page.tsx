@@ -1,7 +1,7 @@
 import PageContainer from '@/components/layout/page-container';
 import { createAdminClient } from '@/lib/supabase/server';
 import { Icons } from '@/components/icons';
-import { getOperator, isDeveloper } from '@/lib/auth';
+import { getOperator, getVisibleCohortIds, isDeveloper } from '@/lib/auth';
 import { sortCohortsByPreference } from '@/lib/cohort-sort';
 import { CreateCohortSheet } from './_components/create-cohort-sheet';
 import { SortableCohortList } from './_components/sortable-cohort-list';
@@ -37,7 +37,12 @@ export default async function CohortsPage() {
     };
     if (cohortError) throw new Error(cohortError.message);
 
-    const cohorts = sortCohortsByPreference(cohortRows ?? [], operator?.cohort_order ?? []);
+    let visibleRows = cohortRows ?? [];
+    if (operator?.role === 'assistant') {
+      const visible = new Set(await getVisibleCohortIds(operator));
+      visibleRows = visibleRows.filter((c) => visible.has(c.id));
+    }
+    const cohorts = sortCohortsByPreference(visibleRows, operator?.cohort_order ?? []);
 
     // Per-cohort student & session counts — cohort_summary RPC로 SQL 측 GROUP BY
     type CohortSummary = { cohort_id: string; student_count: number; session_count: number };

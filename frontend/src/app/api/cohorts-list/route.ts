@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 import { computeCohortStage } from '@/lib/cohort-stage';
 import { sortCohortsByPreference } from '@/lib/cohort-sort';
-import { getOperator } from '@/lib/auth';
+import { getOperator, getVisibleCohortIds } from '@/lib/auth';
 
 export async function GET() {
   const supabase = createAdminClient();
@@ -18,7 +18,14 @@ export async function GET() {
   }
 
   const operator = await getOperator();
-  const sorted = sortCohortsByPreference(data ?? [], operator?.cohort_order ?? []);
+
+  let rows = data ?? [];
+  if (operator?.role === 'assistant') {
+    const visible = new Set(await getVisibleCohortIds(operator));
+    rows = rows.filter((c) => visible.has(c.id));
+  }
+
+  const sorted = sortCohortsByPreference(rows, operator?.cohort_order ?? []);
 
   const enriched = sorted.map((c) => ({
     id: c.id,
