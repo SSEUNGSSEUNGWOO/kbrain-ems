@@ -69,29 +69,41 @@ export async function isAssistant(): Promise<boolean> {
 
 /**
  * 보조강사가 접근 가능한 cohort_id 집합을 반환.
- * operators.instructor_id → session_instructors → sessions.cohort_id 경로로 계산.
+ * 두 배정 소스의 union:
+ *   1. session_instructors (role='sub') → sessions.cohort_id  (회차 배정)
+ *   2. cohort_self_study_assignments.cohort_id                (셀프스터디 배정)
  * assistant가 아니거나 instructor_id 매핑이 없으면 빈 배열.
  */
 export async function getVisibleCohortIds(op: Operator): Promise<string[]> {
   if (op.role !== 'assistant' || !op.instructor_id) return [];
 
   const admin = createAdminClient();
+  const ids = new Set<string>();
+
+  // 1) 회차 배정: session_instructors → sessions.cohort_id
   const { data: links } = await admin
     .from('session_instructors')
     .select('session_id')
     .eq('instructor_id', op.instructor_id);
-
   const sessionIds = (links ?? []).map((r) => r.session_id);
-  if (sessionIds.length === 0) return [];
-
-  const { data: sessions } = await admin
-    .from('sessions')
-    .select('cohort_id')
-    .in('id', sessionIds);
-
-  const ids = new Set<string>();
-  for (const s of sessions ?? []) {
-    if (s.cohort_id) ids.add(s.cohort_id);
+  if (sessionIds.length > 0) {
+    const { data: sessions } = await admin
+      .from('sessions')
+      .select('cohort_id')
+      .in('id', sessionIds);
+    for (const s of sessions ?? []) {
+      if (s.cohort_id) ids.add(s.cohort_id);
+    }
   }
+
+  // 2) 셀프스터디 배정: cohort_self_study_assignments.cohort_id
+  const { data: selfAsg } = await admin
+    .from('cohort_self_study_assignments')
+    .select('cohort_id')
+    .eq('instructor_id', op.instructor_id);
+  for (const a of selfAsg ?? []) {
+    if (a.cohort_id) ids.add(a.cohort_id);
+  }
+
   return [...ids];
 }
