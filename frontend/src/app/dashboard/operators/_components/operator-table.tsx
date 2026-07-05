@@ -279,26 +279,9 @@ export function OperatorTable() {
               </Select>
             </div>
             {addRole === 'assistant' && (
-              <div className='grid gap-2'>
-                <Label htmlFor='add-instructor'>연결할 강사 *</Label>
-                <Select value={addInstructorId} onValueChange={setAddInstructorId}>
-                  <SelectTrigger id='add-instructor'>
-                    <SelectValue placeholder='강사를 선택하세요' />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {instructors.map((i) => (
-                      <SelectItem key={i.id} value={i.id}>
-                        {i.name}
-                        <span className='text-muted-foreground ml-2 text-xs'>
-                          [{i.kind === 'sub' ? '보조' : '주강사'}]
-                          {i.affiliation ? ` ${i.affiliation}` : ''}
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className='bg-muted/40 grid gap-1 rounded-md border p-3'>
                 <p className='text-xs text-muted-foreground'>
-                  이 강사가 세션에 배정된 cohort만 사이드바에 표시되고, 모든 페이지가 읽기 전용입니다.
+                  운영자 이름과 동일한 강사풀의 보조강사가 자동 연결됩니다. 연결된 강사가 세션·셀프스터디에 배정된 cohort만 사이드바에 표시되며, 모든 페이지가 읽기 전용입니다. 이름 매칭 실패 시 시야는 비어 있고, 강사가 나중에 등록되면 재저장 시 자동 반영됩니다.
                 </p>
               </div>
             )}
@@ -348,26 +331,9 @@ export function OperatorTable() {
               </Select>
             </div>
             {editRole === 'assistant' && (
-              <div className='grid gap-2'>
-                <Label htmlFor='edit-instructor'>연결할 강사 *</Label>
-                <Select value={editInstructorId} onValueChange={setEditInstructorId}>
-                  <SelectTrigger id='edit-instructor'>
-                    <SelectValue placeholder='강사를 선택하세요' />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {instructors.map((i) => (
-                      <SelectItem key={i.id} value={i.id}>
-                        {i.name}
-                        <span className='text-muted-foreground ml-2 text-xs'>
-                          [{i.kind === 'sub' ? '보조' : '주강사'}]
-                          {i.affiliation ? ` ${i.affiliation}` : ''}
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className='bg-muted/40 grid gap-1 rounded-md border p-3'>
                 <p className='text-xs text-muted-foreground'>
-                  이 강사가 세션에 배정된 cohort만 사이드바에 표시되고, 모든 페이지가 읽기 전용입니다.
+                  운영자 이름과 동일한 강사풀의 보조강사가 자동 연결됩니다. 연결된 강사가 세션·셀프스터디에 배정된 cohort만 사이드바에 표시되며, 모든 페이지가 읽기 전용입니다. 이름 매칭 실패 시 시야는 비어 있고, 강사가 나중에 등록되면 재저장 시 자동 반영됩니다.
                 </p>
               </div>
             )}
