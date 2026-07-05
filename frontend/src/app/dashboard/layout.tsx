@@ -7,11 +7,11 @@ import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import { AuthProvider } from '@/lib/auth-context';
 import { getOperator } from '@/lib/auth';
 import type { Metadata } from 'next';
-import { cookies, headers } from 'next/headers';
-import { redirect } from 'next/navigation';
+import { cookies } from 'next/headers';
 
-// 보조강사가 진입 가능한 dashboard 최상위 경로 prefix. 그 외는 /dashboard/cohorts로 redirect.
-const ASSISTANT_ALLOWED_PREFIXES = ['/dashboard/cohorts', '/dashboard/account'];
+// TODO: assistant 경로 가드 임시 비활성 — prod에서 무한 rsc refetch 루프 원인 규명 후 복원.
+// 사이드바 시야·cohort layout 도메인 가드는 계속 동작하므로 assistant 시야 자체는 유지.
+// const ASSISTANT_ALLOWED_PREFIXES = ['/dashboard/cohorts', '/dashboard/account'];
 
 export const metadata: Metadata = {
   title: 'K-Brain EMS',
@@ -26,14 +26,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const cookieStore = await cookies();
   const defaultOpen = cookieStore.get('sidebar_state')?.value === 'true';
   const operator = await getOperator();
-
-  if (operator?.role === 'assistant') {
-    const h = await headers();
-    const pathname = h.get('x-pathname') ?? '';
-    if (pathname && !ASSISTANT_ALLOWED_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
-      redirect('/dashboard/cohorts');
-    }
-  }
 
   return (
     <AuthProvider name={operator?.name ?? ''} role={operator?.role ?? 'viewer'} title={operator?.title ?? ''}>
