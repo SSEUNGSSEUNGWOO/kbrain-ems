@@ -49,13 +49,7 @@ export default async function ExamDetailPage({ params }: Props) {
   return (
     <PageContainer
       pageTitle={exam.name}
-      pageDescription={
-        <span className='text-muted-foreground text-sm'>
-          공유코드 <span className='text-foreground font-mono'>{exam.share_code ?? '-'}</span>
-          {' · '}총 {totalQ ?? 0}문항
-          {exam.fullscreen_required ? ' · 전체화면 필수' : ''}
-        </span>
-      }
+      pageDescription={`공유코드 ${exam.share_code ?? '-'} · 총 ${totalQ ?? 0}문항${exam.fullscreen_required ? ' · 전체화면 필수' : ''}`}
     >
       <div className='rounded-lg border overflow-x-auto'>
         <Table>

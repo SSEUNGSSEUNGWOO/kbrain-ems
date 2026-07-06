@@ -78,12 +78,7 @@ export default async function ExamSessionDetailPage({ params }: Props) {
   return (
     <PageContainer
       pageTitle={session.name ?? '응시자 상세'}
-      pageDescription={
-        <span className='text-muted-foreground text-sm'>
-          {session.email ?? '(이메일 없음)'} · 토큰{' '}
-          <span className='font-mono text-foreground'>{session.token}</span>
-        </span>
-      }
+      pageDescription={`${session.email ?? '(이메일 없음)'} · 토큰 ${session.token ?? '-'}`}
     >
       <div className='space-y-6'>
         {/* 요약 */}
