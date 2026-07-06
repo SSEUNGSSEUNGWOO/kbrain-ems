@@ -10,6 +10,14 @@ export const dynamic = 'force-dynamic';
 
 type Props = { params: Promise<{ examId: string }> };
 
+function formatSecFromMs(ms: number): string {
+  const s = Math.round(ms / 1000);
+  if (s < 60) return `${s}초`;
+  const m = Math.floor(s / 60);
+  const rs = s % 60;
+  return rs === 0 ? `${m}분` : `${m}분 ${rs}초`;
+}
+
 const STATUS_LABEL: Record<string, string> = {
   in_progress: '진행중',
   submitted: '제출',
@@ -67,7 +75,7 @@ export default async function ExamDetailPage({ params }: Props) {
               <TableHead>상태</TableHead>
               <TableHead className='text-right'>진행</TableHead>
               <TableHead className='text-right'>점수</TableHead>
-              <TableHead className='text-right'>이벤트</TableHead>
+              <TableHead className='text-right'>이탈</TableHead>
               <TableHead>시작</TableHead>
               <TableHead>제출</TableHead>
               <TableHead className='w-12'></TableHead>
@@ -82,7 +90,12 @@ export default async function ExamDetailPage({ params }: Props) {
               </TableRow>
             )}
             {(sessions ?? []).map((s) => {
-              const events = Array.isArray(s.browser_events) ? s.browser_events : [];
+              const events = (Array.isArray(s.browser_events) ? s.browser_events : []) as {
+                event: string;
+                at: string;
+                duration_ms?: number;
+              }[];
+              const exitTotalMs = events.reduce((sum, e) => sum + (e.duration_ms ?? 0), 0);
               const progress = s.submitted_at
                 ? `${totalQ ?? 0}/${totalQ ?? 0}`
                 : s.current_order_no
@@ -109,7 +122,12 @@ export default async function ExamDetailPage({ params }: Props) {
                   <TableCell className='text-right tabular-nums font-medium'>{score}</TableCell>
                   <TableCell className='text-right tabular-nums'>
                     {events.length > 0 ? (
-                      <span className='text-amber-700 font-medium'>{events.length}</span>
+                      <span className='text-amber-700 font-medium'>
+                        {events.length}회
+                        {exitTotalMs > 0 && (
+                          <span className='ml-1 text-xs opacity-80'>· {formatSecFromMs(exitTotalMs)}</span>
+                        )}
+                      </span>
                     ) : (
                       <span className='text-muted-foreground'>-</span>
                     )}
