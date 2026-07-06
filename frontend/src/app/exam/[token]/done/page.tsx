@@ -25,7 +25,7 @@ export default async function ExamDonePage({ params }: Props) {
   return (
     <div className='min-h-screen bg-slate-50 text-slate-900 flex items-center justify-center p-6'>
       <div className='max-w-md w-full space-y-6 text-center'>
-        <div className='mx-auto w-14 h-14 rounded-full bg-emerald-100 border border-emerald-500 flex items-center justify-center text-2xl text-emerald-600'>
+        <div className='mx-auto w-14 h-14 rounded-full bg-blue-100 border border-blue-500 flex items-center justify-center text-2xl text-blue-600'>
           ✓
         </div>
         <div className='space-y-2'>

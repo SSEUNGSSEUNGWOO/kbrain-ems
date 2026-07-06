@@ -166,7 +166,7 @@ export function ExamRunner(props: Props) {
         </div>
         <div className='h-1 bg-slate-200'>
           <div
-            className='h-full bg-emerald-500 transition-all duration-300'
+            className='h-full bg-blue-500 transition-all duration-300'
             style={{ width: `${progressPct}%` }}
           />
         </div>
@@ -218,7 +218,7 @@ export function ExamRunner(props: Props) {
                   onClick={() => setAnswerReplace({ key: c.key })}
                   className={`w-full text-left px-4 py-3 rounded-md border transition-all ${
                     selected
-                      ? 'border-emerald-500 bg-emerald-50 text-emerald-900 shadow-sm'
+                      ? 'border-blue-500 bg-blue-50 text-blue-900 shadow-sm'
                       : 'border-slate-200 bg-white hover:border-slate-400 hover:bg-slate-50 text-slate-800'
                   }`}
                 >
@@ -234,7 +234,7 @@ export function ExamRunner(props: Props) {
           <textarea
             value={(answer as { text?: string }).text ?? ''}
             onChange={(e) => setAnswerReplace({ text: e.target.value })}
-            className='w-full min-h-[120px] rounded-md border border-slate-300 bg-white px-4 py-3 text-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 resize-none'
+            className='w-full min-h-[120px] rounded-md border border-slate-300 bg-white px-4 py-3 text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none'
             placeholder='답변을 입력하세요'
           />
         )}
@@ -245,14 +245,14 @@ export function ExamRunner(props: Props) {
             <textarea
               value={(answer as { notes?: string }).notes ?? ''}
               onChange={(e) => setAnswerFor({ notes: e.target.value })}
-              className='w-full min-h-[100px] rounded-md border border-slate-300 bg-white px-4 py-3 text-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 resize-none'
+              className='w-full min-h-[100px] rounded-md border border-slate-300 bg-white px-4 py-3 text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none'
               placeholder='구현 메모·요약'
             />
             <input
               type='url'
               value={(answer as { url?: string }).url ?? ''}
               onChange={(e) => setAnswerFor({ url: e.target.value })}
-              className='w-full rounded-md border border-slate-300 bg-white px-4 py-2 text-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500'
+              className='w-full rounded-md border border-slate-300 bg-white px-4 py-2 text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500'
               placeholder='제출 URL (npx 명령어·배포 URL 등)'
             />
             {question.allow_file_upload && (
@@ -271,7 +271,7 @@ export function ExamRunner(props: Props) {
             type='button'
             onClick={() => void handleNext(false)}
             disabled={pending || !canSubmit}
-            className='rounded-md bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold px-6 py-2.5 transition-colors shadow-sm'
+            className='rounded-md bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold px-6 py-2.5 transition-colors shadow-sm'
           >
             {pending ? '제출 중...' : isLast ? '최종 제출' : '다음 문항 →'}
           </button>
