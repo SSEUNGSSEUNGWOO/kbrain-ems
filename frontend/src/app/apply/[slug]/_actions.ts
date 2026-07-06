@@ -57,7 +57,7 @@ export async function submitApplication(formData: FormData): Promise<Result | vo
   // cohort + 모집기간
   const { data: cohort } = await supabase
     .from('cohorts')
-    .select('id, name, application_start_at, application_end_at')
+    .select('id, name, application_start_at, application_end_at, delivery_method, category')
     .eq('recruiting_slug', slug)
     .maybeSingle();
   if (!cohort) return { error: '잘못된 신청 페이지입니다.' };
@@ -157,14 +157,34 @@ export async function submitApplication(formData: FormData): Promise<Result | vo
     });
   if (uploadErr) return { error: `파일 업로드 실패: ${uploadErr.message}` };
 
+  // 자기주도형 예외: applicant가 이미 experts(전문인재) cohort에 신청 이력이 있으면
+  // 별도 심사 없이 즉시 selected 처리 (승우님 정책).
+  let initialStatus: 'applied' | 'selected' = 'applied';
+  let initialDecidedAt: string | null = null;
+  if (cohort.delivery_method === '자기주도형') {
+    const { data: expertsApps } = await supabase
+      .from('applications')
+      .select('id, cohorts!inner(category)')
+      .eq('applicant_id', applicantId)
+      .limit(20);
+    const hasExperts = (expertsApps ?? []).some(
+      (a) => (a.cohorts as unknown as { category: string | null } | null)?.category === 'experts'
+    );
+    if (hasExperts) {
+      initialStatus = 'selected';
+      initialDecidedAt = today;
+    }
+  }
+
   // applications INSERT
   const { data: application, error: appErr } = await supabase
     .from('applications')
     .insert({
       applicant_id: applicantId,
       cohort_id: cohort.id,
-      status: 'applied',
+      status: initialStatus,
       applied_at: today,
+      decided_at: initialDecidedAt,
       application_file_path: filePath,
       application_file_name: file.name,
       application_file_size: file.size
