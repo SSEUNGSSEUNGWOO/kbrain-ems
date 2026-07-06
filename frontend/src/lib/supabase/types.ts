@@ -316,6 +316,8 @@ export type Database = {
           certification_end_at: string | null;
           self_study_start_at: string | null;
           self_study_end_at: string | null;
+          intensive_start_at: string | null;
+          intensive_end_at: string | null;
           recruiting_slug: string | null;
           max_capacity: number | null;
           recruitment_round_id: string | null;
@@ -343,6 +345,8 @@ export type Database = {
           certification_end_at?: string | null;
           self_study_start_at?: string | null;
           self_study_end_at?: string | null;
+          intensive_start_at?: string | null;
+          intensive_end_at?: string | null;
           recruiting_slug?: string | null;
           max_capacity?: number | null;
           recruitment_round_id?: string | null;
@@ -370,6 +374,8 @@ export type Database = {
           certification_end_at?: string | null;
           self_study_start_at?: string | null;
           self_study_end_at?: string | null;
+          intensive_start_at?: string | null;
+          intensive_end_at?: string | null;
           recruiting_slug?: string | null;
           max_capacity?: number | null;
           recruitment_round_id?: string | null;

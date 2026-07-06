@@ -19,6 +19,8 @@ type Cohort = {
   certification_end_at: string | null;
   self_study_start_at: string | null;
   self_study_end_at: string | null;
+  intensive_start_at: string | null;
+  intensive_end_at: string | null;
   started_at: string | null;
   ended_at: string | null;
   recruitment_round_id: string | null;
@@ -64,13 +66,14 @@ type Props = {
   calendarEvents?: CalendarEvent[];
 };
 
-type EventKind = 'recruit' | 'decided' | 'notified' | 'preonline' | 'orientation' | 'session' | 'selfstudy' | 'certification';
+type EventKind = 'recruit' | 'decided' | 'notified' | 'preonline' | 'orientation' | 'session' | 'intensive' | 'selfstudy' | 'certification';
 
 
-// 정렬 룰: "오늘 할 일 우선" — 수업 → 인증평가 → OT → 사전온라인 → 셀프스터디 → 통보 → 선발 → 모집 순으로 위에 표시.
+// 정렬 룰: "오늘 할 일 우선" — 수업 → 집중교육 → 인증평가 → OT → 사전온라인 → 셀프스터디 → 통보 → 선발 → 모집 순으로 위에 표시.
 // 범례·lane 정렬·KIND_* 룩업 정의 순서를 일치시켜 운영자가 룰을 시각적으로 인식할 수 있게.
 const KIND_DOT: Record<EventKind, string> = {
   session: 'bg-blue-500',
+  intensive: 'bg-emerald-500',
   certification: 'bg-rose-500',
   orientation: 'bg-violet-500',
   preonline: 'bg-teal-500',
@@ -81,6 +84,7 @@ const KIND_DOT: Record<EventKind, string> = {
 };
 const KIND_STRIP: Record<EventKind, string> = {
   session: 'bg-blue-100 text-blue-900 border-l-2 border-blue-500 dark:bg-blue-950/50 dark:text-blue-100',
+  intensive: 'bg-emerald-100 text-emerald-900 border-l-2 border-emerald-500 dark:bg-emerald-950/50 dark:text-emerald-100',
   certification: 'bg-rose-100 text-rose-900 border-l-2 border-rose-500 dark:bg-rose-950/50 dark:text-rose-100',
   orientation: 'bg-violet-100 text-violet-900 border-l-2 border-violet-500 dark:bg-violet-950/50 dark:text-violet-100',
   preonline: 'bg-teal-100 text-teal-900 border-l-2 border-teal-500 dark:bg-teal-950/50 dark:text-teal-100',
@@ -91,6 +95,7 @@ const KIND_STRIP: Record<EventKind, string> = {
 };
 const KIND_LABEL: Record<EventKind, string> = {
   session: '수업',
+  intensive: '집중교육',
   certification: '인증평가',
   orientation: 'OT',
   preonline: '사전온라인',
@@ -102,13 +107,14 @@ const KIND_LABEL: Record<EventKind, string> = {
 // "오늘 할 일 우선" — 같은 날 여러 이벤트가 있으면 임박한 종류(수업)를 위 lane에 배치.
 const KIND_ORDER: Record<EventKind, number> = {
   session: 0,
-  certification: 1,
-  orientation: 2,
-  preonline: 3,
-  selfstudy: 4,
-  notified: 5,
-  decided: 6,
-  recruit: 7
+  intensive: 1,
+  certification: 2,
+  orientation: 3,
+  preonline: 4,
+  selfstudy: 5,
+  notified: 6,
+  decided: 7,
+  recruit: 8
 };
 
 const DOW = ['일', '월', '화', '수', '목', '금', '토'] as const;
@@ -353,6 +359,22 @@ export function Calendar({ year, month, cohorts, sessions, rounds, calendarEvent
           cohortName: c.name,
           label: `셀프 · ${c.name}`,
           tooltip: `[셀프스터디] ${c.name}`,
+          href: cohortHref
+        });
+      }
+      // 집중교육
+      if (c.intensive_start_at || c.intensive_end_at) {
+        const start = c.intensive_start_at ?? c.intensive_end_at!;
+        const end = c.intensive_end_at ?? c.intensive_start_at!;
+        pushInstance({
+          key: `intensive::${c.id}`,
+          start,
+          end,
+          kind: 'intensive',
+          cohortId: c.id,
+          cohortName: c.name,
+          label: `집중 · ${c.name}`,
+          tooltip: `[집중교육] ${c.name}`,
           href: cohortHref
         });
       }
