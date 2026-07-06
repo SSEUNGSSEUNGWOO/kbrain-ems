@@ -206,18 +206,38 @@ export function ExamRunner(props: Props) {
     return { error: '저장 실패' };
   };
 
+  // 문항별 debounce 타이머 관리
+  const saveTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const scheduleSave = (questionId: string, payload: Record<string, unknown> | null, delayMs: number) => {
+    const timers = saveTimersRef.current;
+    const prev = timers.get(questionId);
+    if (prev) clearTimeout(prev);
+    if (delayMs === 0) {
+      timers.delete(questionId);
+      void runSave(questionId, payload);
+      return;
+    }
+    const t = setTimeout(() => {
+      timers.delete(questionId);
+      void runSave(questionId, payload);
+    }, delayMs);
+    timers.set(questionId, t);
+  };
+
+  // 라디오/카드 클릭 등 확정 액션 — 즉시 저장
   const setAnswerReplace = (next: Record<string, unknown>) => {
     if (!question) return;
     setAnswers((prev) => ({ ...prev, [question.id]: next }));
     const payload = Object.keys(next).length > 0 ? next : null;
-    void runSave(question.id, payload);
+    scheduleSave(question.id, payload, 0);
   };
+  // textarea/input 등 연속 입력 — 500ms debounce
   const setAnswerFor = (patch: Record<string, unknown>) => {
     if (!question) return;
     const merged = { ...(answers[question.id] ?? {}), ...patch };
     setAnswers((prev) => ({ ...prev, [question.id]: merged }));
     const payload = Object.keys(merged).length > 0 ? merged : null;
-    void runSave(question.id, payload);
+    scheduleSave(question.id, payload, 500);
   };
 
   const handleToggleFlag = async () => {
@@ -494,7 +514,13 @@ export function ExamRunner(props: Props) {
                 {question.type === 'short_text' && (
                   <textarea
                     value={(answer as { text?: string }).text ?? ''}
-                    onChange={(e) => setAnswerReplace({ text: e.target.value })}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (!question) return;
+                      const next = v ? { text: v } : {};
+                      setAnswers((prev) => ({ ...prev, [question.id]: next }));
+                      scheduleSave(question.id, v ? { text: v } : null, 500);
+                    }}
                     className='w-full min-h-[140px] rounded-xl border-2 border-slate-200 bg-white px-5 py-4 text-[15px] focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 resize-none'
                     placeholder='답변을 입력하세요'
                   />
