@@ -396,6 +396,22 @@ export default function AppSidebar() {
               </SidebarMenuItem>
             )}
 
+            {/* 실전평가 — 글로벌 (CBT) */}
+            {!isAssistant && (
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  tooltip='실전평가'
+                  isActive={pathname.startsWith('/dashboard/exams')}
+                >
+                  <Link href='/dashboard/exams'>
+                    <Icons.forms />
+                    <span>실전평가</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )}
+
             {/* 사전학습 명단 — 글로벌 */}
             {!isAssistant && (
               <SidebarMenuItem>
