@@ -5,6 +5,7 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { isDeveloper } from '@/lib/auth';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { IssueSessionsSheet } from './_components/issue-sessions-sheet';
 
 export const dynamic = 'force-dynamic';
 
@@ -59,12 +60,15 @@ export default async function ExamDetailPage({ params }: Props) {
       pageTitle={exam.name}
       pageDescription={`공유코드 ${exam.share_code ?? '-'} · 총 ${totalQ ?? 0}문항${exam.fullscreen_required ? ' · 전체화면 필수' : ''}`}
       pageHeaderAction={
-        <a
-          href={`/api/exams/${examId}/export`}
-          className='inline-flex items-center gap-1.5 rounded-md border bg-white px-3 py-1.5 text-sm font-medium shadow-sm hover:bg-slate-50'
-        >
-          결과 다운로드 (xlsx)
-        </a>
+        <div className='flex items-center gap-2'>
+          <IssueSessionsSheet examId={examId} />
+          <a
+            href={`/api/exams/${examId}/export`}
+            className='inline-flex items-center gap-1.5 rounded-md border bg-white px-3 py-1.5 text-sm font-medium shadow-sm hover:bg-slate-50'
+          >
+            결과 다운로드
+          </a>
+        </div>
       }
     >
       <div className='rounded-lg border overflow-x-auto'>
