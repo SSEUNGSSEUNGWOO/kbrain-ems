@@ -79,16 +79,39 @@ export function ExamRunner(props: Props) {
   const isTask = question.type === 'task_based';
   const fsExitStartRef = useRef<number | null>(null);
   const visExitStartRef = useRef<number | null>(null);
+  const [exitCount, setExitCount] = useState(0);
+  const [exitTotalMs, setExitTotalMs] = useState(0);
+  const [inExit, setInExit] = useState(false);
+  const [liveElapsedMs, setLiveElapsedMs] = useState(0);
+
+  // 이탈 중일 때 라이브 카운터 (1초 간격)
+  useEffect(() => {
+    if (!inExit) return;
+    const id = setInterval(() => {
+      if (fsExitStartRef.current != null) {
+        setLiveElapsedMs(Date.now() - fsExitStartRef.current);
+      } else if (visExitStartRef.current != null) {
+        setLiveElapsedMs(Date.now() - visExitStartRef.current);
+      }
+    }, 500);
+    return () => clearInterval(id);
+  }, [inExit]);
+
   useEffect(() => {
     if (isTask) return;
     const onFs = () => {
       const now = Date.now();
       if (!document.fullscreenElement) {
         fsExitStartRef.current = now;
+        setInExit(true);
+        setLiveElapsedMs(0);
       } else if (fsExitStartRef.current != null) {
         const durationMs = now - fsExitStartRef.current;
         const at = new Date(fsExitStartRef.current).toISOString();
         fsExitStartRef.current = null;
+        setInExit(false);
+        setExitCount((n) => n + 1);
+        setExitTotalMs((v) => v + durationMs);
         void logBrowserEvent({ token, event: 'fullscreen_exit', at, durationMs });
       }
     };
@@ -96,10 +119,15 @@ export function ExamRunner(props: Props) {
       const now = Date.now();
       if (document.visibilityState === 'hidden') {
         visExitStartRef.current = now;
+        setInExit(true);
+        setLiveElapsedMs(0);
       } else if (document.visibilityState === 'visible' && visExitStartRef.current != null) {
         const durationMs = now - visExitStartRef.current;
         const at = new Date(visExitStartRef.current).toISOString();
         visExitStartRef.current = null;
+        setInExit(false);
+        setExitCount((n) => n + 1);
+        setExitTotalMs((v) => v + durationMs);
         void logBrowserEvent({ token, event: 'visibility_hidden', at, durationMs });
       }
     };
@@ -110,6 +138,14 @@ export function ExamRunner(props: Props) {
       document.removeEventListener('visibilitychange', onVis);
     };
   }, [token, isTask]);
+
+  const requestReenterFullscreen = async () => {
+    try {
+      await document.documentElement.requestFullscreen({ navigationUI: 'hide' });
+    } catch {
+      /* ignore */
+    }
+  };
 
   const handleNext = async (timeoutReached = false) => {
     const payload = Object.keys(answer).length > 0 ? answer : null;
@@ -151,6 +187,51 @@ export function ExamRunner(props: Props) {
 
   return (
     <div className='min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50/30 text-slate-900 flex flex-col'>
+      {/* 이탈 감지 시 전체 오버레이 경고 */}
+      {inExit && !isTask && (
+        <div className='fixed inset-0 z-50 flex items-center justify-center bg-rose-950/80 backdrop-blur-sm p-6'>
+          <div className='max-w-md w-full rounded-2xl bg-white p-8 shadow-2xl text-center border-4 border-rose-500'>
+            <div className='mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-rose-100'>
+              <svg
+                className='h-9 w-9 text-rose-600'
+                fill='none'
+                viewBox='0 0 24 24'
+                stroke='currentColor'
+                strokeWidth='2.5'
+              >
+                <path
+                  strokeLinecap='round'
+                  strokeLinejoin='round'
+                  d='M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.008v.008H12v-.008z'
+                />
+              </svg>
+            </div>
+            <h2 className='text-xl font-bold text-slate-900 mb-2'>전체화면 이탈 감지</h2>
+            <p className='text-sm text-slate-600 mb-1'>
+              시험 중 화면 이탈이 기록됩니다. 즉시 전체화면으로 돌아가세요.
+            </p>
+            <div className='my-5 py-3 rounded-lg bg-rose-50 border border-rose-200'>
+              <div className='text-[10px] uppercase tracking-widest text-rose-500 mb-1'>
+                현재 이탈 시간
+              </div>
+              <div className='font-mono text-3xl font-bold text-rose-700 tabular-nums'>
+                {formatSecFromMs(liveElapsedMs)}
+              </div>
+              <div className='mt-1 text-[11px] text-rose-600'>
+                누적: {exitCount}회 · {formatSecFromMs(exitTotalMs)}
+              </div>
+            </div>
+            <button
+              type='button'
+              onClick={() => void requestReenterFullscreen()}
+              className='w-full rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-semibold px-6 py-3 shadow-sm'
+            >
+              전체화면으로 복귀
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* 헤더 */}
       <header className='sticky top-0 z-20 border-b border-slate-200 bg-white/85 backdrop-blur-md'>
         <div className='mx-auto max-w-4xl px-6 py-3 flex items-center justify-between gap-4'>
@@ -174,6 +255,14 @@ export function ExamRunner(props: Props) {
                 {currentIdx + 1} <span className='text-slate-400'>/ {totalCount}</span>
               </div>
             </div>
+            {!isTask && exitCount > 0 && (
+              <div className='text-xs text-right'>
+                <div className='text-[10px] uppercase tracking-widest text-slate-400'>이탈</div>
+                <div className='font-semibold text-amber-700 tabular-nums'>
+                  {exitCount}회 <span className='text-slate-400'>· {formatSecFromMs(exitTotalMs)}</span>
+                </div>
+              </div>
+            )}
             {remaining !== null && (
               <div
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg font-mono text-2xl font-bold tabular-nums border-2 shadow-sm transition-colors ${
@@ -379,4 +468,12 @@ function formatSec(sec: number): string {
   const m = Math.floor(sec / 60);
   const s = sec % 60;
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
+function formatSecFromMs(ms: number): string {
+  const s = Math.round(ms / 1000);
+  if (s < 60) return `${s}초`;
+  const m = Math.floor(s / 60);
+  const rs = s % 60;
+  return rs === 0 ? `${m}분` : `${m}분 ${rs}초`;
 }
