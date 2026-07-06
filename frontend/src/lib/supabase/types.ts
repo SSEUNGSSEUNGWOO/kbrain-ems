@@ -2411,6 +2411,7 @@ export type Database = {
           status: string;
           browser_events: Json;
           current_order_no: number | null;
+          phone_last4: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -2429,6 +2430,7 @@ export type Database = {
           status?: string;
           browser_events?: Json;
           current_order_no?: number | null;
+          phone_last4?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -2447,6 +2449,7 @@ export type Database = {
           status?: string;
           browser_events?: Json;
           current_order_no?: number | null;
+          phone_last4?: string | null;
           created_at?: string;
           updated_at?: string;
         };

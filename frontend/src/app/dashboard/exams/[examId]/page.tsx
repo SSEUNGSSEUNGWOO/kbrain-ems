@@ -5,7 +5,6 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { isDeveloper } from '@/lib/auth';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { IssueSessionsSheet } from './_components/issue-sessions-sheet';
 
 export const dynamic = 'force-dynamic';
 
@@ -61,7 +60,6 @@ export default async function ExamDetailPage({ params }: Props) {
       pageDescription={`공유코드 ${exam.share_code ?? '-'} · 총 ${totalQ ?? 0}문항${exam.fullscreen_required ? ' · 전체화면 필수' : ''}`}
       pageHeaderAction={
         <div className='flex items-center gap-2'>
-          <IssueSessionsSheet examId={examId} />
           <a
             href={`/api/exams/${examId}/export`}
             className='inline-flex items-center gap-1.5 rounded-md border bg-white px-3 py-1.5 text-sm font-medium shadow-sm hover:bg-slate-50'
@@ -71,6 +69,19 @@ export default async function ExamDetailPage({ params }: Props) {
         </div>
       }
     >
+      {exam.share_code && (
+        <div className='mb-4 rounded-lg border border-blue-200 bg-blue-50/40 p-4'>
+          <div className='text-xs font-semibold uppercase tracking-widest text-blue-700 mb-1'>
+            응시자 배포용 공유 링크
+          </div>
+          <div className='flex items-center gap-2'>
+            <code className='flex-1 rounded bg-white border px-3 py-1.5 text-sm font-mono text-blue-900 break-all'>
+              /exam/share/{exam.share_code}
+            </code>
+            <span className='text-xs text-blue-800'>이 URL을 카톡·이메일로 배포하세요. 응시자는 이름·전화번호 뒷 4자리로 진입합니다.</span>
+          </div>
+        </div>
+      )}
       <div className='rounded-lg border overflow-x-auto'>
         <Table>
           <TableHeader>
