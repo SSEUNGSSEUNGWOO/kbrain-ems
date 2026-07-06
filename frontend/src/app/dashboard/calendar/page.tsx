@@ -16,7 +16,7 @@ export default async function CalendarPage({ searchParams }: Props) {
 
   const supabase = createAdminClient();
 
-  const [cohortsRes, sessionsRes, roundsRes] = await Promise.all([
+  const [cohortsRes, sessionsRes, roundsRes, calendarEventsRes] = await Promise.all([
     supabase
       .from('cohorts')
       .select(
@@ -28,12 +28,17 @@ export default async function CalendarPage({ searchParams }: Props) {
     supabase
       .from('recruitment_rounds')
       .select('id, round_no, label, application_start_at, application_end_at, selection_at, announce_at')
-      .order('round_no')
+      .order('round_no'),
+    supabase
+      .from('calendar_events')
+      .select('id, title, event_date, event_time, category, capacity, notes')
+      .order('event_date')
   ]);
 
   const cohorts = cohortsRes.data ?? [];
   const sessions = sessionsRes.data ?? [];
   const rounds = roundsRes.data ?? [];
+  const calendarEvents = calendarEventsRes.data ?? [];
 
   // 보조강사 필요 시간을 session 단위로 미리 계산
   const sessionsByCohort = new Map<string, typeof sessions>();
@@ -106,6 +111,14 @@ export default async function CalendarPage({ searchParams }: Props) {
           application_end_at: r.application_end_at,
           selection_at: r.selection_at,
           announce_at: r.announce_at
+        }))}
+        calendarEvents={calendarEvents.map((e) => ({
+          id: e.id,
+          title: e.title,
+          event_date: e.event_date,
+          event_time: e.event_time,
+          category: e.category,
+          capacity: e.capacity
         }))}
       />
     </PageContainer>

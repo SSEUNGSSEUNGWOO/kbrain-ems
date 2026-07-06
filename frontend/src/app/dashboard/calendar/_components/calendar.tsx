@@ -46,12 +46,22 @@ type Round = {
   announce_at: string | null;
 };
 
+type CalendarEvent = {
+  id: string;
+  title: string;
+  event_date: string;
+  event_time: string | null;
+  category: string | null;
+  capacity: number | null;
+};
+
 type Props = {
   year: number;
   month: number; // 1-12
   cohorts: Cohort[];
   sessions: SessionRow[];
   rounds: Round[];
+  calendarEvents?: CalendarEvent[];
 };
 
 type EventKind = 'recruit' | 'decided' | 'notified' | 'preonline' | 'orientation' | 'session' | 'selfstudy' | 'certification';
@@ -138,7 +148,7 @@ function formatDateLabel(iso: string): string {
   return `${m}.${d}.(${DOW[date.getDay()]})`;
 }
 
-export function Calendar({ year, month, cohorts, sessions, rounds }: Props) {
+export function Calendar({ year, month, cohorts, sessions, rounds, calendarEvents = [] }: Props) {
   // 월 그리드 (일요일 시작, 6주)
   const grid = useMemo(() => {
     const first = new Date(Date.UTC(year, month - 1, 1));
@@ -363,6 +373,24 @@ export function Calendar({ year, month, cohorts, sessions, rounds }: Props) {
         });
       }
     }
+
+    // 독립 캘린더 이벤트 (인증평가·사전접속테스트 등)
+    for (const e of calendarEvents) {
+      const kind: EventKind = 'certification'; // 색상 통일 — 필요 시 category별로 분리 가능
+      const timeSuffix = e.event_time ? ` ${e.event_time.slice(0, 5)}` : '';
+      const capacitySuffix = e.capacity ? ` (${e.capacity}명)` : '';
+      pushInstance({
+        key: `ce::${e.id}`,
+        start: e.event_date,
+        end: e.event_date,
+        kind,
+        cohortId: `event-${e.id}`,
+        cohortName: e.title,
+        label: `${e.category ?? ''} · ${e.title}${timeSuffix}`,
+        tooltip: `[${e.category ?? '일정'}] ${e.title}${timeSuffix}${capacitySuffix}`,
+        href: '/dashboard/calendar'
+      });
+    }
     const cohortNameById = new Map(cohorts.map((c) => [c.id, c.name]));
     for (const s of sessions) {
       const cohortName = cohortNameById.get(s.cohort_id) ?? '';
@@ -401,7 +429,7 @@ export function Calendar({ year, month, cohorts, sessions, rounds }: Props) {
       return a.cohortName.localeCompare(b.cohortName, 'ko');
     });
     return out;
-  }, [cohorts, sessions, rounds, monthEnd, monthStart]);
+  }, [cohorts, sessions, rounds, calendarEvents, monthEnd, monthStart]);
 
   // 주 단위 lane 할당: cell → lane[] (각 lane에 event 또는 null)
   type CellEvent = {

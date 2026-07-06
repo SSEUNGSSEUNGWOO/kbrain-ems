@@ -2224,6 +2224,42 @@ export type Database = {
           }
         ];
       };
+      calendar_events: {
+        Row: {
+          id: string;
+          title: string;
+          event_date: string;
+          event_time: string | null;
+          category: string | null;
+          capacity: number | null;
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          title: string;
+          event_date: string;
+          event_time?: string | null;
+          category?: string | null;
+          capacity?: number | null;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          title?: string;
+          event_date?: string;
+          event_time?: string | null;
+          category?: string | null;
+          capacity?: number | null;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       exam_banks: {
         Row: {
           id: string;
