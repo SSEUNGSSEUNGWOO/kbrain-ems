@@ -132,22 +132,22 @@ export function ExamRunner(props: Props) {
   const progressPct = useMemo(() => ((currentIdx + 1) / totalCount) * 100, [currentIdx, totalCount]);
 
   return (
-    <div className='min-h-screen bg-neutral-950 text-neutral-100 flex flex-col'>
-      <header className='sticky top-0 z-20 border-b border-neutral-800 bg-neutral-950/95 backdrop-blur'>
+    <div className='min-h-screen bg-slate-50 text-slate-900 flex flex-col'>
+      <header className='sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur'>
         <div className='mx-auto max-w-4xl px-6 py-3 flex items-center justify-between gap-4'>
           <div>
-            <div className='text-[10px] uppercase tracking-widest text-neutral-500'>CBT</div>
-            <div className='text-sm font-semibold text-neutral-100 truncate max-w-[300px]'>
+            <div className='text-[10px] uppercase tracking-widest text-slate-400'>CBT</div>
+            <div className='text-sm font-semibold text-slate-900 truncate max-w-[300px]'>
               {examName}
             </div>
           </div>
           <div className='flex items-center gap-6 text-xs'>
-            <div className='text-neutral-400'>
-              응시자 <span className='text-neutral-100 ml-1 font-medium'>{applicantName}</span>
+            <div className='text-slate-500'>
+              응시자 <span className='text-slate-900 ml-1 font-medium'>{applicantName}</span>
             </div>
-            <div className='text-neutral-400'>
+            <div className='text-slate-500'>
               진행{' '}
-              <span className='text-neutral-100 ml-1 font-medium'>
+              <span className='text-slate-900 ml-1 font-medium'>
                 {currentIdx + 1}/{totalCount}
               </span>
             </div>
@@ -155,8 +155,8 @@ export function ExamRunner(props: Props) {
               <div
                 className={`px-2 py-1 rounded font-mono text-sm ${
                   remaining <= 10
-                    ? 'bg-rose-950/60 text-rose-300 animate-pulse'
-                    : 'bg-neutral-800 text-neutral-100'
+                    ? 'bg-rose-100 text-rose-700 animate-pulse'
+                    : 'bg-slate-100 text-slate-700'
                 }`}
               >
                 {formatSec(remaining)}
@@ -164,7 +164,7 @@ export function ExamRunner(props: Props) {
             )}
           </div>
         </div>
-        <div className='h-1 bg-neutral-900'>
+        <div className='h-1 bg-slate-200'>
           <div
             className='h-full bg-emerald-500 transition-all duration-300'
             style={{ width: `${progressPct}%` }}
@@ -174,23 +174,23 @@ export function ExamRunner(props: Props) {
 
       <main className='flex-1 mx-auto max-w-4xl w-full px-6 py-10'>
         <div className='mb-6 flex items-center gap-2'>
-          <span className='text-xs font-mono px-2 py-0.5 rounded bg-neutral-800 text-neutral-300'>
+          <span className='text-xs font-mono px-2 py-0.5 rounded bg-slate-900 text-white'>
             Q{question.order_no}
           </span>
           {question.category && (
-            <span className='text-xs px-2 py-0.5 rounded bg-neutral-900 border border-neutral-800 text-neutral-400'>
+            <span className='text-xs px-2 py-0.5 rounded bg-white border border-slate-200 text-slate-600'>
               {question.category}
             </span>
           )}
           {question.difficulty && (
-            <span className='text-xs px-2 py-0.5 rounded bg-neutral-900 border border-neutral-800 text-neutral-400'>
+            <span className='text-xs px-2 py-0.5 rounded bg-white border border-slate-200 text-slate-600'>
               난이도 {question.difficulty}
             </span>
           )}
-          <span className='text-xs text-neutral-500 ml-auto'>배점 {question.score}점</span>
+          <span className='text-xs text-slate-400 ml-auto'>배점 {question.score}점</span>
         </div>
 
-        <div className='mb-8 text-base leading-relaxed whitespace-pre-wrap text-neutral-100'>
+        <div className='mb-8 text-base leading-relaxed whitespace-pre-wrap text-slate-900'>
           {question.text}
         </div>
 
@@ -200,7 +200,7 @@ export function ExamRunner(props: Props) {
               href={question.attachment_url}
               target='_blank'
               rel='noopener noreferrer'
-              className='text-xs text-blue-400 hover:underline'
+              className='text-xs text-blue-600 hover:underline'
             >
               첨부파일 열기 ↗
             </a>
@@ -218,11 +218,11 @@ export function ExamRunner(props: Props) {
                   onClick={() => setAnswerReplace({ key: c.key })}
                   className={`w-full text-left px-4 py-3 rounded-md border transition-all ${
                     selected
-                      ? 'border-emerald-500 bg-emerald-950/40 text-emerald-100'
-                      : 'border-neutral-800 bg-neutral-900 hover:border-neutral-700 hover:bg-neutral-900/80 text-neutral-200'
+                      ? 'border-emerald-500 bg-emerald-50 text-emerald-900 shadow-sm'
+                      : 'border-slate-200 bg-white hover:border-slate-400 hover:bg-slate-50 text-slate-800'
                   }`}
                 >
-                  <span className='font-mono text-neutral-500 mr-3'>{c.key}</span>
+                  <span className='font-mono text-slate-400 mr-3'>{c.key}</span>
                   {c.text}
                 </button>
               );
@@ -234,44 +234,44 @@ export function ExamRunner(props: Props) {
           <textarea
             value={(answer as { text?: string }).text ?? ''}
             onChange={(e) => setAnswerReplace({ text: e.target.value })}
-            className='w-full min-h-[120px] rounded-md border border-neutral-800 bg-neutral-900 px-4 py-3 text-neutral-100 focus:border-emerald-500 focus:outline-none resize-none'
+            className='w-full min-h-[120px] rounded-md border border-slate-300 bg-white px-4 py-3 text-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 resize-none'
             placeholder='답변을 입력하세요'
           />
         )}
 
         {question.type === 'task_based' && (
-          <div className='space-y-4 text-sm text-neutral-400'>
+          <div className='space-y-4 text-sm text-slate-600'>
             <p>작업형 문항입니다. 아래에 결과·URL·메모를 입력하세요.</p>
             <textarea
               value={(answer as { notes?: string }).notes ?? ''}
               onChange={(e) => setAnswerFor({ notes: e.target.value })}
-              className='w-full min-h-[100px] rounded-md border border-neutral-800 bg-neutral-900 px-4 py-3 text-neutral-100 focus:border-emerald-500 focus:outline-none resize-none'
+              className='w-full min-h-[100px] rounded-md border border-slate-300 bg-white px-4 py-3 text-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 resize-none'
               placeholder='구현 메모·요약'
             />
             <input
               type='url'
               value={(answer as { url?: string }).url ?? ''}
               onChange={(e) => setAnswerFor({ url: e.target.value })}
-              className='w-full rounded-md border border-neutral-800 bg-neutral-900 px-4 py-2 text-neutral-100 focus:border-emerald-500 focus:outline-none'
+              className='w-full rounded-md border border-slate-300 bg-white px-4 py-2 text-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500'
               placeholder='제출 URL (npx 명령어·배포 URL 등)'
             />
             {question.allow_file_upload && (
-              <p className='text-xs text-neutral-500'>* 파일 업로드는 추후 지원 예정</p>
+              <p className='text-xs text-slate-400'>* 파일 업로드는 추후 지원 예정</p>
             )}
           </div>
         )}
       </main>
 
-      <footer className='sticky bottom-0 border-t border-neutral-800 bg-neutral-950/95 backdrop-blur'>
+      <footer className='sticky bottom-0 border-t border-slate-200 bg-white/95 backdrop-blur'>
         <div className='mx-auto max-w-4xl px-6 py-4 flex items-center justify-between gap-4'>
-          <div className='text-xs text-neutral-500'>
+          <div className='text-xs text-slate-400'>
             {fullscreenRequired ? '전체화면 이탈 시 기록됩니다.' : ''}
           </div>
           <button
             type='button'
             onClick={() => void handleNext(false)}
             disabled={pending || !canSubmit}
-            className='rounded-md bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 disabled:cursor-not-allowed text-neutral-950 font-semibold px-6 py-2.5 transition-colors'
+            className='rounded-md bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold px-6 py-2.5 transition-colors shadow-sm'
           >
             {pending ? '제출 중...' : isLast ? '최종 제출' : '다음 문항 →'}
           </button>

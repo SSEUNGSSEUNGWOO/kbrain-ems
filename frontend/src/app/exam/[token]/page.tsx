@@ -41,17 +41,17 @@ export default async function ExamIntroPage({ params }: Props) {
   const exam = session.exams;
 
   return (
-    <div className='min-h-screen bg-neutral-950 text-neutral-100 flex items-center justify-center p-6'>
+    <div className='min-h-screen bg-slate-50 text-slate-900 flex items-center justify-center p-6'>
       <div className='max-w-xl w-full space-y-6'>
         <div className='space-y-2'>
-          <div className='text-xs uppercase tracking-widest text-neutral-500'>실전평가 · CBT</div>
+          <div className='text-xs uppercase tracking-widest text-slate-400'>실전평가 · CBT</div>
           <h1 className='text-2xl font-semibold'>{exam.name}</h1>
           {exam.description && (
-            <p className='text-sm text-neutral-400 leading-relaxed'>{exam.description}</p>
+            <p className='text-sm text-slate-500 leading-relaxed'>{exam.description}</p>
           )}
         </div>
 
-        <div className='rounded-lg border border-neutral-800 bg-neutral-900 p-5 space-y-3 text-sm'>
+        <div className='rounded-lg border border-slate-200 bg-white p-5 space-y-3 text-sm shadow-sm'>
           <Row label='응시자' value={session.name ?? '(미지정)'} />
           <Row label='총 문항' value={`${totalQ ?? 0}문항`} />
           <Row
@@ -60,9 +60,9 @@ export default async function ExamIntroPage({ params }: Props) {
           />
         </div>
 
-        <div className='rounded-lg border border-amber-900/60 bg-amber-950/30 p-4 text-xs leading-relaxed text-amber-200/90 space-y-1'>
-          <p className='font-semibold text-amber-200'>안내</p>
-          <ul className='list-disc pl-4 space-y-0.5 text-amber-100/80'>
+        <div className='rounded-lg border border-amber-200 bg-amber-50 p-4 text-xs leading-relaxed text-amber-900 space-y-1'>
+          <p className='font-semibold'>안내</p>
+          <ul className='list-disc pl-4 space-y-0.5'>
             <li>시작 후에는 이전 문항으로 돌아갈 수 없습니다.</li>
             <li>문항별 시간 제한이 있으면 시간 초과 시 자동으로 다음 문항으로 이동합니다.</li>
             {exam.fullscreen_required && (
@@ -81,8 +81,8 @@ export default async function ExamIntroPage({ params }: Props) {
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className='flex justify-between items-center'>
-      <span className='text-neutral-500'>{label}</span>
-      <span className='text-neutral-100 font-medium'>{value}</span>
+      <span className='text-slate-500'>{label}</span>
+      <span className='text-slate-900 font-medium'>{value}</span>
     </div>
   );
 }

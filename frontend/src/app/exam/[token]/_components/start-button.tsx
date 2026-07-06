@@ -41,11 +41,11 @@ export function StartButton({
         type='button'
         onClick={onClick}
         disabled={pending}
-        className='w-full rounded-md bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-neutral-950 font-semibold py-3 transition-colors'
+        className='w-full rounded-md bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-semibold py-3 transition-colors shadow-sm'
       >
         {pending ? '시작 중...' : '시험 시작하기'}
       </button>
-      {error && <p className='text-xs text-rose-400'>{error}</p>}
+      {error && <p className='text-xs text-rose-600'>{error}</p>}
     </div>
   );
 }
