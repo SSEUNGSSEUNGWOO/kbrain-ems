@@ -69,7 +69,10 @@ export function ExamRunner(props: Props) {
   }, [remaining]);
 
   // 전체화면/창 이탈 이벤트 로깅 (fire-and-forget)
+  // 작업형(task_based)은 외부 앱 필요할 수 있어 로깅 스킵.
+  const isTask = question.type === 'task_based';
   useEffect(() => {
+    if (isTask) return;
     const onFs = () => {
       if (!document.fullscreenElement) {
         void logBrowserEvent({ token, event: 'fullscreen_exit', at: new Date().toISOString() });
@@ -86,7 +89,7 @@ export function ExamRunner(props: Props) {
       document.removeEventListener('fullscreenchange', onFs);
       document.removeEventListener('visibilitychange', onVis);
     };
-  }, [token]);
+  }, [token, isTask]);
 
   const handleNext = async (timeoutReached = false) => {
     const payload = Object.keys(answer).length > 0 ? answer : null;
@@ -281,7 +284,11 @@ export function ExamRunner(props: Props) {
       <footer className='sticky bottom-0 border-t border-slate-200 bg-white/95 backdrop-blur'>
         <div className='mx-auto max-w-4xl px-6 py-4 flex items-center justify-between gap-4'>
           <div className='text-xs text-slate-400'>
-            {fullscreenRequired ? '전체화면 이탈 시 기록됩니다.' : ''}
+            {isTask
+              ? '작업형 문항 — 외부 앱 사용 가능 (전체화면 이탈 기록 안 됨)'
+              : fullscreenRequired
+                ? '전체화면 이탈 시 기록됩니다.'
+                : ''}
           </div>
           <button
             type='button'
