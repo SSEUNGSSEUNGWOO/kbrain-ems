@@ -364,18 +364,19 @@ export function ExamRunner(props: Props) {
                 const isCurrent = i === currentIdx;
                 const isAnswered = Object.keys(answers[q.id] ?? {}).length > 0;
                 const isFlagged = flagged.has(q.id);
+                const cls = isCurrent
+                  ? 'bg-slate-900 text-white ring-2 ring-slate-900 ring-offset-1'
+                  : isFlagged
+                    ? 'bg-amber-200 text-amber-900 ring-1 ring-amber-400 hover:bg-amber-300'
+                    : isAnswered
+                      ? 'bg-blue-100 text-blue-800 hover:bg-blue-200'
+                      : 'bg-slate-100 text-slate-500 hover:bg-slate-200';
                 return (
                   <button
                     key={q.id}
                     type='button'
                     onClick={() => setCurrentIdx(i)}
-                    className={`relative aspect-square rounded-md text-xs font-semibold tabular-nums transition-colors ${
-                      isCurrent
-                        ? 'bg-slate-900 text-white ring-2 ring-slate-900 ring-offset-1'
-                        : isAnswered
-                          ? 'bg-blue-100 text-blue-800 hover:bg-blue-200'
-                          : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                    }`}
+                    className={`relative aspect-square rounded-md text-xs font-semibold tabular-nums transition-colors ${cls}`}
                   >
                     {i + 1}
                     {isFlagged && (
@@ -393,10 +394,10 @@ export function ExamRunner(props: Props) {
                 <span className='inline-block w-3 h-3 rounded-sm bg-blue-100' /> 응답 완료
               </div>
               <div className='flex items-center gap-1.5 text-slate-500'>
-                <span className='inline-block w-3 h-3 rounded-sm bg-slate-900' /> 현재 문항
+                <span className='inline-block w-3 h-3 rounded-sm bg-amber-200 ring-1 ring-amber-400' /> 🚩 검토 표시
               </div>
               <div className='flex items-center gap-1.5 text-slate-500'>
-                🚩 검토 표시
+                <span className='inline-block w-3 h-3 rounded-sm bg-slate-900' /> 현재 문항
               </div>
             </div>
           </div>
