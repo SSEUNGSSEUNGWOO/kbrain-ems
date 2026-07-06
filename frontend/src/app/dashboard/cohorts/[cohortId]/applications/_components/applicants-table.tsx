@@ -74,6 +74,7 @@ const STATUS_LABEL: Record<string, string> = {
   pending: '심사중',
   selected: '선발',
   rejected: '탈락',
+  pre_cancel: '취소예정',
   cancel_notice: '취소통보',
   cancel_confirmed: '취소확정',
   same_day_cancel: '당일취소'
@@ -84,6 +85,7 @@ const STATUS_TONE: Record<string, string> = {
   pending: 'bg-amber-50 text-amber-800 border-amber-200',
   selected: 'bg-emerald-50 text-emerald-800 border-emerald-200',
   rejected: 'bg-rose-50 text-rose-800 border-rose-200',
+  pre_cancel: 'bg-orange-50 text-orange-800 border-orange-200',
   cancel_notice: 'bg-amber-50 text-amber-700 border-amber-200',
   cancel_confirmed: 'bg-slate-50 text-slate-500 border-slate-200',
   same_day_cancel: 'bg-rose-50 text-rose-700 border-rose-200'
@@ -104,7 +106,7 @@ type Props = {
 };
 
 const CATEGORY_KEYS = ['central', 'metro_local', 'basic_local', 'public', 'education', 'other'] as const;
-const STATUS_KEYS = ['applied', 'pending', 'selected', 'rejected', 'cancel_notice', 'cancel_confirmed', 'same_day_cancel'] as const;
+const STATUS_KEYS = ['applied', 'pending', 'selected', 'rejected', 'pre_cancel', 'cancel_notice', 'cancel_confirmed', 'same_day_cancel'] as const;
 const SORTABLE_COLS = ['status', 'name', 'knowledge_score', 'applied_at'] as const;
 type SortableCol = (typeof SORTABLE_COLS)[number];
 
@@ -531,17 +533,22 @@ function ChipFilter({
         전체
       </button>
       {items.map((it) => {
-        if (it.count === 0 && it.key !== current) return null;
         const active = current === it.key;
+        const zero = it.count === 0;
         return (
           <button
             type='button'
             key={it.key}
             onClick={() => onChange(active ? null : it.key)}
+            disabled={zero && !active}
             className={cn(
               'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
               it.tone,
-              active ? 'ring-2 ring-offset-1' : 'opacity-70 hover:opacity-100'
+              active
+                ? 'ring-2 ring-offset-1'
+                : zero
+                  ? 'opacity-30 cursor-not-allowed'
+                  : 'opacity-70 hover:opacity-100'
             )}
           >
             {it.label} <span className='tabular-nums opacity-70'>{it.count}</span>

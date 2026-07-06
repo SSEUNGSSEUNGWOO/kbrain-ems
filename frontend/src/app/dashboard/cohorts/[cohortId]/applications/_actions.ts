@@ -11,7 +11,7 @@ import {
 import type { Json } from '@/lib/supabase/types';
 import type { SelectionConfigSnapshot } from './_selection-logic';
 
-const ALLOWED_STATUSES = ['applied', 'pending', 'selected', 'rejected', 'cancel_notice', 'cancel_confirmed', 'same_day_cancel'] as const;
+const ALLOWED_STATUSES = ['applied', 'pending', 'selected', 'rejected', 'pre_cancel', 'cancel_notice', 'cancel_confirmed', 'same_day_cancel'] as const;
 type ApplicationStatus = (typeof ALLOWED_STATUSES)[number];
 
 export async function updateApplicationStatus(
@@ -38,6 +38,7 @@ export async function updateApplicationStatus(
 
   const STATUS_KO: Record<string, string> = {
     applied: '신청', pending: '심사중', selected: '선발', rejected: '탈락',
+    pre_cancel: '취소예정',
     cancel_notice: '취소통보', cancel_confirmed: '취소확정', same_day_cancel: '당일취소'
   };
   await logActivity({

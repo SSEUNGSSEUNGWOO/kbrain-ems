@@ -328,6 +328,10 @@ export default async function CohortApplicationsPage({ params, searchParams }: P
     pending: 0,
     selected: 0,
     rejected: 0,
+    pre_cancel: 0,
+    cancel_notice: 0,
+    cancel_confirmed: 0,
+    same_day_cancel: 0,
     withdrawn: 0
   };
   for (const r of statsRows ?? []) {
