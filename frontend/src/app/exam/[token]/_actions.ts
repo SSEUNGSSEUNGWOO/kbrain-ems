@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { createAdminClient } from '@/lib/supabase/server';
+import type { Json } from '@/lib/supabase/types';
 
 type StringAnswer = { key?: string; text?: string; file_path?: string; notes?: string; url?: string };
 
@@ -45,7 +46,7 @@ export async function advanceQuestion(input: {
     {
       session_id: session.id,
       question_id: currentEntry.question_id,
-      answer_value: answer as unknown as Record<string, unknown>,
+      answer_value: (answer ?? null) as unknown as Json,
       submitted_at: new Date().toISOString(),
       feedback: timeoutReached ? '시간 초과로 자동 확정' : null
     },
