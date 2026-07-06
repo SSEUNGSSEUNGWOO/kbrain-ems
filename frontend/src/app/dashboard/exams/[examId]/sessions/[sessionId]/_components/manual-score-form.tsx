@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { saveManualScore } from '../../../_actions';
+import { saveManualScore } from '../../../../_actions';
 import { Badge } from '@/components/ui/badge';
 
 type Props = {
