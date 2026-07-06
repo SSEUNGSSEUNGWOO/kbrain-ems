@@ -1,83 +1,53 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
 import { createAdminClient } from '@/lib/supabase/server';
 import type { Json } from '@/lib/supabase/types';
 
-type StringAnswer = { key?: string; text?: string; file_path?: string; notes?: string; url?: string };
+type Answer = { key?: string; text?: string; file_path?: string; notes?: string; url?: string };
 
-// 개별 문항 응답 저장 + 다음 문항으로 진행.
-// 순차 CBT — order_no 앞뒤 검증. 이미 지난 문항은 잠금.
-export async function advanceQuestion(input: {
+// 문항 응답 저장 + 다음 진행 (fire-and-forget 성격 — 클라이언트는 대기 안 함).
+// 이전 클릭 시마다 5~8회 왕복하던 걸 upsert+update 병렬로 사실상 2회로 단축.
+export async function saveAnswer(input: {
   token: string;
-  questionOrder: number;
-  answer: StringAnswer | null;
+  currentOrder: number;
+  questionId: string;
+  answer: Answer | null;
   timeoutReached: boolean;
-}): Promise<{ error?: string; nextOrder?: number | 'done' }> {
-  const { token, questionOrder, answer, timeoutReached } = input;
+  isLast: boolean;
+}): Promise<{ error?: string }> {
   const s = createAdminClient();
 
   const { data: session } = await s
     .from('exam_sessions')
-    .select('id, exam_id, started_at, submitted_at, current_order_no')
-    .eq('token', token)
+    .select('id, submitted_at')
+    .eq('token', input.token)
     .maybeSingle();
   if (!session) return { error: '세션이 없습니다.' };
-  if (session.submitted_at) return { error: '이미 제출되었습니다.' };
-  if (!session.started_at) return { error: '시험을 아직 시작하지 않았습니다.' };
+  if (session.submitted_at) return {}; // 이미 제출된 경우 silent
 
-  // 순차 검증: 클라이언트가 주장한 문항이 현재 세션이 있는 문항과 일치해야 함
-  if (session.current_order_no !== questionOrder) {
-    return { error: '문항 순서가 어긋났습니다. 새로고침 후 다시 시도하세요.' };
-  }
+  const now = new Date().toISOString();
 
-  const { data: qie } = await s
-    .from('exam_questions_in_exam')
-    .select('question_id, order_no')
-    .eq('exam_id', session.exam_id)
-    .order('order_no');
-  if (!qie || qie.length === 0) return { error: '문항이 없습니다.' };
-
-  const currentEntry = qie.find((r) => r.order_no === questionOrder);
-  if (!currentEntry) return { error: '문항을 찾을 수 없습니다.' };
-
-  // 응답 upsert
-  const { error: upErr } = await s.from('exam_responses').upsert(
+  const respPromise = s.from('exam_responses').upsert(
     {
       session_id: session.id,
-      question_id: currentEntry.question_id,
-      answer_value: (answer ?? null) as unknown as Json,
-      submitted_at: new Date().toISOString(),
-      feedback: timeoutReached ? '시간 초과로 자동 확정' : null
-    },
-    { onConflict: 'session_id,question_id' }
-  );
-  if (upErr) return { error: upErr.message };
-
-  // 다음 문항으로 진행 또는 종료
-  const nextEntry = qie.find((r) => r.order_no === questionOrder + 1);
-  if (!nextEntry) {
-    // 마지막 문항 응답 후: 아직 자동 제출 안 함 — 클라이언트에서 명시적으로 제출
-    return { nextOrder: 'done' };
-  }
-
-  // 다음 문항 진입 처리: current_order_no 갱신 + 응답 row 준비 (visited_at)
-  await s
-    .from('exam_sessions')
-    .update({ current_order_no: nextEntry.order_no })
-    .eq('id', session.id);
-
-  await s.from('exam_responses').upsert(
-    {
-      session_id: session.id,
-      question_id: nextEntry.question_id,
-      visited_at: new Date().toISOString(),
-      answer_value: null
+      question_id: input.questionId,
+      answer_value: (input.answer ?? null) as unknown as Json,
+      submitted_at: now,
+      feedback: input.timeoutReached ? '시간 초과로 자동 확정' : null
     },
     { onConflict: 'session_id,question_id' }
   );
 
-  return { nextOrder: nextEntry.order_no };
+  const sessPromise = input.isLast
+    ? Promise.resolve({ error: null as Error | null })
+    : s
+        .from('exam_sessions')
+        .update({ current_order_no: input.currentOrder + 1 })
+        .eq('id', session.id);
+
+  const [respRes] = await Promise.all([respPromise, sessPromise]);
+  if (respRes.error) return { error: respRes.error.message };
+  return {};
 }
 
 export async function startSession(token: string): Promise<{ error?: string }> {
@@ -86,45 +56,22 @@ export async function startSession(token: string): Promise<{ error?: string }> {
 
   const { data: session } = await s
     .from('exam_sessions')
-    .select('id, exam_id, started_at, submitted_at')
+    .select('id, started_at, submitted_at')
     .eq('token', token)
     .maybeSingle();
   if (!session) return { error: '세션이 없습니다.' };
   if (session.submitted_at) return { error: '이미 제출되었습니다.' };
-  if (session.started_at) return {}; // 이미 시작
-
-  const { data: firstQ } = await s
-    .from('exam_questions_in_exam')
-    .select('question_id, order_no')
-    .eq('exam_id', session.exam_id)
-    .order('order_no')
-    .limit(1)
-    .maybeSingle();
-  if (!firstQ) return { error: '문항이 없습니다.' };
+  if (session.started_at) return {};
 
   const { error } = await s
     .from('exam_sessions')
-    .update({
-      started_at: now,
-      current_order_no: firstQ.order_no
-    })
+    .update({ started_at: now, current_order_no: 1 })
     .eq('id', session.id);
   if (error) return { error: error.message };
-
-  await s.from('exam_responses').upsert(
-    {
-      session_id: session.id,
-      question_id: firstQ.question_id,
-      visited_at: now,
-      answer_value: null
-    },
-    { onConflict: 'session_id,question_id' }
-  );
-
-  revalidatePath(`/exam/${token}`);
   return {};
 }
 
+// fire-and-forget: 세션 조회 + append + update. 응답 안 기다림.
 export async function logBrowserEvent(input: {
   token: string;
   event: string;
@@ -137,9 +84,14 @@ export async function logBrowserEvent(input: {
     .eq('token', input.token)
     .maybeSingle();
   if (!session) return;
-  const events = Array.isArray(session.browser_events) ? session.browser_events : [];
-  events.push({ event: input.event, at: input.at });
-  await s.from('exam_sessions').update({ browser_events: events }).eq('id', session.id);
+  const existing = Array.isArray(session.browser_events)
+    ? (session.browser_events as unknown as { event: string; at: string }[])
+    : [];
+  existing.push({ event: input.event, at: input.at });
+  await s
+    .from('exam_sessions')
+    .update({ browser_events: existing as unknown as Json })
+    .eq('id', session.id);
 }
 
 // 자동 채점: 객관식·단답만. task_based는 manual.
@@ -153,7 +105,7 @@ export async function submitSession(token: string): Promise<{ error?: string }> 
     .eq('token', token)
     .maybeSingle();
   if (!session) return { error: '세션이 없습니다.' };
-  if (session.submitted_at) return {}; // 이미 제출
+  if (session.submitted_at) return {};
 
   const { data: responses } = await s
     .from('exam_responses')
@@ -170,6 +122,7 @@ export async function submitSession(token: string): Promise<{ error?: string }> 
   let autoScore = 0;
   let hasManual = false;
 
+  const updatePromises: Promise<unknown>[] = [];
   for (const r of responses ?? []) {
     const q = qMap.get(r.question_id);
     if (!q) continue;
@@ -177,15 +130,15 @@ export async function submitSession(token: string): Promise<{ error?: string }> 
     let earned = 0;
 
     if (q.type === 'multiple_choice') {
-      const correctKey = (q.correct as { key?: string })?.key;
+      const correctKey = (q.correct as { key?: string } | null)?.key;
       if (correctKey && ans && (ans as { key?: string }).key === correctKey) {
         earned = q.score;
       }
     } else if (q.type === 'short_text') {
-      const keywords = ((q.correct as { keywords?: string[] })?.keywords ?? []).map((k) =>
-        k.trim().toLowerCase()
-      );
-      const submitted = String((ans as { text?: string })?.text ?? '')
+      const keywords = (
+        (q.correct as { keywords?: string[] } | null)?.keywords ?? []
+      ).map((k) => k.trim().toLowerCase());
+      const submitted = String((ans as { text?: string } | null)?.text ?? '')
         .trim()
         .toLowerCase();
       if (submitted && keywords.some((k) => submitted === k)) {
@@ -193,14 +146,16 @@ export async function submitSession(token: string): Promise<{ error?: string }> 
       }
     } else if (q.type === 'task_based') {
       hasManual = true;
-      // 자동 채점 없음 — manual_score는 채점자 수동 입력
     }
 
     if (q.type !== 'task_based') {
-      await s.from('exam_responses').update({ auto_score: earned }).eq('id', r.id);
+      updatePromises.push(
+        s.from('exam_responses').update({ auto_score: earned }).eq('id', r.id)
+      );
       autoScore += earned;
     }
   }
+  await Promise.all(updatePromises);
 
   const { error } = await s
     .from('exam_sessions')
@@ -212,6 +167,5 @@ export async function submitSession(token: string): Promise<{ error?: string }> 
     })
     .eq('id', session.id);
   if (error) return { error: error.message };
-
   return {};
 }

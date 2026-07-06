@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useRef, useState, useTransition } from 'react';
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { advanceQuestion, logBrowserEvent, submitSession } from '../../_actions';
+import { saveAnswer, logBrowserEvent, submitSession } from '../../_actions';
 
-type Q = {
+export type QuestionForRunner = {
+  order_no: number;
   id: string;
   type: 'multiple_choice' | 'short_text' | 'task_based';
   text: string;
@@ -22,115 +23,116 @@ type Props = {
   examName: string;
   applicantName: string;
   fullscreenRequired: boolean;
-  currentOrder: number;
-  totalCount: number;
-  question: Q;
-  savedAnswer: Record<string, unknown> | null;
-  visitedAt: string | null;
+  startOrder: number;
+  questions: QuestionForRunner[];
+  savedAnswers: Record<string, Record<string, unknown>>;
 };
 
 export function ExamRunner(props: Props) {
-  const {
-    token,
-    examName,
-    applicantName,
-    fullscreenRequired,
-    currentOrder,
-    totalCount,
-    question,
-    savedAnswer,
-    visitedAt
-  } = props;
-
+  const { token, examName, applicantName, fullscreenRequired, startOrder, questions, savedAnswers } = props;
   const router = useRouter();
-  const [pending, startTransition] = useTransition();
-  const [answer, setAnswer] = useState<Record<string, unknown>>(
-    (savedAnswer as Record<string, unknown>) ?? {}
+  const totalCount = questions.length;
+
+  const [currentIdx, setCurrentIdx] = useState(() =>
+    Math.max(0, Math.min(totalCount - 1, startOrder - 1))
   );
+  const [answers, setAnswers] = useState<Record<string, Record<string, unknown>>>(savedAnswers);
+  const [pending, startTransition] = useTransition();
 
-  // 문항별 타이머 (초). visited_at 기준 서버-클라 동기화.
-  const [remaining, setRemaining] = useState<number | null>(() => {
-    if (!question.time_limit_seconds || !visitedAt) return question.time_limit_seconds;
-    const elapsed = Math.floor((Date.now() - new Date(visitedAt).getTime()) / 1000);
-    return Math.max(0, question.time_limit_seconds - elapsed);
-  });
+  const question = questions[currentIdx];
+  const answer = answers[question.id] ?? {};
+  const isLast = currentIdx === totalCount - 1;
 
+  // 문항별 타이머
+  const [remaining, setRemaining] = useState<number | null>(question.time_limit_seconds);
   const timeoutFiredRef = useRef(false);
 
-  const isLast = currentOrder === totalCount;
-
-  // 전체화면 이탈·창 전환 로깅
+  // 문항 전환 시 타이머 리셋
   useEffect(() => {
-    const onFsChange = () => {
-      if (!document.fullscreenElement) {
-        void logBrowserEvent({
-          token,
-          event: 'fullscreen_exit',
-          at: new Date().toISOString()
-        });
-      }
-    };
-    const onVisChange = () => {
-      if (document.visibilityState === 'hidden') {
-        void logBrowserEvent({
-          token,
-          event: 'visibility_hidden',
-          at: new Date().toISOString()
-        });
-      }
-    };
-    document.addEventListener('fullscreenchange', onFsChange);
-    document.addEventListener('visibilitychange', onVisChange);
-    return () => {
-      document.removeEventListener('fullscreenchange', onFsChange);
-      document.removeEventListener('visibilitychange', onVisChange);
-    };
-  }, [token]);
+    timeoutFiredRef.current = false;
+    setRemaining(question.time_limit_seconds);
+  }, [question.id, question.time_limit_seconds]);
 
-  // 문항별 타이머 카운트다운
+  // 카운트다운
   useEffect(() => {
     if (remaining == null) return;
     if (remaining <= 0) {
       if (!timeoutFiredRef.current) {
         timeoutFiredRef.current = true;
-        void handleAdvance(true);
+        void handleNext(true);
       }
       return;
     }
     const id = setTimeout(() => setRemaining((v) => (v == null ? null : v - 1)), 1000);
     return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [remaining]);
 
-  const handleAdvance = async (timeoutReached = false) => {
-    const payload = Object.keys(answer).length > 0 ? answer : null;
-    startTransition(async () => {
-      const res = await advanceQuestion({
-        token,
-        questionOrder: currentOrder,
-        answer: payload as never,
-        timeoutReached
-      });
-      if (res.error) {
-        alert(res.error);
-        return;
+  // 전체화면/창 이탈 이벤트 로깅 (fire-and-forget)
+  useEffect(() => {
+    const onFs = () => {
+      if (!document.fullscreenElement) {
+        void logBrowserEvent({ token, event: 'fullscreen_exit', at: new Date().toISOString() });
       }
-      if (res.nextOrder === 'done') {
+    };
+    const onVis = () => {
+      if (document.visibilityState === 'hidden') {
+        void logBrowserEvent({ token, event: 'visibility_hidden', at: new Date().toISOString() });
+      }
+    };
+    document.addEventListener('fullscreenchange', onFs);
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      document.removeEventListener('fullscreenchange', onFs);
+      document.removeEventListener('visibilitychange', onVis);
+    };
+  }, [token]);
+
+  const handleNext = async (timeoutReached = false) => {
+    const payload = Object.keys(answer).length > 0 ? answer : null;
+    // 서버는 fire-and-forget (전송만 하고 클라는 즉시 다음)
+    // 실패 시 콘솔로만 표기, 사용자 흐름은 끊지 않음.
+    const savePromise = saveAnswer({
+      token,
+      currentOrder: question.order_no,
+      questionId: question.id,
+      answer: payload as never,
+      timeoutReached,
+      isLast
+    });
+
+    if (isLast) {
+      startTransition(async () => {
+        const res = await savePromise;
+        if (res.error) alert(res.error);
         await submitSession(token);
-        // 전체화면 해제
         if (document.fullscreenElement) await document.exitFullscreen().catch(() => {});
         router.push(`/exam/${token}/done`);
-      } else {
-        router.refresh();
-      }
+      });
+      return;
+    }
+
+    // 다음 문항으로 즉시 전환
+    setCurrentIdx((idx) => Math.min(totalCount - 1, idx + 1));
+    // 저장 실패는 조용히 뒤에서 확인
+    void savePromise.then((res) => {
+      if (res.error) console.warn('save error:', res.error);
     });
   };
 
-  const canSubmit =
-    question.type === 'task_based' ? true : Object.keys(answer).length > 0;
+  const setAnswerFor = (patch: Record<string, unknown>) => {
+    setAnswers((prev) => ({ ...prev, [question.id]: { ...(prev[question.id] ?? {}), ...patch } }));
+  };
+  const setAnswerReplace = (next: Record<string, unknown>) => {
+    setAnswers((prev) => ({ ...prev, [question.id]: next }));
+  };
+
+  const canSubmit = question.type === 'task_based' ? true : Object.keys(answer).length > 0;
+
+  const progressPct = useMemo(() => ((currentIdx + 1) / totalCount) * 100, [currentIdx, totalCount]);
 
   return (
     <div className='min-h-screen bg-neutral-950 text-neutral-100 flex flex-col'>
-      {/* 상단 고정 헤더 */}
       <header className='sticky top-0 z-20 border-b border-neutral-800 bg-neutral-950/95 backdrop-blur'>
         <div className='mx-auto max-w-4xl px-6 py-3 flex items-center justify-between gap-4'>
           <div>
@@ -144,7 +146,10 @@ export function ExamRunner(props: Props) {
               응시자 <span className='text-neutral-100 ml-1 font-medium'>{applicantName}</span>
             </div>
             <div className='text-neutral-400'>
-              진행 <span className='text-neutral-100 ml-1 font-medium'>{currentOrder}/{totalCount}</span>
+              진행{' '}
+              <span className='text-neutral-100 ml-1 font-medium'>
+                {currentIdx + 1}/{totalCount}
+              </span>
             </div>
             {remaining !== null && (
               <div
@@ -162,16 +167,15 @@ export function ExamRunner(props: Props) {
         <div className='h-1 bg-neutral-900'>
           <div
             className='h-full bg-emerald-500 transition-all duration-300'
-            style={{ width: `${(currentOrder / totalCount) * 100}%` }}
+            style={{ width: `${progressPct}%` }}
           />
         </div>
       </header>
 
-      {/* 본문 */}
       <main className='flex-1 mx-auto max-w-4xl w-full px-6 py-10'>
         <div className='mb-6 flex items-center gap-2'>
           <span className='text-xs font-mono px-2 py-0.5 rounded bg-neutral-800 text-neutral-300'>
-            Q{currentOrder}
+            Q{question.order_no}
           </span>
           {question.category && (
             <span className='text-xs px-2 py-0.5 rounded bg-neutral-900 border border-neutral-800 text-neutral-400'>
@@ -211,7 +215,7 @@ export function ExamRunner(props: Props) {
                 <button
                   key={c.key}
                   type='button'
-                  onClick={() => setAnswer({ key: c.key })}
+                  onClick={() => setAnswerReplace({ key: c.key })}
                   className={`w-full text-left px-4 py-3 rounded-md border transition-all ${
                     selected
                       ? 'border-emerald-500 bg-emerald-950/40 text-emerald-100'
@@ -229,7 +233,7 @@ export function ExamRunner(props: Props) {
         {question.type === 'short_text' && (
           <textarea
             value={(answer as { text?: string }).text ?? ''}
-            onChange={(e) => setAnswer({ text: e.target.value })}
+            onChange={(e) => setAnswerReplace({ text: e.target.value })}
             className='w-full min-h-[120px] rounded-md border border-neutral-800 bg-neutral-900 px-4 py-3 text-neutral-100 focus:border-emerald-500 focus:outline-none resize-none'
             placeholder='답변을 입력하세요'
           />
@@ -240,14 +244,14 @@ export function ExamRunner(props: Props) {
             <p>작업형 문항입니다. 아래에 결과·URL·메모를 입력하세요.</p>
             <textarea
               value={(answer as { notes?: string }).notes ?? ''}
-              onChange={(e) => setAnswer({ ...answer, notes: e.target.value })}
+              onChange={(e) => setAnswerFor({ notes: e.target.value })}
               className='w-full min-h-[100px] rounded-md border border-neutral-800 bg-neutral-900 px-4 py-3 text-neutral-100 focus:border-emerald-500 focus:outline-none resize-none'
               placeholder='구현 메모·요약'
             />
             <input
               type='url'
               value={(answer as { url?: string }).url ?? ''}
-              onChange={(e) => setAnswer({ ...answer, url: e.target.value })}
+              onChange={(e) => setAnswerFor({ url: e.target.value })}
               className='w-full rounded-md border border-neutral-800 bg-neutral-900 px-4 py-2 text-neutral-100 focus:border-emerald-500 focus:outline-none'
               placeholder='제출 URL (npx 명령어·배포 URL 등)'
             />
@@ -258,7 +262,6 @@ export function ExamRunner(props: Props) {
         )}
       </main>
 
-      {/* 하단 고정 */}
       <footer className='sticky bottom-0 border-t border-neutral-800 bg-neutral-950/95 backdrop-blur'>
         <div className='mx-auto max-w-4xl px-6 py-4 flex items-center justify-between gap-4'>
           <div className='text-xs text-neutral-500'>
@@ -266,11 +269,11 @@ export function ExamRunner(props: Props) {
           </div>
           <button
             type='button'
-            onClick={() => void handleAdvance(false)}
+            onClick={() => void handleNext(false)}
             disabled={pending || !canSubmit}
             className='rounded-md bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 disabled:cursor-not-allowed text-neutral-950 font-semibold px-6 py-2.5 transition-colors'
           >
-            {pending ? '저장 중...' : isLast ? '최종 제출' : '다음 문항 →'}
+            {pending ? '제출 중...' : isLast ? '최종 제출' : '다음 문항 →'}
           </button>
         </div>
       </footer>
