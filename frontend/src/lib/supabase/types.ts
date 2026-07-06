@@ -2224,6 +2224,302 @@ export type Database = {
           }
         ];
       };
+      exam_banks: {
+        Row: {
+          id: string;
+          name: string;
+          description: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          description?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          description?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      exam_questions: {
+        Row: {
+          id: string;
+          bank_id: string;
+          code: string | null;
+          category: string | null;
+          grade: string | null;
+          difficulty: string | null;
+          type: string;
+          text: string;
+          score: number;
+          tags: Json;
+          choices: Json | null;
+          correct: Json | null;
+          allow_file_upload: boolean;
+          attachment_url: string | null;
+          time_limit_seconds: number | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          bank_id: string;
+          code?: string | null;
+          category?: string | null;
+          grade?: string | null;
+          difficulty?: string | null;
+          type: string;
+          text: string;
+          score?: number;
+          tags?: Json;
+          choices?: Json | null;
+          correct?: Json | null;
+          allow_file_upload?: boolean;
+          attachment_url?: string | null;
+          time_limit_seconds?: number | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          bank_id?: string;
+          code?: string | null;
+          category?: string | null;
+          grade?: string | null;
+          difficulty?: string | null;
+          type?: string;
+          text?: string;
+          score?: number;
+          tags?: Json;
+          choices?: Json | null;
+          correct?: Json | null;
+          allow_file_upload?: boolean;
+          attachment_url?: string | null;
+          time_limit_seconds?: number | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'exam_questions_bank_id_fkey';
+            columns: ['bank_id'];
+            referencedRelation: 'exam_banks';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      exams: {
+        Row: {
+          id: string;
+          cohort_id: string | null;
+          name: string;
+          description: string | null;
+          time_limit_minutes: number | null;
+          fullscreen_required: boolean;
+          share_code: string | null;
+          opens_at: string | null;
+          closes_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          cohort_id?: string | null;
+          name: string;
+          description?: string | null;
+          time_limit_minutes?: number | null;
+          fullscreen_required?: boolean;
+          share_code?: string | null;
+          opens_at?: string | null;
+          closes_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          cohort_id?: string | null;
+          name?: string;
+          description?: string | null;
+          time_limit_minutes?: number | null;
+          fullscreen_required?: boolean;
+          share_code?: string | null;
+          opens_at?: string | null;
+          closes_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'exams_cohort_id_fkey';
+            columns: ['cohort_id'];
+            referencedRelation: 'cohorts';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      exam_questions_in_exam: {
+        Row: {
+          exam_id: string;
+          question_id: string;
+          order_no: number;
+        };
+        Insert: {
+          exam_id: string;
+          question_id: string;
+          order_no: number;
+        };
+        Update: {
+          exam_id?: string;
+          question_id?: string;
+          order_no?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'exam_questions_in_exam_exam_id_fkey';
+            columns: ['exam_id'];
+            referencedRelation: 'exams';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'exam_questions_in_exam_question_id_fkey';
+            columns: ['question_id'];
+            referencedRelation: 'exam_questions';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      exam_sessions: {
+        Row: {
+          id: string;
+          exam_id: string;
+          student_id: string | null;
+          token: string | null;
+          name: string | null;
+          email: string | null;
+          started_at: string | null;
+          submitted_at: string | null;
+          auto_score: number | null;
+          manual_score: number | null;
+          total_score: number | null;
+          status: string;
+          browser_events: Json;
+          current_order_no: number | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          exam_id: string;
+          student_id?: string | null;
+          token?: string | null;
+          name?: string | null;
+          email?: string | null;
+          started_at?: string | null;
+          submitted_at?: string | null;
+          auto_score?: number | null;
+          manual_score?: number | null;
+          total_score?: number | null;
+          status?: string;
+          browser_events?: Json;
+          current_order_no?: number | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          exam_id?: string;
+          student_id?: string | null;
+          token?: string | null;
+          name?: string | null;
+          email?: string | null;
+          started_at?: string | null;
+          submitted_at?: string | null;
+          auto_score?: number | null;
+          manual_score?: number | null;
+          total_score?: number | null;
+          status?: string;
+          browser_events?: Json;
+          current_order_no?: number | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'exam_sessions_exam_id_fkey';
+            columns: ['exam_id'];
+            referencedRelation: 'exams';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'exam_sessions_student_id_fkey';
+            columns: ['student_id'];
+            referencedRelation: 'students';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      exam_responses: {
+        Row: {
+          id: string;
+          session_id: string;
+          question_id: string;
+          answer_value: Json | null;
+          auto_score: number | null;
+          manual_score: number | null;
+          feedback: string | null;
+          submitted_at: string | null;
+          visited_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          session_id: string;
+          question_id: string;
+          answer_value?: Json | null;
+          auto_score?: number | null;
+          manual_score?: number | null;
+          feedback?: string | null;
+          submitted_at?: string | null;
+          visited_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          session_id?: string;
+          question_id?: string;
+          answer_value?: Json | null;
+          auto_score?: number | null;
+          manual_score?: number | null;
+          feedback?: string | null;
+          submitted_at?: string | null;
+          visited_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'exam_responses_session_id_fkey';
+            columns: ['session_id'];
+            referencedRelation: 'exam_sessions';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'exam_responses_question_id_fkey';
+            columns: ['question_id'];
+            referencedRelation: 'exam_questions';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
     };
     Views: {
       [_ in never]: never;
