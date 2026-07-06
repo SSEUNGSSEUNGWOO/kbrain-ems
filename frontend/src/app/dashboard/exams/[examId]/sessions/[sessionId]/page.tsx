@@ -205,11 +205,6 @@ export default async function ExamSessionDetailPage({ params }: Props) {
                         {q.category}
                       </Badge>
                     )}
-                    {q.difficulty && (
-                      <Badge variant='outline' className='text-xs'>
-                        난이도 {q.difficulty}
-                      </Badge>
-                    )}
                     <span className='text-xs text-muted-foreground ml-auto'>배점 {q.score}점</span>
                     {correctness === 'correct' && (
                       <Badge className='bg-emerald-100 text-emerald-800 border-emerald-200'>정답</Badge>

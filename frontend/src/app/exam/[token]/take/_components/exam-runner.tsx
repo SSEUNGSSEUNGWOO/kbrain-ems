@@ -215,11 +215,6 @@ export function ExamRunner(props: Props) {
               {question.category}
             </span>
           )}
-          {question.difficulty && (
-            <span className='text-xs px-2 py-0.5 rounded bg-white border border-slate-200 text-slate-600'>
-              난이도 {question.difficulty}
-            </span>
-          )}
           <span className='text-xs text-slate-400 ml-auto'>배점 {question.score}점</span>
         </div>
 
