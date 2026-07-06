@@ -2454,6 +2454,8 @@ export type Database = {
           browser_events: Json;
           current_order_no: number | null;
           phone_last4: string | null;
+          section_progress: Json;
+          flagged_question_ids: Json;
           created_at: string;
           updated_at: string;
         };
@@ -2473,6 +2475,8 @@ export type Database = {
           browser_events?: Json;
           current_order_no?: number | null;
           phone_last4?: string | null;
+          section_progress?: Json;
+          flagged_question_ids?: Json;
           created_at?: string;
           updated_at?: string;
         };
@@ -2492,6 +2496,8 @@ export type Database = {
           browser_events?: Json;
           current_order_no?: number | null;
           phone_last4?: string | null;
+          section_progress?: Json;
+          flagged_question_ids?: Json;
           created_at?: string;
           updated_at?: string;
         };

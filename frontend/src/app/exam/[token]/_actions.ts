@@ -4,81 +4,154 @@ import { createAdminClient } from '@/lib/supabase/server';
 import type { Json } from '@/lib/supabase/types';
 
 type Answer = { key?: string; text?: string; file_path?: string; notes?: string; url?: string };
+type SectionKind = 'multiple_choice' | 'short_text' | 'task_based';
 
-// 문항 응답 저장 + 다음 진행. 순서 검증(CAS)으로 부정 조작·중복 요청 방어.
-export async function saveAnswer(input: {
-  token: string;
-  currentOrder: number;
-  questionId: string;
-  answer: Answer | null;
-  timeoutReached: boolean;
-  isLast: boolean;
-}): Promise<{ error?: string }> {
-  const s = createAdminClient();
+const SECTION_ORDER: SectionKind[] = ['multiple_choice', 'short_text', 'task_based'];
 
-  const { data: session } = await s
-    .from('exam_sessions')
-    .select('id, submitted_at, current_order_no')
-    .eq('token', input.token)
-    .maybeSingle();
-  if (!session) return { error: '세션이 없습니다.' };
-  if (session.submitted_at) return {}; // 이미 제출된 경우 silent
+type SectionState = {
+  started_at?: string | null;
+  submitted_at?: string | null;
+};
+type SectionProgress = Partial<Record<SectionKind, SectionState>>;
 
-  // CAS 검증: 클라이언트가 주장한 order와 서버 order 일치해야만 다음으로 진행
-  if (session.current_order_no !== input.currentOrder) {
-    return { error: '문항 순서가 어긋났습니다. 새로고침 후 다시 시도하세요.' };
-  }
-
-  const now = new Date().toISOString();
-
-  const respPromise = s.from('exam_responses').upsert(
-    {
-      session_id: session.id,
-      question_id: input.questionId,
-      answer_value: (input.answer ?? null) as unknown as Json,
-      submitted_at: now,
-      feedback: input.timeoutReached ? '시간 초과로 자동 확정' : null
-    },
-    { onConflict: 'session_id,question_id' }
-  );
-
-  // 순서 갱신은 CAS: 다른 요청이 이미 갱신했으면 데이터 반환 없음 → 무시
-  const sessPromise = input.isLast
-    ? Promise.resolve({ error: null as Error | null })
-    : s
-        .from('exam_sessions')
-        .update({ current_order_no: input.currentOrder + 1 })
-        .eq('id', session.id)
-        .eq('current_order_no', input.currentOrder);
-
-  const [respRes] = await Promise.all([respPromise, sessPromise]);
-  if (respRes.error) return { error: respRes.error.message };
-  return {};
+function nextSectionOf(kind: SectionKind): SectionKind | null {
+  const idx = SECTION_ORDER.indexOf(kind);
+  return idx >= 0 && idx < SECTION_ORDER.length - 1 ? SECTION_ORDER[idx + 1] : null;
 }
 
+// 첫 진입: 세션 시작 + 객관식 섹션 시작 (순차단방향)
 export async function startSession(token: string): Promise<{ error?: string }> {
   const s = createAdminClient();
   const now = new Date().toISOString();
 
   const { data: session } = await s
     .from('exam_sessions')
-    .select('id, started_at, submitted_at')
+    .select('id, started_at, submitted_at, section_progress')
     .eq('token', token)
     .maybeSingle();
   if (!session) return { error: '세션이 없습니다.' };
   if (session.submitted_at) return { error: '이미 제출되었습니다.' };
-  if (session.started_at) return {};
+  if (session.started_at) return {}; // 이미 시작
+
+  const initialProgress: SectionProgress = {
+    multiple_choice: { started_at: now, submitted_at: null },
+    short_text: { started_at: null, submitted_at: null },
+    task_based: { started_at: null, submitted_at: null }
+  };
 
   const { error } = await s
     .from('exam_sessions')
-    .update({ started_at: now, current_order_no: 1 })
+    .update({
+      started_at: now,
+      section_progress: initialProgress as unknown as Json
+    })
     .eq('id', session.id);
   if (error) return { error: error.message };
   return {};
 }
 
-// 원자적 append — pg 함수(append_exam_browser_event)로 race condition 없이 처리.
-// 이전: 조회→push→update 3단계에서 동시 이벤트 손실. 이제 UPDATE 한 문장.
+// 응답 저장 — 순서 검증 없음. 섹션이 진행 중이어야 함.
+export async function saveAnswer(input: {
+  token: string;
+  questionId: string;
+  sectionKind: SectionKind;
+  answer: Answer | null;
+}): Promise<{ error?: string }> {
+  const s = createAdminClient();
+
+  const { data: session } = await s
+    .from('exam_sessions')
+    .select('id, submitted_at, section_progress')
+    .eq('token', input.token)
+    .maybeSingle();
+  if (!session) return { error: '세션이 없습니다.' };
+  if (session.submitted_at) return {};
+
+  const sp = (session.section_progress ?? {}) as unknown as SectionProgress;
+  const sect = sp[input.sectionKind];
+  if (!sect?.started_at) return { error: '섹션이 시작되지 않았습니다.' };
+  if (sect.submitted_at) return { error: '섹션이 이미 종료됐습니다.' };
+
+  const { error } = await s.from('exam_responses').upsert(
+    {
+      session_id: session.id,
+      question_id: input.questionId,
+      answer_value: (input.answer ?? null) as unknown as Json,
+      submitted_at: new Date().toISOString()
+    },
+    { onConflict: 'session_id,question_id' }
+  );
+  if (error) return { error: error.message };
+  return {};
+}
+
+// 검토 플래그 토글
+export async function toggleFlag(input: {
+  token: string;
+  questionId: string;
+}): Promise<{ error?: string; flagged?: boolean }> {
+  const s = createAdminClient();
+
+  const { data: session } = await s
+    .from('exam_sessions')
+    .select('id, submitted_at, flagged_question_ids')
+    .eq('token', input.token)
+    .maybeSingle();
+  if (!session) return { error: '세션이 없습니다.' };
+  if (session.submitted_at) return {};
+
+  const list = Array.isArray(session.flagged_question_ids)
+    ? (session.flagged_question_ids as unknown as string[])
+    : [];
+  const has = list.includes(input.questionId);
+  const next = has ? list.filter((x) => x !== input.questionId) : [...list, input.questionId];
+
+  const { error } = await s
+    .from('exam_sessions')
+    .update({ flagged_question_ids: next as unknown as Json })
+    .eq('id', session.id);
+  if (error) return { error: error.message };
+  return { flagged: !has };
+}
+
+// 섹션 종료 → 다음 섹션 자동 시작 (순차단방향). 마지막 섹션이면 종료만 처리.
+export async function submitSection(input: {
+  token: string;
+  sectionKind: SectionKind;
+  timeoutReached: boolean;
+}): Promise<{ error?: string; nextSection?: SectionKind | null }> {
+  const s = createAdminClient();
+  const now = new Date().toISOString();
+
+  const { data: session } = await s
+    .from('exam_sessions')
+    .select('id, submitted_at, section_progress')
+    .eq('token', input.token)
+    .maybeSingle();
+  if (!session) return { error: '세션이 없습니다.' };
+  if (session.submitted_at) return {};
+
+  const sp = { ...((session.section_progress ?? {}) as unknown as SectionProgress) };
+  const cur = sp[input.sectionKind];
+  if (!cur?.started_at) return { error: '섹션이 시작되지 않았습니다.' };
+  if (cur.submitted_at) {
+    // 이미 종료됨 — 다음 섹션 알림
+    return { nextSection: nextSectionOf(input.sectionKind) };
+  }
+
+  sp[input.sectionKind] = { ...cur, submitted_at: now };
+  const nxt = nextSectionOf(input.sectionKind);
+  if (nxt) sp[nxt] = { ...(sp[nxt] ?? {}), started_at: now, submitted_at: null };
+
+  const { error } = await s
+    .from('exam_sessions')
+    .update({ section_progress: sp as unknown as Json })
+    .eq('id', session.id);
+  if (error) return { error: error.message };
+  return { nextSection: nxt };
+}
+
+// 브라우저 이벤트 원자적 append
 export async function logBrowserEvent(input: {
   token: string;
   event: string;
@@ -104,12 +177,11 @@ export async function logBrowserEvent(input: {
   });
 }
 
-// 자동 채점: 객관식·단답만. task_based는 manual.
+// 최종 제출 + 자동 채점 (객관식·단답)
 export async function submitSession(token: string): Promise<{ error?: string }> {
   const s = createAdminClient();
   const now = new Date().toISOString();
 
-  // 응답+문항+세션을 한 쿼리로 조인 → in-memory 채점 → 세션 update 1회
   const { data: joined } = await s
     .from('exam_responses')
     .select(
@@ -140,31 +212,24 @@ export async function submitSession(token: string): Promise<{ error?: string }> 
     return {};
   }
 
-  const responses = rows.map((r) => ({ question_id: r.question_id, answer_value: r.answer_value }));
-  const qMap = new Map(rows.filter((r) => r.exam_questions).map((r) => [r.exam_questions!.id, r.exam_questions!]));
   let autoScore = 0;
   let hasManual = false;
-
-  for (const r of responses ?? []) {
-    const q = qMap.get(r.question_id);
+  for (const r of rows) {
+    const q = r.exam_questions;
     if (!q) continue;
-    const ans = r.answer_value as Record<string, unknown> | null;
+    const ans = r.answer_value;
 
     if (q.type === 'multiple_choice') {
       const correctKey = (q.correct as { key?: string } | null)?.key;
-      if (correctKey && ans && (ans as { key?: string }).key === correctKey) {
-        autoScore += q.score;
-      }
+      if (correctKey && ans && (ans as { key?: string }).key === correctKey) autoScore += q.score;
     } else if (q.type === 'short_text') {
-      const keywords = (
-        (q.correct as { keywords?: string[] } | null)?.keywords ?? []
-      ).map((k) => k.trim().toLowerCase());
-      const submitted = String((ans as { text?: string } | null)?.text ?? '')
+      const keywords = ((q.correct as { keywords?: string[] } | null)?.keywords ?? []).map((k) =>
+        k.trim().toLowerCase()
+      );
+      const text = String((ans as { text?: string } | null)?.text ?? '')
         .trim()
         .toLowerCase();
-      if (submitted && keywords.some((k) => submitted === k)) {
-        autoScore += q.score;
-      }
+      if (text && keywords.some((k) => text === k)) autoScore += q.score;
     } else if (q.type === 'task_based') {
       hasManual = true;
     }

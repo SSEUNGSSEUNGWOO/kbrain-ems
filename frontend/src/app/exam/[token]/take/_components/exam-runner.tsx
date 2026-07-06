@@ -2,81 +2,110 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { saveAnswer, logBrowserEvent, submitSession } from '../../_actions';
+import { saveAnswer, logBrowserEvent, submitSection, submitSession, toggleFlag } from '../../_actions';
+
+export type SectionKind = 'multiple_choice' | 'short_text' | 'task_based';
 
 export type QuestionForRunner = {
   order_no: number;
   id: string;
-  type: 'multiple_choice' | 'short_text' | 'task_based';
+  type: SectionKind;
   text: string;
   score: number;
   choices: { key: string; text: string }[] | null;
-  time_limit_seconds: number | null;
   allow_file_upload: boolean;
   attachment_url: string | null;
   category: string | null;
-  difficulty: string | null;
 };
+
+const SECTION_LABEL: Record<SectionKind, string> = {
+  multiple_choice: '객관식',
+  short_text: '단답형',
+  task_based: '작업형'
+};
+const SECTION_TONE: Record<SectionKind, string> = {
+  multiple_choice: 'bg-blue-100 text-blue-800 border-blue-300',
+  short_text: 'bg-emerald-100 text-emerald-800 border-emerald-300',
+  task_based: 'bg-amber-100 text-amber-800 border-amber-300'
+};
+
+const SECTION_ORDER: SectionKind[] = ['multiple_choice', 'short_text', 'task_based'];
 
 type Props = {
   token: string;
   examName: string;
   applicantName: string;
   fullscreenRequired: boolean;
-  startOrder: number;
   questions: QuestionForRunner[];
   savedAnswers: Record<string, Record<string, unknown>>;
-};
-
-const TYPE_LABEL: Record<string, string> = {
-  multiple_choice: '객관식',
-  short_text: '단답형',
-  task_based: '작업형'
-};
-const TYPE_TONE: Record<string, string> = {
-  multiple_choice: 'bg-blue-100 text-blue-800 border-blue-200',
-  short_text: 'bg-emerald-100 text-emerald-800 border-emerald-200',
-  task_based: 'bg-amber-100 text-amber-800 border-amber-200'
+  flaggedIds: string[];
+  currentSection: SectionKind;
+  currentSectionStartedAt: string;
+  sectionLimits: Record<SectionKind, number>;
 };
 
 export function ExamRunner(props: Props) {
-  const { token, examName, applicantName, fullscreenRequired, startOrder, questions, savedAnswers } = props;
-  const router = useRouter();
-  const totalCount = questions.length;
+  const {
+    token,
+    examName,
+    applicantName,
+    fullscreenRequired,
+    questions,
+    savedAnswers,
+    flaggedIds,
+    currentSection,
+    currentSectionStartedAt,
+    sectionLimits
+  } = props;
 
-  const [currentIdx, setCurrentIdx] = useState(() =>
-    Math.max(0, Math.min(totalCount - 1, startOrder - 1))
+  const router = useRouter();
+  const isTask = currentSection === 'task_based';
+
+  // 섹션별 문항 필터
+  const sectionQuestions = useMemo(
+    () => questions.filter((q) => q.type === currentSection),
+    [questions, currentSection]
   );
+
   const [answers, setAnswers] = useState<Record<string, Record<string, unknown>>>(savedAnswers);
+  const [flagged, setFlagged] = useState<Set<string>>(new Set(flaggedIds));
+  const [currentIdx, setCurrentIdx] = useState(0);
   const [pending, startTransition] = useTransition();
 
-  const question = questions[currentIdx];
-  const answer = answers[question.id] ?? {};
-  const isLast = currentIdx === totalCount - 1;
+  const question = sectionQuestions[currentIdx];
+  const answer = question ? answers[question.id] ?? {} : {};
 
-  const [remaining, setRemaining] = useState<number | null>(question.time_limit_seconds);
+  // 섹션 타이머 (서버 시각 기준)
+  const sectionLimit = sectionLimits[currentSection];
+  const [remaining, setRemaining] = useState(() => {
+    const elapsed = Math.floor((Date.now() - new Date(currentSectionStartedAt).getTime()) / 1000);
+    return Math.max(0, sectionLimit - elapsed);
+  });
+
   const timeoutFiredRef = useRef(false);
 
   useEffect(() => {
+    // 섹션 변경 시 리셋
     timeoutFiredRef.current = false;
-    setRemaining(question.time_limit_seconds);
-  }, [question.id, question.time_limit_seconds]);
+    const elapsed = Math.floor((Date.now() - new Date(currentSectionStartedAt).getTime()) / 1000);
+    setRemaining(Math.max(0, sectionLimit - elapsed));
+    setCurrentIdx(0);
+  }, [currentSection, currentSectionStartedAt, sectionLimit]);
 
   useEffect(() => {
-    if (remaining == null) return;
     if (remaining <= 0) {
       if (!timeoutFiredRef.current) {
         timeoutFiredRef.current = true;
-        void handleNext(true);
+        void handleAdvanceSection(true);
       }
       return;
     }
-    const id = setTimeout(() => setRemaining((v) => (v == null ? null : v - 1)), 1000);
+    const id = setTimeout(() => setRemaining((v) => v - 1), 1000);
     return () => clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [remaining]);
 
-  const isTask = question.type === 'task_based';
+  // 이탈 감지 (작업형은 스킵)
   const fsExitStartRef = useRef<number | null>(null);
   const visExitStartRef = useRef<number | null>(null);
   const [exitCount, setExitCount] = useState(0);
@@ -85,7 +114,6 @@ export function ExamRunner(props: Props) {
   const [liveElapsedMs, setLiveElapsedMs] = useState(0);
   const [duplicateTab, setDuplicateTab] = useState(false);
 
-  // 다중 탭 감지 (BroadcastChannel)
   useEffect(() => {
     if (typeof BroadcastChannel === 'undefined') return;
     const bc = new BroadcastChannel(`exam-${token}`);
@@ -100,15 +128,11 @@ export function ExamRunner(props: Props) {
     return () => bc.close();
   }, [token]);
 
-  // 이탈 중일 때 라이브 카운터 (1초 간격)
   useEffect(() => {
     if (!inExit) return;
     const id = setInterval(() => {
-      if (fsExitStartRef.current != null) {
-        setLiveElapsedMs(Date.now() - fsExitStartRef.current);
-      } else if (visExitStartRef.current != null) {
-        setLiveElapsedMs(Date.now() - visExitStartRef.current);
-      }
+      if (fsExitStartRef.current != null) setLiveElapsedMs(Date.now() - fsExitStartRef.current);
+      else if (visExitStartRef.current != null) setLiveElapsedMs(Date.now() - visExitStartRef.current);
     }, 500);
     return () => clearInterval(id);
   }, [inExit]);
@@ -163,128 +187,105 @@ export function ExamRunner(props: Props) {
     }
   };
 
-  const handleNext = async (timeoutReached = false) => {
-    if (duplicateTab) return; // 다른 탭 감지 시 진행 차단
-    const payload = Object.keys(answer).length > 0 ? answer : null;
-
-    // 재시도(300/600ms)로 네트워크 flap 완화
-    const runSave = async () => {
-      let last: { error?: string } = {};
-      for (let i = 0; i < 3; i++) {
-        try {
-          const res = await saveAnswer({
-            token,
-            currentOrder: question.order_no,
-            questionId: question.id,
-            answer: payload as never,
-            timeoutReached,
-            isLast
-          });
-          if (!res.error) return res;
-          last = res;
-        } catch (e) {
-          last = { error: e instanceof Error ? e.message : '저장 실패' };
-        }
-        if (i < 2) await new Promise((r) => setTimeout(r, 300 * (i + 1)));
+  // 응답 저장 (debounced 아닌 즉시. 재시도 3회)
+  const runSave = async (questionId: string, payload: Record<string, unknown> | null) => {
+    for (let i = 0; i < 3; i++) {
+      try {
+        const res = await saveAnswer({
+          token,
+          questionId,
+          sectionKind: currentSection,
+          answer: (payload as never) ?? null
+        });
+        if (!res.error) return res;
+      } catch {
+        /* retry */
       }
-      return last;
-    };
-    const savePromise = runSave();
+      if (i < 2) await new Promise((r) => setTimeout(r, 300 * (i + 1)));
+    }
+    return { error: '저장 실패' };
+  };
 
-    if (isLast) {
-      startTransition(async () => {
-        const res = await savePromise;
-        if (res.error) alert(res.error);
+  const setAnswerReplace = (next: Record<string, unknown>) => {
+    if (!question) return;
+    setAnswers((prev) => ({ ...prev, [question.id]: next }));
+    const payload = Object.keys(next).length > 0 ? next : null;
+    void runSave(question.id, payload);
+  };
+  const setAnswerFor = (patch: Record<string, unknown>) => {
+    if (!question) return;
+    const merged = { ...(answers[question.id] ?? {}), ...patch };
+    setAnswers((prev) => ({ ...prev, [question.id]: merged }));
+    const payload = Object.keys(merged).length > 0 ? merged : null;
+    void runSave(question.id, payload);
+  };
+
+  const handleToggleFlag = async () => {
+    if (!question) return;
+    setFlagged((prev) => {
+      const next = new Set(prev);
+      if (next.has(question.id)) next.delete(question.id);
+      else next.add(question.id);
+      return next;
+    });
+    void toggleFlag({ token, questionId: question.id });
+  };
+
+  // 섹션 진행 → 다음 섹션 이동 (or 마지막이면 최종 제출)
+  const handleAdvanceSection = async (timeoutReached: boolean) => {
+    startTransition(async () => {
+      const res = await submitSection({ token, sectionKind: currentSection, timeoutReached });
+      if (res.error) {
+        alert(res.error);
+        return;
+      }
+      if (!res.nextSection) {
+        // 마지막 섹션 종료 → 최종 제출
         await submitSession(token);
         if (document.fullscreenElement) await document.exitFullscreen().catch(() => {});
         router.push(`/exam/${token}/done`);
-      });
-      return;
-    }
-
-    setCurrentIdx((idx) => Math.min(totalCount - 1, idx + 1));
-    void savePromise.then((res) => {
-      if (res.error) console.warn('save error:', res.error);
+      } else {
+        router.refresh();
+      }
     });
   };
 
-  const setAnswerFor = (patch: Record<string, unknown>) => {
-    setAnswers((prev) => ({ ...prev, [question.id]: { ...(prev[question.id] ?? {}), ...patch } }));
-  };
-  const setAnswerReplace = (next: Record<string, unknown>) => {
-    setAnswers((prev) => ({ ...prev, [question.id]: next }));
-  };
+  const canGoPrev = currentIdx > 0;
+  const canGoNext = currentIdx < sectionQuestions.length - 1;
+  const answeredCount = sectionQuestions.filter((q) => (answers[q.id] ?? {}) && Object.keys(answers[q.id] ?? {}).length > 0).length;
 
-  const canSubmit = question.type === 'task_based' ? true : Object.keys(answer).length > 0;
-  const progressPct = useMemo(() => ((currentIdx + 1) / totalCount) * 100, [currentIdx, totalCount]);
+  const currentSectionIdxInFlow = SECTION_ORDER.indexOf(currentSection);
 
   return (
     <div className='min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50/30 text-slate-900 flex flex-col'>
-      {/* 다중 탭 감지 오버레이 */}
+      {/* 다중 탭 오버레이 */}
       {duplicateTab && (
         <div className='fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/85 backdrop-blur-sm p-6'>
           <div className='max-w-md w-full rounded-2xl bg-white p-8 shadow-2xl text-center border-4 border-slate-700'>
-            <div className='mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-slate-100'>
-              <svg
-                className='h-9 w-9 text-slate-700'
-                fill='none'
-                viewBox='0 0 24 24'
-                stroke='currentColor'
-                strokeWidth='2.5'
-              >
-                <path
-                  strokeLinecap='round'
-                  strokeLinejoin='round'
-                  d='M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'
-                />
-              </svg>
-            </div>
             <h2 className='text-xl font-bold text-slate-900 mb-2'>다른 탭에서 이미 응시 중입니다</h2>
-            <p className='text-sm text-slate-600'>
-              한 응시자는 하나의 창에서만 응시할 수 있습니다. 다른 탭을 닫고 이 창을 유지하거나, 이 탭을 닫고 원래 창으로 돌아가세요.
-            </p>
+            <p className='text-sm text-slate-600'>한 응시자는 하나의 창에서만 응시할 수 있습니다.</p>
           </div>
         </div>
       )}
 
-      {/* 이탈 감지 시 전체 오버레이 경고 */}
+      {/* 이탈 오버레이 */}
       {inExit && !isTask && (
         <div className='fixed inset-0 z-50 flex items-center justify-center bg-rose-950/80 backdrop-blur-sm p-6'>
           <div className='max-w-md w-full rounded-2xl bg-white p-8 shadow-2xl text-center border-4 border-rose-500'>
-            <div className='mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-rose-100'>
-              <svg
-                className='h-9 w-9 text-rose-600'
-                fill='none'
-                viewBox='0 0 24 24'
-                stroke='currentColor'
-                strokeWidth='2.5'
-              >
-                <path
-                  strokeLinecap='round'
-                  strokeLinejoin='round'
-                  d='M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.008v.008H12v-.008z'
-                />
-              </svg>
-            </div>
             <h2 className='text-xl font-bold text-slate-900 mb-2'>전체화면 이탈 감지</h2>
-            <p className='text-sm text-slate-600 mb-1'>
-              시험 중 화면 이탈이 기록됩니다. 즉시 전체화면으로 돌아가세요.
-            </p>
-            <div className='my-5 py-3 rounded-lg bg-rose-50 border border-rose-200'>
-              <div className='text-[10px] uppercase tracking-widest text-rose-500 mb-1'>
-                현재 이탈 시간
-              </div>
+            <p className='text-sm text-slate-600 mb-3'>시험 중 화면 이탈이 기록됩니다.</p>
+            <div className='my-4 py-3 rounded-lg bg-rose-50 border border-rose-200'>
               <div className='font-mono text-3xl font-bold text-rose-700 tabular-nums'>
-                {formatSecFromMs(liveElapsedMs)}
+                {Math.round(liveElapsedMs / 1000)}초
               </div>
-              <div className='mt-1 text-[11px] text-rose-600'>
-                누적: {exitCount}회 · {formatSecFromMs(exitTotalMs)}
+              <div className='text-[11px] text-rose-600 mt-1'>
+                누적: {exitCount}회 · {Math.round(exitTotalMs / 1000)}초
               </div>
             </div>
             <button
               type='button'
               onClick={() => void requestReenterFullscreen()}
-              className='w-full rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-semibold px-6 py-3 shadow-sm'
+              className='w-full rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-semibold px-6 py-3'
             >
               전체화면으로 복귀
             </button>
@@ -294,9 +295,9 @@ export function ExamRunner(props: Props) {
 
       {/* 헤더 */}
       <header className='sticky top-0 z-20 border-b border-slate-200 bg-white/85 backdrop-blur-md'>
-        <div className='mx-auto max-w-4xl px-6 py-3 flex items-center justify-between gap-4'>
+        <div className='mx-auto max-w-6xl px-6 py-3 flex items-center justify-between gap-4'>
           <div className='flex items-center gap-3 min-w-0'>
-            <div className='h-8 w-8 rounded-md bg-slate-900 text-white flex items-center justify-center text-[11px] font-bold tracking-tighter flex-shrink-0'>
+            <div className='h-8 w-8 rounded-md bg-slate-900 text-white flex items-center justify-center text-[11px] font-bold flex-shrink-0'>
               KB
             </div>
             <div className='min-w-0'>
@@ -310,230 +311,270 @@ export function ExamRunner(props: Props) {
               <div className='font-semibold text-slate-900'>{applicantName}</div>
             </div>
             <div className='text-xs text-right'>
-              <div className='text-[10px] uppercase tracking-widest text-slate-400'>진행</div>
-              <div className='font-semibold text-slate-900 tabular-nums'>
-                {currentIdx + 1} <span className='text-slate-400'>/ {totalCount}</span>
+              <div className='text-[10px] uppercase tracking-widest text-slate-400'>섹션</div>
+              <div className='font-semibold text-slate-900'>
+                {currentSectionIdxInFlow + 1}/3 · {SECTION_LABEL[currentSection]}
               </div>
             </div>
             {!isTask && exitCount > 0 && (
               <div className='text-xs text-right'>
                 <div className='text-[10px] uppercase tracking-widest text-slate-400'>이탈</div>
                 <div className='font-semibold text-amber-700 tabular-nums'>
-                  {exitCount}회 <span className='text-slate-400'>· {formatSecFromMs(exitTotalMs)}</span>
+                  {exitCount}회 · {Math.round(exitTotalMs / 1000)}초
                 </div>
               </div>
             )}
-            {remaining !== null && (
-              <div
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-mono text-2xl font-bold tabular-nums border-2 shadow-sm transition-colors ${
-                  remaining <= 5
-                    ? 'bg-rose-100 text-rose-700 border-rose-400 animate-pulse'
-                    : remaining <= 15
-                      ? 'bg-amber-100 text-amber-800 border-amber-400'
-                      : 'bg-blue-50 text-blue-700 border-blue-300'
-                }`}
-              >
-                <svg
-                  xmlns='http://www.w3.org/2000/svg'
-                  viewBox='0 0 24 24'
-                  fill='none'
-                  stroke='currentColor'
-                  strokeWidth='2.5'
-                  strokeLinecap='round'
-                  strokeLinejoin='round'
-                  className='h-5 w-5'
-                  aria-hidden='true'
-                >
-                  <circle cx='12' cy='12' r='10' />
-                  <polyline points='12 6 12 12 16 14' />
-                </svg>
-                {formatSec(remaining)}
-              </div>
-            )}
+            <div
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-mono text-2xl font-bold tabular-nums border-2 shadow-sm ${
+                remaining <= 30
+                  ? 'bg-rose-100 text-rose-700 border-rose-400 animate-pulse'
+                  : remaining <= 60
+                    ? 'bg-amber-100 text-amber-800 border-amber-400'
+                    : 'bg-blue-50 text-blue-700 border-blue-300'
+              }`}
+            >
+              {formatMinSec(remaining)}
+            </div>
           </div>
         </div>
         <div className='h-1 bg-slate-100'>
           <div
             className='h-full bg-gradient-to-r from-blue-500 to-blue-600 transition-all duration-300'
-            style={{ width: `${progressPct}%` }}
+            style={{ width: `${(remaining / sectionLimit) * 100}%` }}
           />
         </div>
       </header>
 
-      {/* 문제 카드 */}
-      <main className='flex-1 mx-auto max-w-4xl w-full px-6 py-8'>
-        <div className='rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden'>
-          <div className='px-8 py-5 border-b border-slate-100 bg-slate-50/40 flex items-center gap-3 flex-wrap'>
-            <span className='inline-flex items-center justify-center h-8 min-w-[3rem] px-2.5 rounded-md bg-slate-900 text-white text-sm font-bold tabular-nums'>
-              Q{question.order_no}
-            </span>
-            <span
-              className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-semibold ${TYPE_TONE[question.type]}`}
-            >
-              {TYPE_LABEL[question.type]}
-            </span>
-            {question.category && (
-              <span className='inline-flex items-center rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[11px] text-slate-600'>
-                {question.category}
-              </span>
-            )}
-            <span className='ml-auto text-[11px] text-slate-500'>
-              배점 <span className='font-semibold text-slate-900'>{question.score}점</span>
-            </span>
-          </div>
-
-          <div className='px-8 pt-6 pb-4'>
-            <div className='text-[15px] leading-8 whitespace-pre-wrap text-slate-800'>
-              {question.text}
-            </div>
-            {question.attachment_url && (
-              <a
-                href={question.attachment_url}
-                target='_blank'
-                rel='noopener noreferrer'
-                className='inline-flex items-center gap-1 mt-4 text-xs text-blue-600 hover:underline'
+      <div className='flex-1 mx-auto max-w-6xl w-full px-6 py-6 flex gap-6'>
+        {/* 좌측 문항 리스트 */}
+        <aside className='w-56 flex-shrink-0'>
+          <div className='sticky top-24 rounded-2xl border border-slate-200 bg-white shadow-sm p-4'>
+            <div className='mb-3 flex items-center justify-between'>
+              <span
+                className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-semibold ${SECTION_TONE[currentSection]}`}
               >
-                📎 첨부파일 열기
-              </a>
-            )}
-          </div>
-
-          <div className='px-8 pt-2 pb-8'>
-            {question.type === 'multiple_choice' && question.choices && (
-              <div className='space-y-2.5'>
-                {question.choices.map((c) => {
-                  const selected = (answer as { key?: string }).key === c.key;
-                  return (
-                    <button
-                      key={c.key}
-                      type='button'
-                      onClick={() => setAnswerReplace({ key: c.key })}
-                      className={`group w-full text-left px-5 py-4 rounded-xl border-2 transition-all ${
-                        selected
-                          ? 'border-blue-500 bg-blue-50 shadow-sm'
-                          : 'border-slate-200 bg-white hover:border-blue-300 hover:bg-blue-50/30'
-                      }`}
-                    >
-                      <div className='flex items-start gap-4'>
-                        <span
-                          className={`flex-shrink-0 flex items-center justify-center h-7 w-7 rounded-full font-mono text-xs font-bold ${
-                            selected
-                              ? 'bg-blue-600 text-white'
-                              : 'bg-slate-100 text-slate-500 group-hover:bg-blue-100 group-hover:text-blue-700'
-                          }`}
-                        >
-                          {c.key}
-                        </span>
-                        <span
-                          className={`flex-1 leading-relaxed text-[15px] ${selected ? 'text-blue-950 font-medium' : 'text-slate-700'}`}
-                        >
-                          {c.text}
-                        </span>
-                      </div>
-                    </button>
-                  );
-                })}
+                {SECTION_LABEL[currentSection]}
+              </span>
+              <span className='text-[11px] text-slate-500 tabular-nums'>
+                {answeredCount}/{sectionQuestions.length}
+              </span>
+            </div>
+            <div className='grid grid-cols-5 gap-1.5'>
+              {sectionQuestions.map((q, i) => {
+                const isCurrent = i === currentIdx;
+                const isAnswered = Object.keys(answers[q.id] ?? {}).length > 0;
+                const isFlagged = flagged.has(q.id);
+                return (
+                  <button
+                    key={q.id}
+                    type='button'
+                    onClick={() => setCurrentIdx(i)}
+                    className={`relative aspect-square rounded-md text-xs font-semibold tabular-nums transition-colors ${
+                      isCurrent
+                        ? 'bg-slate-900 text-white ring-2 ring-slate-900 ring-offset-1'
+                        : isAnswered
+                          ? 'bg-blue-100 text-blue-800 hover:bg-blue-200'
+                          : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                    }`}
+                  >
+                    {i + 1}
+                    {isFlagged && (
+                      <span className='absolute -top-1 -right-1 text-sm leading-none'>🚩</span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+            <div className='mt-4 pt-3 border-t border-slate-100 space-y-1.5 text-[11px]'>
+              <div className='flex items-center gap-1.5 text-slate-500'>
+                <span className='inline-block w-3 h-3 rounded-sm bg-slate-100' /> 미응답
               </div>
-            )}
+              <div className='flex items-center gap-1.5 text-slate-500'>
+                <span className='inline-block w-3 h-3 rounded-sm bg-blue-100' /> 응답 완료
+              </div>
+              <div className='flex items-center gap-1.5 text-slate-500'>
+                <span className='inline-block w-3 h-3 rounded-sm bg-slate-900' /> 현재 문항
+              </div>
+              <div className='flex items-center gap-1.5 text-slate-500'>
+                🚩 검토 표시
+              </div>
+            </div>
+          </div>
+        </aside>
 
-            {question.type === 'short_text' && (
-              <textarea
-                value={(answer as { text?: string }).text ?? ''}
-                onChange={(e) => setAnswerReplace({ text: e.target.value })}
-                className='w-full min-h-[140px] rounded-xl border-2 border-slate-200 bg-white px-5 py-4 text-[15px] text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 resize-none transition-all'
-                placeholder='답변을 입력하세요'
-              />
-            )}
+        {/* 중앙: 문제 카드 */}
+        <main className='flex-1 min-w-0'>
+          {question && (
+            <div className='rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden'>
+              <div className='px-8 py-5 border-b border-slate-100 bg-slate-50/40 flex items-center gap-3 flex-wrap'>
+                <span className='inline-flex items-center justify-center h-8 min-w-[3rem] px-2.5 rounded-md bg-slate-900 text-white text-sm font-bold tabular-nums'>
+                  Q{currentIdx + 1}
+                </span>
+                <span
+                  className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-semibold ${SECTION_TONE[question.type]}`}
+                >
+                  {SECTION_LABEL[question.type]}
+                </span>
+                {question.category && (
+                  <span className='inline-flex items-center rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[11px] text-slate-600'>
+                    {question.category}
+                  </span>
+                )}
+                <button
+                  type='button'
+                  onClick={() => void handleToggleFlag()}
+                  className={`ml-auto inline-flex items-center gap-1 rounded-md border px-3 py-1 text-xs font-medium transition-colors ${
+                    flagged.has(question.id)
+                      ? 'border-amber-400 bg-amber-50 text-amber-800'
+                      : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  🚩 {flagged.has(question.id) ? '검토 표시됨' : '검토 표시'}
+                </button>
+                <span className='text-[11px] text-slate-500'>
+                  배점 <span className='font-semibold text-slate-900'>{question.score}점</span>
+                </span>
+              </div>
 
-            {question.type === 'task_based' && (
-              <div className='space-y-4'>
-                <div className='rounded-lg border border-amber-200 bg-amber-50/60 px-4 py-3 text-xs text-amber-900'>
-                  💡 작업형 문항입니다. 결과 URL과 구현 메모를 입력하세요. 외부 앱 사용 가능합니다.
-                </div>
-                <div>
-                  <label className='block text-[11px] font-semibold uppercase tracking-widest text-slate-500 mb-1.5'>
-                    구현 메모·요약
-                  </label>
-                  <textarea
-                    value={(answer as { notes?: string }).notes ?? ''}
-                    onChange={(e) => setAnswerFor({ notes: e.target.value })}
-                    className='w-full min-h-[120px] rounded-xl border-2 border-slate-200 bg-white px-5 py-4 text-[15px] focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 resize-none transition-all'
-                    placeholder='구현 방법·사용 도구·주요 코드 요약 (3~5줄)'
-                  />
-                </div>
-                <div>
-                  <label className='block text-[11px] font-semibold uppercase tracking-widest text-slate-500 mb-1.5'>
-                    제출 URL (npm/GitHub)
-                  </label>
-                  <input
-                    type='url'
-                    value={(answer as { url?: string }).url ?? ''}
-                    onChange={(e) => setAnswerFor({ url: e.target.value })}
-                    className='w-full rounded-xl border-2 border-slate-200 bg-white px-5 py-3 text-[15px] focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all'
-                    placeholder='https://github.com/... 또는 npm 패키지 URL'
-                  />
-                </div>
-                {question.allow_file_upload && (
-                  <p className='text-xs text-slate-400'>* 파일 업로드는 추후 지원 예정</p>
+              <div className='px-8 pt-6 pb-4'>
+                <div className='text-[15px] leading-8 whitespace-pre-wrap text-slate-800'>{question.text}</div>
+                {question.attachment_url && (
+                  <a
+                    href={question.attachment_url}
+                    target='_blank'
+                    rel='noopener noreferrer'
+                    className='inline-flex items-center gap-1 mt-4 text-xs text-blue-600 hover:underline'
+                  >
+                    📎 첨부파일 열기
+                  </a>
                 )}
               </div>
-            )}
-          </div>
-        </div>
-      </main>
 
-      {/* 하단 */}
-      <footer className='sticky bottom-0 border-t border-slate-200 bg-white/95 backdrop-blur-md'>
-        <div className='mx-auto max-w-4xl px-6 py-4 flex items-center justify-between gap-4'>
-          <div className='text-xs text-slate-400'>
-            {isTask
-              ? '작업형 문항 — 외부 앱 사용 가능 (전체화면 이탈 기록 안 됨)'
-              : fullscreenRequired
-                ? '전체화면 이탈 시 이탈 시간이 기록됩니다.'
-                : ''}
-          </div>
-          <button
-            type='button'
-            onClick={() => void handleNext(false)}
-            disabled={pending || !canSubmit}
-            className={`inline-flex items-center gap-2 rounded-xl font-semibold px-6 py-3 shadow-sm transition-all ${
-              isLast
-                ? 'bg-blue-700 hover:bg-blue-600 text-white shadow-blue-200'
-                : 'bg-blue-600 hover:bg-blue-500 text-white'
-            } disabled:opacity-40 disabled:cursor-not-allowed`}
-          >
-            {pending ? '저장 중...' : isLast ? '최종 제출' : '다음 문항'}
-            {!pending && (
-              <svg
-                xmlns='http://www.w3.org/2000/svg'
-                viewBox='0 0 20 20'
-                fill='currentColor'
-                className='h-4 w-4'
+              <div className='px-8 pt-2 pb-8'>
+                {question.type === 'multiple_choice' && question.choices && (
+                  <div className='space-y-2.5'>
+                    {question.choices.map((c) => {
+                      const selected = (answer as { key?: string }).key === c.key;
+                      return (
+                        <button
+                          key={c.key}
+                          type='button'
+                          onClick={() => setAnswerReplace({ key: c.key })}
+                          className={`group w-full text-left px-5 py-4 rounded-xl border-2 transition-all ${
+                            selected
+                              ? 'border-blue-500 bg-blue-50 shadow-sm'
+                              : 'border-slate-200 bg-white hover:border-blue-300 hover:bg-blue-50/30'
+                          }`}
+                        >
+                          <div className='flex items-start gap-4'>
+                            <span
+                              className={`flex-shrink-0 flex items-center justify-center h-7 w-7 rounded-full font-mono text-xs font-bold ${
+                                selected
+                                  ? 'bg-blue-600 text-white'
+                                  : 'bg-slate-100 text-slate-500 group-hover:bg-blue-100 group-hover:text-blue-700'
+                              }`}
+                            >
+                              {c.key}
+                            </span>
+                            <span
+                              className={`flex-1 leading-relaxed text-[15px] ${
+                                selected ? 'text-blue-950 font-medium' : 'text-slate-700'
+                              }`}
+                            >
+                              {c.text}
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {question.type === 'short_text' && (
+                  <textarea
+                    value={(answer as { text?: string }).text ?? ''}
+                    onChange={(e) => setAnswerReplace({ text: e.target.value })}
+                    className='w-full min-h-[140px] rounded-xl border-2 border-slate-200 bg-white px-5 py-4 text-[15px] focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 resize-none'
+                    placeholder='답변을 입력하세요'
+                  />
+                )}
+
+                {question.type === 'task_based' && (
+                  <div className='space-y-4'>
+                    <div className='rounded-lg border border-amber-200 bg-amber-50/60 px-4 py-3 text-xs text-amber-900'>
+                      💡 작업형 문항입니다. 결과 URL과 구현 메모를 입력하세요. 외부 앱 사용 가능합니다.
+                    </div>
+                    <div>
+                      <label className='block text-[11px] font-semibold uppercase tracking-widest text-slate-500 mb-1.5'>
+                        구현 메모·요약
+                      </label>
+                      <textarea
+                        value={(answer as { notes?: string }).notes ?? ''}
+                        onChange={(e) => setAnswerFor({ notes: e.target.value })}
+                        className='w-full min-h-[120px] rounded-xl border-2 border-slate-200 bg-white px-5 py-4 text-[15px] focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 resize-none'
+                        placeholder='구현 방법·사용 도구·주요 코드 요약'
+                      />
+                    </div>
+                    <div>
+                      <label className='block text-[11px] font-semibold uppercase tracking-widest text-slate-500 mb-1.5'>
+                        제출 URL
+                      </label>
+                      <input
+                        type='url'
+                        value={(answer as { url?: string }).url ?? ''}
+                        onChange={(e) => setAnswerFor({ url: e.target.value })}
+                        className='w-full rounded-xl border-2 border-slate-200 bg-white px-5 py-3 text-[15px] focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100'
+                        placeholder='https://github.com/... 또는 npm 패키지 URL'
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* 하단 이동 바 */}
+          <div className='mt-4 flex items-center justify-between gap-3'>
+            <button
+              type='button'
+              onClick={() => setCurrentIdx((i) => Math.max(0, i - 1))}
+              disabled={!canGoPrev}
+              className='rounded-md border bg-white px-4 py-2 text-sm font-medium shadow-sm hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed'
+            >
+              ← 이전 문항
+            </button>
+
+            {canGoNext ? (
+              <button
+                type='button'
+                onClick={() => setCurrentIdx((i) => Math.min(sectionQuestions.length - 1, i + 1))}
+                className='rounded-md border bg-white px-4 py-2 text-sm font-medium shadow-sm hover:bg-slate-50'
               >
-                <path
-                  fillRule='evenodd'
-                  d='M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z'
-                  clipRule='evenodd'
-                />
-              </svg>
+                다음 문항 →
+              </button>
+            ) : (
+              <button
+                type='button'
+                onClick={() => void handleAdvanceSection(false)}
+                disabled={pending}
+                className='rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white font-semibold px-6 py-2.5 shadow-sm'
+              >
+                {pending
+                  ? '이동 중...'
+                  : SECTION_ORDER.indexOf(currentSection) === SECTION_ORDER.length - 1
+                    ? '최종 제출'
+                    : `다음 섹션 (${SECTION_LABEL[SECTION_ORDER[SECTION_ORDER.indexOf(currentSection) + 1]]}) →`}
+              </button>
             )}
-          </button>
-        </div>
-      </footer>
+          </div>
+        </main>
+      </div>
     </div>
   );
 }
 
-function formatSec(sec: number): string {
+function formatMinSec(sec: number): string {
   const m = Math.floor(sec / 60);
   const s = sec % 60;
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-}
-
-function formatSecFromMs(ms: number): string {
-  const s = Math.round(ms / 1000);
-  if (s < 60) return `${s}초`;
-  const m = Math.floor(s / 60);
-  const rs = s % 60;
-  return rs === 0 ? `${m}분` : `${m}분 ${rs}초`;
 }

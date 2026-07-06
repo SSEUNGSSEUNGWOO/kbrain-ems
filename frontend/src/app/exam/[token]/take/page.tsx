@@ -1,10 +1,23 @@
 import { redirect, notFound } from 'next/navigation';
 import { createAdminClient } from '@/lib/supabase/server';
-import { ExamRunner, type QuestionForRunner } from './_components/exam-runner';
+import { ExamRunner, type QuestionForRunner, type SectionKind } from './_components/exam-runner';
 
 export const dynamic = 'force-dynamic';
 
 type Props = { params: Promise<{ token: string }> };
+
+type SectionState = { started_at?: string | null; submitted_at?: string | null };
+type SectionProgress = Partial<Record<SectionKind, SectionState>>;
+
+const SECTION_ORDER: SectionKind[] = ['multiple_choice', 'short_text', 'task_based'];
+
+function currentSection(sp: SectionProgress): SectionKind | 'done' {
+  for (const k of SECTION_ORDER) {
+    const st = sp[k];
+    if (st?.started_at && !st.submitted_at) return k;
+  }
+  return 'done';
+}
 
 export default async function ExamTakePage({ params }: Props) {
   const { token } = await params;
@@ -13,7 +26,7 @@ export default async function ExamTakePage({ params }: Props) {
   const { data: session } = await s
     .from('exam_sessions')
     .select(
-      'id, exam_id, name, started_at, submitted_at, current_order_no, exams(name, fullscreen_required)'
+      'id, exam_id, name, started_at, submitted_at, section_progress, flagged_question_ids, exams(name, fullscreen_required, time_limit_mc, time_limit_st, time_limit_task)'
     )
     .eq('token', token)
     .maybeSingle<{
@@ -22,26 +35,37 @@ export default async function ExamTakePage({ params }: Props) {
       name: string | null;
       started_at: string | null;
       submitted_at: string | null;
-      current_order_no: number | null;
-      exams: { name: string; fullscreen_required: boolean } | null;
+      section_progress: SectionProgress | null;
+      flagged_question_ids: string[] | null;
+      exams: {
+        name: string;
+        fullscreen_required: boolean;
+        time_limit_mc: number | null;
+        time_limit_st: number | null;
+        time_limit_task: number | null;
+      } | null;
     }>();
 
   if (!session || !session.exams) notFound();
   if (session.submitted_at) redirect(`/exam/${token}/done`);
   if (!session.started_at) redirect(`/exam/${token}`);
 
+  const sp = session.section_progress ?? {};
+  const cur = currentSection(sp);
+  if (cur === 'done') {
+    // 모든 섹션 완료 — 최종 제출 페이지로 (또는 자동 제출 후 done)
+    redirect(`/exam/${token}/done`);
+  }
+
   const [qieRes, respRes] = await Promise.all([
     s
       .from('exam_questions_in_exam')
       .select(
-        'order_no, question_id, exam_questions(id, type, text, score, choices, time_limit_seconds, allow_file_upload, attachment_url, category, difficulty)'
+        'order_no, question_id, exam_questions(id, type, text, score, choices, allow_file_upload, attachment_url, category)'
       )
       .eq('exam_id', session.exam_id)
       .order('order_no'),
-    s
-      .from('exam_responses')
-      .select('question_id, answer_value')
-      .eq('session_id', session.id)
+    s.from('exam_responses').select('question_id, answer_value').eq('session_id', session.id)
   ]);
 
   const qie = (qieRes.data ?? []) as unknown as {
@@ -49,20 +73,15 @@ export default async function ExamTakePage({ params }: Props) {
     question_id: string;
     exam_questions: {
       id: string;
-      type: 'multiple_choice' | 'short_text' | 'task_based';
+      type: SectionKind;
       text: string;
       score: number;
       choices: { key: string; text: string }[] | null;
-      time_limit_seconds: number | null;
       allow_file_upload: boolean;
       attachment_url: string | null;
       category: string | null;
-      difficulty: string | null;
     };
   }[];
-  if (qie.length === 0) {
-    return <div className='min-h-screen bg-neutral-950 p-6 text-white'>문항이 없습니다.</div>;
-  }
 
   const questions: QuestionForRunner[] = qie.map((r) => ({
     order_no: r.order_no,
@@ -71,11 +90,9 @@ export default async function ExamTakePage({ params }: Props) {
     text: r.exam_questions.text,
     score: r.exam_questions.score,
     choices: r.exam_questions.choices,
-    time_limit_seconds: r.exam_questions.time_limit_seconds,
     allow_file_upload: r.exam_questions.allow_file_upload,
     attachment_url: r.exam_questions.attachment_url,
-    category: r.exam_questions.category,
-    difficulty: r.exam_questions.difficulty
+    category: r.exam_questions.category
   }));
 
   const savedAnswers: Record<string, Record<string, unknown>> = {};
@@ -85,15 +102,26 @@ export default async function ExamTakePage({ params }: Props) {
     }
   }
 
+  const sectionLimits: Record<SectionKind, number> = {
+    multiple_choice: session.exams.time_limit_mc ?? 1800,
+    short_text: session.exams.time_limit_st ?? 600,
+    task_based: session.exams.time_limit_task ?? 1200
+  };
+
+  const currentSectionStartedAt = sp[cur]?.started_at ?? null;
+
   return (
     <ExamRunner
       token={token}
       examName={session.exams.name}
       applicantName={session.name ?? ''}
       fullscreenRequired={session.exams.fullscreen_required}
-      startOrder={session.current_order_no ?? 1}
       questions={questions}
       savedAnswers={savedAnswers}
+      flaggedIds={session.flagged_question_ids ?? []}
+      currentSection={cur}
+      currentSectionStartedAt={currentSectionStartedAt!}
+      sectionLimits={sectionLimits}
     />
   );
 }
