@@ -55,12 +55,21 @@ export default async function ExamSessionDetailPage({ params }: Props) {
   );
 
   const events = Array.isArray(session.browser_events)
-    ? (session.browser_events as unknown as { event: string; at: string }[])
+    ? (session.browser_events as unknown as { event: string; at: string; duration_ms?: number }[])
     : [];
-  const eventSummary = events.reduce<Record<string, number>>((acc, e) => {
-    acc[e.event] = (acc[e.event] ?? 0) + 1;
-    return acc;
-  }, {});
+  const eventStats: Record<
+    string,
+    { count: number; totalMs: number; maxMs: number; withDuration: number }
+  > = {};
+  for (const e of events) {
+    const st = (eventStats[e.event] ??= { count: 0, totalMs: 0, maxMs: 0, withDuration: 0 });
+    st.count++;
+    if (e.duration_ms != null) {
+      st.withDuration++;
+      st.totalMs += e.duration_ms;
+      if (e.duration_ms > st.maxMs) st.maxMs = e.duration_ms;
+    }
+  }
 
   type Q = {
     id: string;
@@ -115,9 +124,14 @@ export default async function ExamSessionDetailPage({ params }: Props) {
           ) : (
             <div className='space-y-3'>
               <div className='flex flex-wrap gap-2'>
-                {Object.entries(eventSummary).map(([k, v]) => (
+                {Object.entries(eventStats).map(([k, st]) => (
                   <Badge key={k} variant='outline' className='bg-amber-50 text-amber-800 border-amber-200'>
-                    {EVENT_LABEL[k] ?? k} × {v}
+                    {EVENT_LABEL[k] ?? k} {st.count}회
+                    {st.withDuration > 0 && (
+                      <span className='ml-1 opacity-80'>
+                        · 총 {formatSec(st.totalMs)} · 최장 {formatSec(st.maxMs)}
+                      </span>
+                    )}
                   </Badge>
                 ))}
               </div>
@@ -127,10 +141,11 @@ export default async function ExamSessionDetailPage({ params }: Props) {
                 </summary>
                 <ol className='divide-y'>
                   {events.map((e, i) => (
-                    <li key={i} className='px-4 py-2 text-xs flex justify-between'>
+                    <li key={i} className='px-4 py-2 text-xs flex justify-between gap-3'>
                       <span>{EVENT_LABEL[e.event] ?? e.event}</span>
                       <span className='text-muted-foreground tabular-nums'>
                         {new Date(e.at).toLocaleString('ko-KR')}
+                        {e.duration_ms != null && ` · ${formatSec(e.duration_ms)}`}
                       </span>
                     </li>
                   ))}
@@ -252,6 +267,14 @@ function Stat({ label, value }: { label: string; value: string }) {
       <div className='text-sm font-semibold mt-0.5'>{value}</div>
     </div>
   );
+}
+
+function formatSec(ms: number): string {
+  const s = Math.round(ms / 1000);
+  if (s < 60) return `${s}초`;
+  const m = Math.floor(s / 60);
+  const rs = s % 60;
+  return rs === 0 ? `${m}분` : `${m}분 ${rs}초`;
 }
 
 function formatCorrect(q: { type: string; correct: unknown; choices: { key: string; text: string }[] | null }): string {

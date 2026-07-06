@@ -69,18 +69,32 @@ export function ExamRunner(props: Props) {
   }, [remaining]);
 
   // 전체화면/창 이탈 이벤트 로깅 (fire-and-forget)
-  // 작업형(task_based)은 외부 앱 필요할 수 있어 로깅 스킵.
+  // 이탈~복귀 시간을 짝지어 duration_ms 계산. 작업형(task_based)은 스킵.
   const isTask = question.type === 'task_based';
+  const fsExitStartRef = useRef<number | null>(null);
+  const visExitStartRef = useRef<number | null>(null);
   useEffect(() => {
     if (isTask) return;
     const onFs = () => {
+      const now = Date.now();
       if (!document.fullscreenElement) {
-        void logBrowserEvent({ token, event: 'fullscreen_exit', at: new Date().toISOString() });
+        fsExitStartRef.current = now;
+      } else if (fsExitStartRef.current != null) {
+        const durationMs = now - fsExitStartRef.current;
+        const at = new Date(fsExitStartRef.current).toISOString();
+        fsExitStartRef.current = null;
+        void logBrowserEvent({ token, event: 'fullscreen_exit', at, durationMs });
       }
     };
     const onVis = () => {
+      const now = Date.now();
       if (document.visibilityState === 'hidden') {
-        void logBrowserEvent({ token, event: 'visibility_hidden', at: new Date().toISOString() });
+        visExitStartRef.current = now;
+      } else if (document.visibilityState === 'visible' && visExitStartRef.current != null) {
+        const durationMs = now - visExitStartRef.current;
+        const at = new Date(visExitStartRef.current).toISOString();
+        visExitStartRef.current = null;
+        void logBrowserEvent({ token, event: 'visibility_hidden', at, durationMs });
       }
     };
     document.addEventListener('fullscreenchange', onFs);

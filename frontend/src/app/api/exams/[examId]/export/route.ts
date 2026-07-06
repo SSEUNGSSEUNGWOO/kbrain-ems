@@ -106,7 +106,9 @@ export async function GET(_req: Request, { params }: Params) {
     { header: '자동채점', key: 'auto', width: 10 },
     { header: '수동채점', key: 'manual', width: 10 },
     { header: '총점', key: 'total', width: 10 },
-    { header: '이벤트 수', key: 'events', width: 10 },
+    { header: '이탈 횟수', key: 'exitCount', width: 10 },
+    { header: '이탈 총 시간(초)', key: 'exitTotal', width: 16 },
+    { header: '이탈 최장(초)', key: 'exitMax', width: 14 },
     { header: '시작', key: 'started', width: 20 },
     { header: '제출', key: 'submitted', width: 20 }
   ];
@@ -118,7 +120,21 @@ export async function GET(_req: Request, { params }: Params) {
     graded: '채점완료'
   };
   for (const sess of sessions ?? []) {
-    const events = Array.isArray(sess.browser_events) ? sess.browser_events : [];
+    const events = (Array.isArray(sess.browser_events) ? sess.browser_events : []) as {
+      event: string;
+      at: string;
+      duration_ms?: number;
+    }[];
+    let exitCount = 0;
+    let exitTotalMs = 0;
+    let exitMaxMs = 0;
+    for (const e of events) {
+      exitCount++;
+      if (e.duration_ms != null) {
+        exitTotalMs += e.duration_ms;
+        if (e.duration_ms > exitMaxMs) exitMaxMs = e.duration_ms;
+      }
+    }
     summary.addRow({
       name: sess.name ?? '',
       email: sess.email ?? '',
@@ -126,7 +142,9 @@ export async function GET(_req: Request, { params }: Params) {
       auto: sess.auto_score,
       manual: sess.manual_score,
       total: sess.total_score,
-      events: events.length,
+      exitCount,
+      exitTotal: Math.round(exitTotalMs / 1000),
+      exitMax: Math.round(exitMaxMs / 1000),
       started: sess.started_at ? new Date(sess.started_at).toLocaleString('ko-KR') : '',
       submitted: sess.submitted_at ? new Date(sess.submitted_at).toLocaleString('ko-KR') : ''
     });

@@ -76,6 +76,7 @@ export async function logBrowserEvent(input: {
   token: string;
   event: string;
   at: string;
+  durationMs?: number;
 }): Promise<void> {
   const s = createAdminClient();
   const { data: session } = await s
@@ -85,9 +86,14 @@ export async function logBrowserEvent(input: {
     .maybeSingle();
   if (!session) return;
   const existing = Array.isArray(session.browser_events)
-    ? (session.browser_events as unknown as { event: string; at: string }[])
+    ? (session.browser_events as unknown as { event: string; at: string; duration_ms?: number }[])
     : [];
-  existing.push({ event: input.event, at: input.at });
+  const entry: { event: string; at: string; duration_ms?: number } = {
+    event: input.event,
+    at: input.at
+  };
+  if (input.durationMs != null) entry.duration_ms = input.durationMs;
+  existing.push(entry);
   await s
     .from('exam_sessions')
     .update({ browser_events: existing as unknown as Json })
