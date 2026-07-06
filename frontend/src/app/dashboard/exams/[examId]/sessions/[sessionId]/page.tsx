@@ -3,6 +3,7 @@ import PageContainer from '@/components/layout/page-container';
 import { createAdminClient } from '@/lib/supabase/server';
 import { isDeveloper } from '@/lib/auth';
 import { Badge } from '@/components/ui/badge';
+import { ManualScoreForm } from './_components/manual-score-form';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,7 +38,7 @@ export default async function ExamSessionDetailPage({ params }: Props) {
 
   const { data: responses } = await supabase
     .from('exam_responses')
-    .select('question_id, answer_value, submitted_at, feedback, visited_at')
+    .select('question_id, answer_value, submitted_at, feedback, visited_at, manual_score')
     .eq('session_id', sessionId);
 
   const respMap = new Map(
@@ -47,7 +48,8 @@ export default async function ExamSessionDetailPage({ params }: Props) {
         answer: (r.answer_value as Record<string, unknown> | null) ?? null,
         submittedAt: r.submitted_at,
         feedback: r.feedback,
-        visitedAt: r.visited_at
+        visitedAt: r.visited_at,
+        manualScore: r.manual_score
       }
     ])
   );
@@ -165,7 +167,15 @@ export default async function ExamSessionDetailPage({ params }: Props) {
                     : 'wrong';
                 }
               } else {
-                displayAnswer = '(작업형 — 수동 채점)';
+                // task_based: 응답 값을 사람이 읽을 수 있는 형태로
+                const parts: string[] = [];
+                if ((ans as { notes?: string } | null)?.notes) {
+                  parts.push(`메모: ${(ans as { notes: string }).notes}`);
+                }
+                if ((ans as { url?: string } | null)?.url) {
+                  parts.push(`URL: ${(ans as { url: string }).url}`);
+                }
+                displayAnswer = parts.length > 0 ? parts.join('\n') : '(미제출)';
                 correctness = 'pending';
               }
 
@@ -215,6 +225,16 @@ export default async function ExamSessionDetailPage({ params }: Props) {
                       </div>
                     </div>
                   </div>
+                  {q.type === 'task_based' && (
+                    <ManualScoreForm
+                      examId={examId}
+                      sessionId={sessionId}
+                      questionId={q.id}
+                      maxScore={q.score}
+                      currentScore={r?.manualScore ?? null}
+                      currentFeedback={r?.feedback ?? null}
+                    />
+                  )}
                 </div>
               );
             })}
