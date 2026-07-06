@@ -5,8 +5,7 @@ import type { Json } from '@/lib/supabase/types';
 
 type Answer = { key?: string; text?: string; file_path?: string; notes?: string; url?: string };
 
-// 문항 응답 저장 + 다음 진행 (fire-and-forget 성격 — 클라이언트는 대기 안 함).
-// 이전 클릭 시마다 5~8회 왕복하던 걸 upsert+update 병렬로 사실상 2회로 단축.
+// 문항 응답 저장 + 다음 진행. 순서 검증(CAS)으로 부정 조작·중복 요청 방어.
 export async function saveAnswer(input: {
   token: string;
   currentOrder: number;
@@ -19,11 +18,16 @@ export async function saveAnswer(input: {
 
   const { data: session } = await s
     .from('exam_sessions')
-    .select('id, submitted_at')
+    .select('id, submitted_at, current_order_no')
     .eq('token', input.token)
     .maybeSingle();
   if (!session) return { error: '세션이 없습니다.' };
   if (session.submitted_at) return {}; // 이미 제출된 경우 silent
+
+  // CAS 검증: 클라이언트가 주장한 order와 서버 order 일치해야만 다음으로 진행
+  if (session.current_order_no !== input.currentOrder) {
+    return { error: '문항 순서가 어긋났습니다. 새로고침 후 다시 시도하세요.' };
+  }
 
   const now = new Date().toISOString();
 
@@ -38,12 +42,14 @@ export async function saveAnswer(input: {
     { onConflict: 'session_id,question_id' }
   );
 
+  // 순서 갱신은 CAS: 다른 요청이 이미 갱신했으면 데이터 반환 없음 → 무시
   const sessPromise = input.isLast
     ? Promise.resolve({ error: null as Error | null })
     : s
         .from('exam_sessions')
         .update({ current_order_no: input.currentOrder + 1 })
-        .eq('id', session.id);
+        .eq('id', session.id)
+        .eq('current_order_no', input.currentOrder);
 
   const [respRes] = await Promise.all([respPromise, sessPromise]);
   if (respRes.error) return { error: respRes.error.message };
@@ -71,7 +77,8 @@ export async function startSession(token: string): Promise<{ error?: string }> {
   return {};
 }
 
-// fire-and-forget: 세션 조회 + append + update. 응답 안 기다림.
+// 원자적 append — pg 함수(append_exam_browser_event)로 race condition 없이 처리.
+// 이전: 조회→push→update 3단계에서 동시 이벤트 손실. 이제 UPDATE 한 문장.
 export async function logBrowserEvent(input: {
   token: string;
   event: string;
@@ -81,23 +88,20 @@ export async function logBrowserEvent(input: {
   const s = createAdminClient();
   const { data: session } = await s
     .from('exam_sessions')
-    .select('id, browser_events')
+    .select('id')
     .eq('token', input.token)
     .maybeSingle();
   if (!session) return;
-  const existing = Array.isArray(session.browser_events)
-    ? (session.browser_events as unknown as { event: string; at: string; duration_ms?: number }[])
-    : [];
   const entry: { event: string; at: string; duration_ms?: number } = {
     event: input.event,
     at: input.at
   };
   if (input.durationMs != null) entry.duration_ms = input.durationMs;
-  existing.push(entry);
-  await s
-    .from('exam_sessions')
-    .update({ browser_events: existing as unknown as Json })
-    .eq('id', session.id);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (s as any).rpc('append_exam_browser_event', {
+    sess_id: session.id,
+    event_data: entry
+  });
 }
 
 // 자동 채점: 객관식·단답만. task_based는 manual.

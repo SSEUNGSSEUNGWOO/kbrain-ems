@@ -83,6 +83,22 @@ export function ExamRunner(props: Props) {
   const [exitTotalMs, setExitTotalMs] = useState(0);
   const [inExit, setInExit] = useState(false);
   const [liveElapsedMs, setLiveElapsedMs] = useState(0);
+  const [duplicateTab, setDuplicateTab] = useState(false);
+
+  // 다중 탭 감지 (BroadcastChannel)
+  useEffect(() => {
+    if (typeof BroadcastChannel === 'undefined') return;
+    const bc = new BroadcastChannel(`exam-${token}`);
+    bc.postMessage({ type: 'hello' });
+    bc.onmessage = (ev: MessageEvent) => {
+      const t = (ev.data as { type?: string })?.type;
+      if (t === 'hello' || t === 'here') {
+        setDuplicateTab(true);
+        if (t === 'hello') bc.postMessage({ type: 'here' });
+      }
+    };
+    return () => bc.close();
+  }, [token]);
 
   // 이탈 중일 때 라이브 카운터 (1초 간격)
   useEffect(() => {
@@ -148,15 +164,32 @@ export function ExamRunner(props: Props) {
   };
 
   const handleNext = async (timeoutReached = false) => {
+    if (duplicateTab) return; // 다른 탭 감지 시 진행 차단
     const payload = Object.keys(answer).length > 0 ? answer : null;
-    const savePromise = saveAnswer({
-      token,
-      currentOrder: question.order_no,
-      questionId: question.id,
-      answer: payload as never,
-      timeoutReached,
-      isLast
-    });
+
+    // 재시도(300/600ms)로 네트워크 flap 완화
+    const runSave = async () => {
+      let last: { error?: string } = {};
+      for (let i = 0; i < 3; i++) {
+        try {
+          const res = await saveAnswer({
+            token,
+            currentOrder: question.order_no,
+            questionId: question.id,
+            answer: payload as never,
+            timeoutReached,
+            isLast
+          });
+          if (!res.error) return res;
+          last = res;
+        } catch (e) {
+          last = { error: e instanceof Error ? e.message : '저장 실패' };
+        }
+        if (i < 2) await new Promise((r) => setTimeout(r, 300 * (i + 1)));
+      }
+      return last;
+    };
+    const savePromise = runSave();
 
     if (isLast) {
       startTransition(async () => {
@@ -187,6 +220,33 @@ export function ExamRunner(props: Props) {
 
   return (
     <div className='min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50/30 text-slate-900 flex flex-col'>
+      {/* 다중 탭 감지 오버레이 */}
+      {duplicateTab && (
+        <div className='fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/85 backdrop-blur-sm p-6'>
+          <div className='max-w-md w-full rounded-2xl bg-white p-8 shadow-2xl text-center border-4 border-slate-700'>
+            <div className='mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-slate-100'>
+              <svg
+                className='h-9 w-9 text-slate-700'
+                fill='none'
+                viewBox='0 0 24 24'
+                stroke='currentColor'
+                strokeWidth='2.5'
+              >
+                <path
+                  strokeLinecap='round'
+                  strokeLinejoin='round'
+                  d='M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'
+                />
+              </svg>
+            </div>
+            <h2 className='text-xl font-bold text-slate-900 mb-2'>다른 탭에서 이미 응시 중입니다</h2>
+            <p className='text-sm text-slate-600'>
+              한 응시자는 하나의 창에서만 응시할 수 있습니다. 다른 탭을 닫고 이 창을 유지하거나, 이 탭을 닫고 원래 창으로 돌아가세요.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* 이탈 감지 시 전체 오버레이 경고 */}
       {inExit && !isTask && (
         <div className='fixed inset-0 z-50 flex items-center justify-center bg-rose-950/80 backdrop-blur-sm p-6'>
