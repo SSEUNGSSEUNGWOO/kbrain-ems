@@ -28,6 +28,17 @@ type Props = {
   savedAnswers: Record<string, Record<string, unknown>>;
 };
 
+const TYPE_LABEL: Record<string, string> = {
+  multiple_choice: '객관식',
+  short_text: '단답형',
+  task_based: '작업형'
+};
+const TYPE_TONE: Record<string, string> = {
+  multiple_choice: 'bg-blue-100 text-blue-800 border-blue-200',
+  short_text: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+  task_based: 'bg-amber-100 text-amber-800 border-amber-200'
+};
+
 export function ExamRunner(props: Props) {
   const { token, examName, applicantName, fullscreenRequired, startOrder, questions, savedAnswers } = props;
   const router = useRouter();
@@ -43,17 +54,14 @@ export function ExamRunner(props: Props) {
   const answer = answers[question.id] ?? {};
   const isLast = currentIdx === totalCount - 1;
 
-  // 문항별 타이머
   const [remaining, setRemaining] = useState<number | null>(question.time_limit_seconds);
   const timeoutFiredRef = useRef(false);
 
-  // 문항 전환 시 타이머 리셋
   useEffect(() => {
     timeoutFiredRef.current = false;
     setRemaining(question.time_limit_seconds);
   }, [question.id, question.time_limit_seconds]);
 
-  // 카운트다운
   useEffect(() => {
     if (remaining == null) return;
     if (remaining <= 0) {
@@ -68,8 +76,6 @@ export function ExamRunner(props: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [remaining]);
 
-  // 전체화면/창 이탈 이벤트 로깅 (fire-and-forget)
-  // 이탈~복귀 시간을 짝지어 duration_ms 계산. 작업형(task_based)은 스킵.
   const isTask = question.type === 'task_based';
   const fsExitStartRef = useRef<number | null>(null);
   const visExitStartRef = useRef<number | null>(null);
@@ -107,8 +113,6 @@ export function ExamRunner(props: Props) {
 
   const handleNext = async (timeoutReached = false) => {
     const payload = Object.keys(answer).length > 0 ? answer : null;
-    // 서버는 fire-and-forget (전송만 하고 클라는 즉시 다음)
-    // 실패 시 콘솔로만 표기, 사용자 흐름은 끊지 않음.
     const savePromise = saveAnswer({
       token,
       currentOrder: question.order_no,
@@ -129,9 +133,7 @@ export function ExamRunner(props: Props) {
       return;
     }
 
-    // 다음 문항으로 즉시 전환
     setCurrentIdx((idx) => Math.min(totalCount - 1, idx + 1));
-    // 저장 실패는 조용히 뒤에서 확인
     void savePromise.then((res) => {
       if (res.error) console.warn('save error:', res.error);
     });
@@ -145,28 +147,32 @@ export function ExamRunner(props: Props) {
   };
 
   const canSubmit = question.type === 'task_based' ? true : Object.keys(answer).length > 0;
-
   const progressPct = useMemo(() => ((currentIdx + 1) / totalCount) * 100, [currentIdx, totalCount]);
 
   return (
-    <div className='min-h-screen bg-slate-50 text-slate-900 flex flex-col'>
-      <header className='sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur'>
+    <div className='min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50/30 text-slate-900 flex flex-col'>
+      {/* 헤더 */}
+      <header className='sticky top-0 z-20 border-b border-slate-200 bg-white/85 backdrop-blur-md'>
         <div className='mx-auto max-w-4xl px-6 py-3 flex items-center justify-between gap-4'>
-          <div>
-            <div className='text-[10px] uppercase tracking-widest text-slate-400'>CBT</div>
-            <div className='text-sm font-semibold text-slate-900 truncate max-w-[300px]'>
-              {examName}
+          <div className='flex items-center gap-3 min-w-0'>
+            <div className='h-8 w-8 rounded-md bg-slate-900 text-white flex items-center justify-center text-[11px] font-bold tracking-tighter flex-shrink-0'>
+              KB
+            </div>
+            <div className='min-w-0'>
+              <div className='text-[10px] uppercase tracking-widest text-slate-400'>CBT</div>
+              <div className='text-sm font-semibold text-slate-900 truncate'>{examName}</div>
             </div>
           </div>
-          <div className='flex items-center gap-6 text-xs'>
-            <div className='text-slate-500'>
-              응시자 <span className='text-slate-900 ml-1 font-medium'>{applicantName}</span>
+          <div className='flex items-center gap-5 flex-shrink-0'>
+            <div className='hidden sm:block text-xs text-right'>
+              <div className='text-[10px] uppercase tracking-widest text-slate-400'>응시자</div>
+              <div className='font-semibold text-slate-900'>{applicantName}</div>
             </div>
-            <div className='text-slate-500'>
-              진행{' '}
-              <span className='text-slate-900 ml-1 font-medium'>
-                {currentIdx + 1}/{totalCount}
-              </span>
+            <div className='text-xs text-right'>
+              <div className='text-[10px] uppercase tracking-widest text-slate-400'>진행</div>
+              <div className='font-semibold text-slate-900 tabular-nums'>
+                {currentIdx + 1} <span className='text-slate-400'>/ {totalCount}</span>
+              </div>
             </div>
             {remaining !== null && (
               <div
@@ -197,115 +203,171 @@ export function ExamRunner(props: Props) {
             )}
           </div>
         </div>
-        <div className='h-1 bg-slate-200'>
+        <div className='h-1 bg-slate-100'>
           <div
-            className='h-full bg-blue-500 transition-all duration-300'
+            className='h-full bg-gradient-to-r from-blue-500 to-blue-600 transition-all duration-300'
             style={{ width: `${progressPct}%` }}
           />
         </div>
       </header>
 
-      <main className='flex-1 mx-auto max-w-4xl w-full px-6 py-10'>
-        <div className='mb-6 flex items-center gap-2'>
-          <span className='text-xs font-mono px-2 py-0.5 rounded bg-slate-900 text-white'>
-            Q{question.order_no}
-          </span>
-          {question.category && (
-            <span className='text-xs px-2 py-0.5 rounded bg-white border border-slate-200 text-slate-600'>
-              {question.category}
+      {/* 문제 카드 */}
+      <main className='flex-1 mx-auto max-w-4xl w-full px-6 py-8'>
+        <div className='rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden'>
+          <div className='px-8 py-5 border-b border-slate-100 bg-slate-50/40 flex items-center gap-3 flex-wrap'>
+            <span className='inline-flex items-center justify-center h-8 min-w-[3rem] px-2.5 rounded-md bg-slate-900 text-white text-sm font-bold tabular-nums'>
+              Q{question.order_no}
             </span>
-          )}
-          <span className='text-xs text-slate-400 ml-auto'>배점 {question.score}점</span>
-        </div>
-
-        <div className='mb-8 text-base leading-relaxed whitespace-pre-wrap text-slate-900'>
-          {question.text}
-        </div>
-
-        {question.attachment_url && (
-          <div className='mb-6'>
-            <a
-              href={question.attachment_url}
-              target='_blank'
-              rel='noopener noreferrer'
-              className='text-xs text-blue-600 hover:underline'
+            <span
+              className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-semibold ${TYPE_TONE[question.type]}`}
             >
-              첨부파일 열기 ↗
-            </a>
+              {TYPE_LABEL[question.type]}
+            </span>
+            {question.category && (
+              <span className='inline-flex items-center rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[11px] text-slate-600'>
+                {question.category}
+              </span>
+            )}
+            <span className='ml-auto text-[11px] text-slate-500'>
+              배점 <span className='font-semibold text-slate-900'>{question.score}점</span>
+            </span>
           </div>
-        )}
 
-        {question.type === 'multiple_choice' && question.choices && (
-          <div className='space-y-2'>
-            {question.choices.map((c) => {
-              const selected = (answer as { key?: string }).key === c.key;
-              return (
-                <button
-                  key={c.key}
-                  type='button'
-                  onClick={() => setAnswerReplace({ key: c.key })}
-                  className={`w-full text-left px-4 py-3 rounded-md border transition-all ${
-                    selected
-                      ? 'border-blue-500 bg-blue-50 text-blue-900 shadow-sm'
-                      : 'border-slate-200 bg-white hover:border-slate-400 hover:bg-slate-50 text-slate-800'
-                  }`}
-                >
-                  <span className='font-mono text-slate-400 mr-3'>{c.key}</span>
-                  {c.text}
-                </button>
-              );
-            })}
-          </div>
-        )}
-
-        {question.type === 'short_text' && (
-          <textarea
-            value={(answer as { text?: string }).text ?? ''}
-            onChange={(e) => setAnswerReplace({ text: e.target.value })}
-            className='w-full min-h-[120px] rounded-md border border-slate-300 bg-white px-4 py-3 text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none'
-            placeholder='답변을 입력하세요'
-          />
-        )}
-
-        {question.type === 'task_based' && (
-          <div className='space-y-4 text-sm text-slate-600'>
-            <p>작업형 문항입니다. 아래에 결과·URL·메모를 입력하세요.</p>
-            <textarea
-              value={(answer as { notes?: string }).notes ?? ''}
-              onChange={(e) => setAnswerFor({ notes: e.target.value })}
-              className='w-full min-h-[100px] rounded-md border border-slate-300 bg-white px-4 py-3 text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none'
-              placeholder='구현 메모·요약'
-            />
-            <input
-              type='url'
-              value={(answer as { url?: string }).url ?? ''}
-              onChange={(e) => setAnswerFor({ url: e.target.value })}
-              className='w-full rounded-md border border-slate-300 bg-white px-4 py-2 text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500'
-              placeholder='제출 URL (npx 명령어·배포 URL 등)'
-            />
-            {question.allow_file_upload && (
-              <p className='text-xs text-slate-400'>* 파일 업로드는 추후 지원 예정</p>
+          <div className='px-8 pt-6 pb-4'>
+            <div className='text-[15px] leading-8 whitespace-pre-wrap text-slate-800'>
+              {question.text}
+            </div>
+            {question.attachment_url && (
+              <a
+                href={question.attachment_url}
+                target='_blank'
+                rel='noopener noreferrer'
+                className='inline-flex items-center gap-1 mt-4 text-xs text-blue-600 hover:underline'
+              >
+                📎 첨부파일 열기
+              </a>
             )}
           </div>
-        )}
+
+          <div className='px-8 pt-2 pb-8'>
+            {question.type === 'multiple_choice' && question.choices && (
+              <div className='space-y-2.5'>
+                {question.choices.map((c) => {
+                  const selected = (answer as { key?: string }).key === c.key;
+                  return (
+                    <button
+                      key={c.key}
+                      type='button'
+                      onClick={() => setAnswerReplace({ key: c.key })}
+                      className={`group w-full text-left px-5 py-4 rounded-xl border-2 transition-all ${
+                        selected
+                          ? 'border-blue-500 bg-blue-50 shadow-sm'
+                          : 'border-slate-200 bg-white hover:border-blue-300 hover:bg-blue-50/30'
+                      }`}
+                    >
+                      <div className='flex items-start gap-4'>
+                        <span
+                          className={`flex-shrink-0 flex items-center justify-center h-7 w-7 rounded-full font-mono text-xs font-bold ${
+                            selected
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-slate-100 text-slate-500 group-hover:bg-blue-100 group-hover:text-blue-700'
+                          }`}
+                        >
+                          {c.key}
+                        </span>
+                        <span
+                          className={`flex-1 leading-relaxed text-[15px] ${selected ? 'text-blue-950 font-medium' : 'text-slate-700'}`}
+                        >
+                          {c.text}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {question.type === 'short_text' && (
+              <textarea
+                value={(answer as { text?: string }).text ?? ''}
+                onChange={(e) => setAnswerReplace({ text: e.target.value })}
+                className='w-full min-h-[140px] rounded-xl border-2 border-slate-200 bg-white px-5 py-4 text-[15px] text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 resize-none transition-all'
+                placeholder='답변을 입력하세요'
+              />
+            )}
+
+            {question.type === 'task_based' && (
+              <div className='space-y-4'>
+                <div className='rounded-lg border border-amber-200 bg-amber-50/60 px-4 py-3 text-xs text-amber-900'>
+                  💡 작업형 문항입니다. 결과 URL과 구현 메모를 입력하세요. 외부 앱 사용 가능합니다.
+                </div>
+                <div>
+                  <label className='block text-[11px] font-semibold uppercase tracking-widest text-slate-500 mb-1.5'>
+                    구현 메모·요약
+                  </label>
+                  <textarea
+                    value={(answer as { notes?: string }).notes ?? ''}
+                    onChange={(e) => setAnswerFor({ notes: e.target.value })}
+                    className='w-full min-h-[120px] rounded-xl border-2 border-slate-200 bg-white px-5 py-4 text-[15px] focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 resize-none transition-all'
+                    placeholder='구현 방법·사용 도구·주요 코드 요약 (3~5줄)'
+                  />
+                </div>
+                <div>
+                  <label className='block text-[11px] font-semibold uppercase tracking-widest text-slate-500 mb-1.5'>
+                    제출 URL (npm/GitHub)
+                  </label>
+                  <input
+                    type='url'
+                    value={(answer as { url?: string }).url ?? ''}
+                    onChange={(e) => setAnswerFor({ url: e.target.value })}
+                    className='w-full rounded-xl border-2 border-slate-200 bg-white px-5 py-3 text-[15px] focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all'
+                    placeholder='https://github.com/... 또는 npm 패키지 URL'
+                  />
+                </div>
+                {question.allow_file_upload && (
+                  <p className='text-xs text-slate-400'>* 파일 업로드는 추후 지원 예정</p>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
       </main>
 
-      <footer className='sticky bottom-0 border-t border-slate-200 bg-white/95 backdrop-blur'>
+      {/* 하단 */}
+      <footer className='sticky bottom-0 border-t border-slate-200 bg-white/95 backdrop-blur-md'>
         <div className='mx-auto max-w-4xl px-6 py-4 flex items-center justify-between gap-4'>
           <div className='text-xs text-slate-400'>
             {isTask
               ? '작업형 문항 — 외부 앱 사용 가능 (전체화면 이탈 기록 안 됨)'
               : fullscreenRequired
-                ? '전체화면 이탈 시 기록됩니다.'
+                ? '전체화면 이탈 시 이탈 시간이 기록됩니다.'
                 : ''}
           </div>
           <button
             type='button'
             onClick={() => void handleNext(false)}
             disabled={pending || !canSubmit}
-            className='rounded-md bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold px-6 py-2.5 transition-colors shadow-sm'
+            className={`inline-flex items-center gap-2 rounded-xl font-semibold px-6 py-3 shadow-sm transition-all ${
+              isLast
+                ? 'bg-blue-700 hover:bg-blue-600 text-white shadow-blue-200'
+                : 'bg-blue-600 hover:bg-blue-500 text-white'
+            } disabled:opacity-40 disabled:cursor-not-allowed`}
           >
-            {pending ? '제출 중...' : isLast ? '최종 제출' : '다음 문항 →'}
+            {pending ? '저장 중...' : isLast ? '최종 제출' : '다음 문항'}
+            {!pending && (
+              <svg
+                xmlns='http://www.w3.org/2000/svg'
+                viewBox='0 0 20 20'
+                fill='currentColor'
+                className='h-4 w-4'
+              >
+                <path
+                  fillRule='evenodd'
+                  d='M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z'
+                  clipRule='evenodd'
+                />
+              </svg>
+            )}
           </button>
         </div>
       </footer>
