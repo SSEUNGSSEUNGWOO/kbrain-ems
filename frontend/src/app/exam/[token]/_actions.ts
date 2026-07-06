@@ -99,40 +99,51 @@ export async function submitSession(token: string): Promise<{ error?: string }> 
   const s = createAdminClient();
   const now = new Date().toISOString();
 
-  const { data: session } = await s
-    .from('exam_sessions')
-    .select('id, exam_id, submitted_at')
-    .eq('token', token)
-    .maybeSingle();
-  if (!session) return { error: '세션이 없습니다.' };
-  if (session.submitted_at) return {};
-
-  const { data: responses } = await s
+  // 응답+문항+세션을 한 쿼리로 조인 → in-memory 채점 → 세션 update 1회
+  const { data: joined } = await s
     .from('exam_responses')
-    .select('id, question_id, answer_value')
-    .eq('session_id', session.id);
+    .select(
+      'id, question_id, answer_value, exam_questions(id, type, score, correct), exam_sessions!inner(id, token, submitted_at)'
+    )
+    .eq('exam_sessions.token', token);
 
-  const qIds = (responses ?? []).map((r) => r.question_id);
-  const { data: questions } = await s
-    .from('exam_questions')
-    .select('id, type, score, correct')
-    .in('id', qIds.length > 0 ? qIds : ['00000000-0000-0000-0000-000000000000']);
+  type Joined = {
+    id: string;
+    question_id: string;
+    answer_value: Record<string, unknown> | null;
+    exam_questions: { id: string; type: string; score: number; correct: unknown } | null;
+    exam_sessions: { id: string; token: string | null; submitted_at: string | null };
+  };
+  const rows = (joined ?? []) as unknown as Joined[];
 
-  const qMap = new Map((questions ?? []).map((q) => [q.id, q]));
+  let sessionId: string | null = rows[0]?.exam_sessions.id ?? null;
+  if (!sessionId) {
+    const { data: sess } = await s
+      .from('exam_sessions')
+      .select('id, submitted_at')
+      .eq('token', token)
+      .maybeSingle();
+    if (!sess) return { error: '세션이 없습니다.' };
+    if (sess.submitted_at) return {};
+    sessionId = sess.id;
+  } else if (rows[0]?.exam_sessions.submitted_at) {
+    return {};
+  }
+
+  const responses = rows.map((r) => ({ question_id: r.question_id, answer_value: r.answer_value }));
+  const qMap = new Map(rows.filter((r) => r.exam_questions).map((r) => [r.exam_questions!.id, r.exam_questions!]));
   let autoScore = 0;
   let hasManual = false;
 
-  const updatePromises: Promise<unknown>[] = [];
   for (const r of responses ?? []) {
     const q = qMap.get(r.question_id);
     if (!q) continue;
     const ans = r.answer_value as Record<string, unknown> | null;
-    let earned = 0;
 
     if (q.type === 'multiple_choice') {
       const correctKey = (q.correct as { key?: string } | null)?.key;
       if (correctKey && ans && (ans as { key?: string }).key === correctKey) {
-        earned = q.score;
+        autoScore += q.score;
       }
     } else if (q.type === 'short_text') {
       const keywords = (
@@ -142,20 +153,12 @@ export async function submitSession(token: string): Promise<{ error?: string }> 
         .trim()
         .toLowerCase();
       if (submitted && keywords.some((k) => submitted === k)) {
-        earned = q.score;
+        autoScore += q.score;
       }
     } else if (q.type === 'task_based') {
       hasManual = true;
     }
-
-    if (q.type !== 'task_based') {
-      updatePromises.push(
-        s.from('exam_responses').update({ auto_score: earned }).eq('id', r.id)
-      );
-      autoScore += earned;
-    }
   }
-  await Promise.all(updatePromises);
 
   const { error } = await s
     .from('exam_sessions')
@@ -165,7 +168,7 @@ export async function submitSession(token: string): Promise<{ error?: string }> 
       status: hasManual ? 'submitted' : 'graded',
       total_score: hasManual ? null : autoScore
     })
-    .eq('id', session.id);
+    .eq('id', sessionId);
   if (error) return { error: error.message };
   return {};
 }
