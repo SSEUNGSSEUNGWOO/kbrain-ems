@@ -12,7 +12,9 @@ export default async function ExamIntroPage({ params }: Props) {
 
   const { data: session } = await supabase
     .from('exam_sessions')
-    .select('id, exam_id, name, started_at, submitted_at, exams(name, description, time_limit_minutes, fullscreen_required)')
+    .select(
+      'id, exam_id, name, started_at, submitted_at, exams(name, description, time_limit_mc, time_limit_st, time_limit_task, fullscreen_required)'
+    )
     .eq('token', token)
     .maybeSingle<{
       id: string;
@@ -23,7 +25,9 @@ export default async function ExamIntroPage({ params }: Props) {
       exams: {
         name: string;
         description: string | null;
-        time_limit_minutes: number | null;
+        time_limit_mc: number | null;
+        time_limit_st: number | null;
+        time_limit_task: number | null;
         fullscreen_required: boolean;
       } | null;
     }>();
@@ -79,8 +83,8 @@ export default async function ExamIntroPage({ params }: Props) {
             <InfoBlock label='응시자' value={session.name ?? '(미지정)'} />
             <InfoBlock label='총 문항' value={`${totalQ ?? 0}문항`} />
             <InfoBlock
-              label='시간 제한'
-              value={exam.time_limit_minutes ? `${exam.time_limit_minutes}분` : '문항별'}
+              label='시험 시간'
+              value={formatSectionTimes(exam.time_limit_mc, exam.time_limit_st, exam.time_limit_task)}
             />
           </div>
         </div>
@@ -91,12 +95,22 @@ export default async function ExamIntroPage({ params }: Props) {
             응시 유의사항
           </h2>
           <ul className='space-y-2.5 text-sm text-slate-700'>
-            <Note>시작 후에는 이전 문항으로 돌아갈 수 없습니다.</Note>
-            <Note>문항별 시간 제한이 있으면 시간 초과 시 자동으로 다음 문항으로 이동합니다.</Note>
+            <Note>
+              시험은 <b>객관식 → 단답형 → 작업형</b> 3개 섹션 순으로 진행됩니다.
+            </Note>
+            <Note>
+              각 섹션은 제한 시간이 지나면 자동으로 다음 섹션으로 넘어가며, <b>이전 섹션으로 되돌아갈 수 없습니다</b>.
+            </Note>
+            <Note>
+              섹션 안에서는 문항 간 자유롭게 이동할 수 있고, 다시 볼 문항은 <b>검토 표시(깃발)</b>로 남겨둘 수 있습니다.
+            </Note>
+            <Note>답안은 입력·선택 즉시 자동 저장됩니다.</Note>
             {exam.fullscreen_required && (
-              <Note>객관식·단답형은 전체화면 모드에서만 응시할 수 있으며, 이탈 시간이 기록됩니다.</Note>
+              <Note>
+                객관식·단답형은 <b>전체화면 모드</b>에서만 응시할 수 있으며, 화면 이탈·다른 창 전환 시 시간이 기록됩니다.
+              </Note>
             )}
-            <Note>새로고침·창 닫기 시에도 시험 시간은 계속 흐릅니다.</Note>
+            <Note>새로고침·창 닫기 시에도 남은 시간은 계속 흐릅니다. 창을 닫지 마세요.</Note>
           </ul>
         </div>
 
@@ -116,6 +130,18 @@ function InfoBlock({ label, value }: { label: string; value: string }) {
       <div className='text-base font-semibold text-slate-900'>{value}</div>
     </div>
   );
+}
+
+function formatSectionTimes(mc: number | null, st: number | null, task: number | null): string {
+  const toMin = (v: number | null) => (v ? Math.round(v / 60) : null);
+  const m = toMin(mc);
+  const s = toMin(st);
+  const t = toMin(task);
+  const parts: string[] = [];
+  if (m) parts.push(`객관식 ${m}분`);
+  if (s) parts.push(`단답 ${s}분`);
+  if (t) parts.push(`작업형 ${t}분`);
+  return parts.length > 0 ? parts.join(' · ') : '섹션별';
 }
 
 function Note({ children }: { children: React.ReactNode }) {
