@@ -5,6 +5,21 @@ export const dynamic = 'force-dynamic';
 
 type Props = { params: Promise<{ token: string }> };
 
+// Vercel Node.js는 UTC + ko 로케일 데이터 없음 → toLocaleString('ko-KR') 하면 UTC 시각이 "AM 3:55"로 잘못 표시.
+// 로케일 무관하게 KST(UTC+9)로 직접 포맷.
+function formatKst(iso: string): string {
+  const d = new Date(iso);
+  const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+  const y = kst.getUTCFullYear();
+  const mo = kst.getUTCMonth() + 1;
+  const da = kst.getUTCDate();
+  const h = kst.getUTCHours();
+  const mi = kst.getUTCMinutes();
+  const se = kst.getUTCSeconds();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${y}. ${mo}. ${da}. ${pad(h)}:${pad(mi)}:${pad(se)}`;
+}
+
 export default async function ExamDonePage({ params }: Props) {
   const { token } = await params;
   const s = createAdminClient();
@@ -36,7 +51,7 @@ export default async function ExamDonePage({ params }: Props) {
           </p>
         </div>
         <div className='rounded-lg border border-slate-200 bg-white p-4 text-xs text-slate-500 shadow-sm'>
-          제출 시각: {session.submitted_at ? new Date(session.submitted_at).toLocaleString('ko-KR') : '-'}
+          제출 시각: {session.submitted_at ? formatKst(session.submitted_at) : '-'}
         </div>
         <p className='text-xs text-slate-400'>이 창은 이제 닫으셔도 됩니다.</p>
       </div>
