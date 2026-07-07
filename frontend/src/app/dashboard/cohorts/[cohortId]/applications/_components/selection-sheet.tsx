@@ -842,7 +842,23 @@ function CandidateList({
             >
               <span className='text-muted-foreground w-6 text-xs tabular-nums'>{i + 1}</span>
               <Checkbox checked={checked} onCheckedChange={() => onToggle(c.application_id)} />
-              <span className='w-20 truncate font-medium'>{c.name}</span>
+              <span className='flex w-20 items-center gap-1 truncate font-medium'>
+                <span className='truncate'>{c.name}</span>
+                {c.force_select && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className='inline-flex items-center rounded bg-rose-100 px-1 py-0.5 text-[10px] font-semibold text-rose-700'>
+                        강제
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side='top'>
+                      강제선발 대상 ({c.force_reason ?? '지정'})
+                      <br />
+                      사전학습·자격증·정원 조건 무시
+                    </TooltipContent>
+                  </Tooltip>
+                )}
+              </span>
               <span className='w-12 text-center text-xs'>
                 {c.other_applications.length > 0 ? (
                   <Tooltip>
