@@ -64,6 +64,26 @@ const normC2 = (s: string) => s.replace(/\s+/g, '').replace(/[·、,「」『』
 const normPhone = (s: string | null | undefined) => (s ?? '').replace(/[^\d]/g, '');
 const normEmail = (s: string | null | undefined) => (s ?? '').trim().toLowerCase();
 
+// ============================================================================
+// 강제선발(force_select) — 자동선발 시 무조건 통과시켜야 하는 cohort별 대상.
+// 카테고리 쿼터·기관 cap·사전학습·자격증 조건 모두 무시하고 selected 처리.
+// 실무 요청: "블루 자기주도형 1회차는 전문인재 26-1·26-2기 학생이 반드시 뽑혀야"
+// 새로 규칙이 필요한 cohort는 이 dict에 추가.
+// ============================================================================
+const FORCE_SELECT_CONFIG: Record<
+  string,
+  { expertCohortIds: string[]; individualNames: string[] }
+> = {
+  'ecd878c9-759d-4f67-b1dd-f5024a755b2d': {
+    // 블루 자기주도형 1회차
+    expertCohortIds: [
+      '2b265ae5-814d-404b-83e8-e1c810a62825', // 전문인재 26-1기
+      '256c5c6f-ef95-4073-8a27-a9b5fbc44316' // 전문인재 26-2기
+    ],
+    individualNames: ['[비공개]', '[비공개]']
+  }
+};
+
 export async function loadSelectionPool(
   cohortId: string
 ): Promise<{ error?: string; candidates?: CandidateRow[]; knowledgeMax?: number }> {
@@ -285,15 +305,53 @@ export async function loadSelectionPool(
       }
     }
 
+    // 강제선발(force_select) 대상 pre-fetch — cohort별 config 있을 때만.
+    const forceConfig = FORCE_SELECT_CONFIG[cohortId];
+    const forceApplicantIds = new Set<string>();
+    const forcePhones = new Set<string>();
+    const forceEmails = new Set<string>();
+    const forceStudentNames = new Set<string>();
+    const forceIndividualNames = new Set<string>(forceConfig?.individualNames ?? []);
+    if (forceConfig && forceConfig.expertCohortIds.length > 0) {
+      const { data: expertStu } = await supabase
+        .from('students')
+        .select('applicant_id, name, phone, email')
+        .in('cohort_id', forceConfig.expertCohortIds);
+      for (const st of expertStu ?? []) {
+        if (st.applicant_id) forceApplicantIds.add(st.applicant_id);
+        if (st.phone) forcePhones.add(normPhone(st.phone));
+        if (st.email) forceEmails.add(normEmail(st.email));
+        if (st.name) forceStudentNames.add(st.name);
+      }
+    }
+    const computeForce = (
+      applicantId: string,
+      name: string,
+      phone: string | null,
+      email: string | null
+    ): { force_select: boolean; force_reason: string | null } => {
+      if (!forceConfig) return { force_select: false, force_reason: null };
+      if (forceApplicantIds.has(applicantId)) return { force_select: true, force_reason: '전문인재' };
+      const p = normPhone(phone);
+      if (p && forcePhones.has(p)) return { force_select: true, force_reason: '전문인재' };
+      const em = normEmail(email);
+      if (em && forceEmails.has(em)) return { force_select: true, force_reason: '전문인재' };
+      if (name && forceStudentNames.has(name)) return { force_select: true, force_reason: '전문인재' };
+      if (name && forceIndividualNames.has(name)) return { force_select: true, force_reason: '개별지정' };
+      return { force_select: false, force_reason: null };
+    };
+
     const candidates: CandidateRow[] = (apps ?? []).map((a) => {
       const c2Key = c2Map.get(a.id) ?? '';
       const planText = planMap.get(a.id) ?? '';
       const multiCount = multiCountMap.get(a.id) ?? 0;
       const applicantId = a.applicants?.id ?? '';
+      const name = a.applicants?.name ?? '(이름 없음)';
+      const force = computeForce(applicantId, name, a.applicants?.phone ?? null, a.applicants?.email ?? null);
       return {
         application_id: a.id,
         applicant_id: applicantId,
-        name: a.applicants?.name ?? '(이름 없음)',
+        name,
         organization: a.applicants?.organizations?.name ?? null,
         category: C2_TO_SELECTION[c2Key] ?? 'other',
         knowledge_score: a.knowledge_score ?? 0,
@@ -306,7 +364,9 @@ export async function loadSelectionPool(
         has_cert: certQ ? (certHasMap.get(a.id) ?? false) : null,
         current_status: a.status,
         other_applications: otherByApplicant.get(applicantId) ?? [],
-        prior_certs: priorCertsByApplicant.get(applicantId) ?? []
+        prior_certs: priorCertsByApplicant.get(applicantId) ?? [],
+        force_select: force.force_select,
+        force_reason: force.force_reason
       };
     });
 

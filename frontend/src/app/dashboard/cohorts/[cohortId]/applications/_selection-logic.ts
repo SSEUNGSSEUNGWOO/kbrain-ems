@@ -58,6 +58,9 @@ export type CandidateRow = {
   other_applications: { cohort_id: string; cohort_name: string; status: string }[];
   // 이전 사업 인증 이력 (applicants.prior_certs)
   prior_certs: PriorCert[];
+  /** 자동선발 시 무조건 통과 대상 (전문인재 출신, 개별지정 등). 자세한 사유는 force_reason. */
+  force_select: boolean;
+  force_reason: string | null;
 };
 
 // 정성평가 만점 기준 (글자수). 설문 안내 "100자 내외"에 맞춤.
@@ -249,10 +252,12 @@ export function recommendByQuotas(
   const hasCertQ = candidates.some((c) => c.has_cert !== null);
   let filtered = candidates;
   if (excludeNoPrereq && hasPrereq) {
-    filtered = filtered.filter((c) => c.prereq_done_count >= c.prereq_max);
+    // force_select는 사전학습 미이수여도 통과
+    filtered = filtered.filter((c) => c.force_select || c.prereq_done_count >= c.prereq_max);
   }
   if (excludeNoCert && hasCertQ) {
-    filtered = filtered.filter((c) => c.has_cert === true);
+    // force_select는 자격증 미보유여도 통과
+    filtered = filtered.filter((c) => c.force_select || c.has_cert === true);
   }
 
   const scored = scoreAll(filtered, weights, knowledgeMax).toSorted((a, b) => {
@@ -270,6 +275,20 @@ export function recommendByQuotas(
   const parentCount = new Map<string, number>();
   const selectedSet = new Set<string>();
   const selectedIds: string[] = [];
+
+  // 강제선발 대상 우선 통과 — 카테고리 쿼터·기관 cap·상위부처 cap 모두 무시.
+  // 정원(totalCapacity)에서는 자리 차지 (일반 후보용 잔여 정원 감소).
+  for (const c of scored) {
+    if (!c.force_select) continue;
+    const orgKey = c.organization ?? '';
+    const parent = parentOrgKey(c.organization);
+    if (orgKey) orgCount.set(orgKey, (orgCount.get(orgKey) ?? 0) + 1);
+    if (parent) parentCount.set(parent, (parentCount.get(parent) ?? 0) + 1);
+    selectedSet.add(c.application_id);
+    selectedIds.push(c.application_id);
+    // 카테고리 쿼터 차감 (일반 후보 자리 축소)
+    if (quotas[c.category] > 0) quotas[c.category]--;
+  }
 
   const capUnlimited = maxPerOrg <= 0;
   const maxRound = capUnlimited ? 1 : maxPerOrg;
