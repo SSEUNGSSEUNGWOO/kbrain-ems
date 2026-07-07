@@ -202,7 +202,7 @@ function formatSectionTimes(mc: number | null, st: number | null, task: number |
   const t = toMin(task);
   const parts: string[] = [];
   if (m) parts.push(`객관식 ${m}분`);
-  if (s) parts.push(`단답 ${s}분`);
+  if (s) parts.push(`단답형 ${s}분`);
   if (t) parts.push(`작업형 ${t}분`);
   return parts.length > 0 ? parts.join(' · ') : '섹션별';
 }
