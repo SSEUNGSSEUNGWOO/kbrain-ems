@@ -5,6 +5,7 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { isDeveloper } from '@/lib/auth';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { ShareLinkCopy } from './_components/share-link-copy';
 
 export const dynamic = 'force-dynamic';
 
@@ -71,14 +72,12 @@ export default async function ExamDetailPage({ params }: Props) {
     >
       {exam.share_code && (
         <div className='mb-4 rounded-lg border border-blue-200 bg-blue-50/40 p-4'>
-          <div className='text-xs font-semibold uppercase tracking-widest text-blue-700 mb-1'>
+          <div className='text-xs font-semibold uppercase tracking-widest text-blue-700 mb-2'>
             응시자 배포용 공유 링크
           </div>
-          <div className='flex items-center gap-2'>
-            <code className='flex-1 rounded bg-white border px-3 py-1.5 text-sm font-mono text-blue-900 break-all'>
-              /exam/share/{exam.share_code}
-            </code>
-            <span className='text-xs text-blue-800'>이 URL을 카톡·이메일로 배포하세요. 응시자는 이름·전화번호 뒷 4자리로 진입합니다.</span>
+          <ShareLinkCopy shareCode={exam.share_code} />
+          <div className='mt-2 text-xs text-blue-800'>
+            이 URL을 카톡·이메일로 배포하세요. 응시자는 이름·전화번호 뒷 4자리로 진입합니다.
           </div>
         </div>
       )}
