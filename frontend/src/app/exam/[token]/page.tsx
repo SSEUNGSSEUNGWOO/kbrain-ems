@@ -1,6 +1,7 @@
 import { redirect, notFound } from 'next/navigation';
 import { createAdminClient } from '@/lib/supabase/server';
 import { StartButton } from './_components/start-button';
+import { SectionPreviewTabs } from './_components/section-preview-tabs';
 
 export const dynamic = 'force-dynamic';
 
@@ -114,66 +115,16 @@ export default async function ExamIntroPage({ params }: Props) {
           </ul>
         </div>
 
-        {/* 섹션별 화면 예시 */}
+        {/* 섹션별 화면 예시 (탭) */}
         <div className='mb-8'>
           <div className='mb-3 text-xs font-semibold uppercase tracking-widest text-slate-400 text-center'>
-            섹션별 화면 예시
+            섹션별 화면 예시 (탭을 눌러 미리보기)
           </div>
-          <div className='grid grid-cols-1 gap-4 md:grid-cols-3'>
-            <SectionSample
-              badge='1'
-              title='객관식'
-              minutes={toMin(exam.time_limit_mc)}
-              preview={
-                <div className='space-y-1.5'>
-                  <div className='text-[10px] text-slate-400'>Q1 / 30</div>
-                  <div className='text-[11px] font-medium text-slate-700 leading-snug'>
-                    다음 중 알맞은 것은?
-                  </div>
-                  <div className='space-y-1 pt-1'>
-                    <Radio label='① 보기 1' />
-                    <Radio label='② 보기 2' selected />
-                    <Radio label='③ 보기 3' />
-                    <Radio label='④ 보기 4' />
-                  </div>
-                </div>
-              }
-            />
-            <SectionSample
-              badge='2'
-              title='단답형'
-              minutes={toMin(exam.time_limit_st)}
-              preview={
-                <div className='space-y-1.5'>
-                  <div className='text-[10px] text-slate-400'>Q31 / 5</div>
-                  <div className='text-[11px] font-medium text-slate-700 leading-snug'>
-                    핵심 용어를 입력하세요
-                  </div>
-                  <div className='mt-2 rounded border border-slate-200 bg-slate-50 px-2 py-1.5 text-[11px] text-slate-500'>
-                    답변 입력…
-                  </div>
-                </div>
-              }
-            />
-            <SectionSample
-              badge='3'
-              title='작업형'
-              minutes={toMin(exam.time_limit_task)}
-              preview={
-                <div className='space-y-1.5'>
-                  <div className='text-[10px] text-slate-400'>Q36 / 1</div>
-                  <div className='text-[11px] font-medium text-slate-700 leading-snug'>
-                    과제 결과물을 제출하세요
-                  </div>
-                  <div className='mt-1.5 space-y-1'>
-                    <FileRow icon='🔗' label='결과 URL' />
-                    <FileRow icon='📎' label='파일 첨부' />
-                    <FileRow icon='📝' label='메모' />
-                  </div>
-                </div>
-              }
-            />
-          </div>
+          <SectionPreviewTabs
+            mcMinutes={toMin(exam.time_limit_mc)}
+            stMinutes={toMin(exam.time_limit_st)}
+            taskMinutes={toMin(exam.time_limit_task)}
+          />
         </div>
 
         <StartButton token={token} fullscreenRequired={exam.fullscreen_required} />
@@ -205,67 +156,6 @@ function formatSectionTimes(mc: number | null, st: number | null, task: number |
   if (s) parts.push(`단답형 ${s}분`);
   if (t) parts.push(`작업형 ${t}분`);
   return parts.length > 0 ? parts.join(' · ') : '섹션별';
-}
-
-function SectionSample({
-  badge,
-  title,
-  minutes,
-  preview
-}: {
-  badge: string;
-  title: string;
-  minutes: number | null;
-  preview: React.ReactNode;
-}) {
-  return (
-    <div className='rounded-xl border border-slate-200 bg-white p-3 shadow-sm'>
-      <div className='mb-2 flex items-center justify-between'>
-        <div className='flex items-center gap-1.5'>
-          <span className='inline-flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 text-[10px] font-bold text-white'>
-            {badge}
-          </span>
-          <span className='text-xs font-semibold text-slate-900'>{title}</span>
-        </div>
-        {minutes !== null && (
-          <span className='rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600'>
-            {minutes}분
-          </span>
-        )}
-      </div>
-      <div className='rounded-lg border border-dashed border-slate-200 bg-slate-50/40 p-2.5'>
-        {preview}
-      </div>
-    </div>
-  );
-}
-
-function Radio({ label, selected }: { label: string; selected?: boolean }) {
-  return (
-    <div
-      className={`flex items-center gap-1.5 rounded px-1.5 py-1 text-[11px] ${
-        selected
-          ? 'border border-blue-300 bg-blue-50 text-blue-800 font-medium'
-          : 'text-slate-500'
-      }`}
-    >
-      <span
-        className={`inline-block h-2.5 w-2.5 rounded-full border ${
-          selected ? 'border-blue-600 bg-blue-600' : 'border-slate-300 bg-white'
-        }`}
-      />
-      {label}
-    </div>
-  );
-}
-
-function FileRow({ icon, label }: { icon: string; label: string }) {
-  return (
-    <div className='flex items-center gap-1.5 rounded border border-slate-200 bg-white px-1.5 py-1 text-[11px] text-slate-600'>
-      <span>{icon}</span>
-      <span>{label}</span>
-    </div>
-  );
 }
 
 function Note({ children }: { children: React.ReactNode }) {
