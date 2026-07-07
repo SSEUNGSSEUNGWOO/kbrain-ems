@@ -106,11 +106,15 @@ export function ExamRunner(props: Props) {
   }, [remaining]);
 
   // 이탈 감지 (작업형은 스킵)
+  // 두 이탈 상태(fullscreen 벗어남 / 탭 hidden)를 별도로 관리해야 함.
+  // 하나로 합치면 탭이 다시 보이는 순간 fullscreen이 아직 해제된 상태여도 오버레이가 사라지는 버그.
   const fsExitStartRef = useRef<number | null>(null);
   const visExitStartRef = useRef<number | null>(null);
   const [exitCount, setExitCount] = useState(0);
   const [exitTotalMs, setExitTotalMs] = useState(0);
-  const [inExit, setInExit] = useState(false);
+  const [fsExited, setFsExited] = useState(false);
+  const [visHidden, setVisHidden] = useState(false);
+  const inExit = fsExited || visHidden;
   const [liveElapsedMs, setLiveElapsedMs] = useState(0);
   const [duplicateTab, setDuplicateTab] = useState(false);
 
@@ -143,13 +147,13 @@ export function ExamRunner(props: Props) {
       const now = Date.now();
       if (!document.fullscreenElement) {
         fsExitStartRef.current = now;
-        setInExit(true);
+        setFsExited(true);
         setLiveElapsedMs(0);
       } else if (fsExitStartRef.current != null) {
         const durationMs = now - fsExitStartRef.current;
         const at = new Date(fsExitStartRef.current).toISOString();
         fsExitStartRef.current = null;
-        setInExit(false);
+        setFsExited(false);
         setExitCount((n) => n + 1);
         setExitTotalMs((v) => v + durationMs);
         void logBrowserEvent({ token, event: 'fullscreen_exit', at, durationMs });
@@ -159,13 +163,13 @@ export function ExamRunner(props: Props) {
       const now = Date.now();
       if (document.visibilityState === 'hidden') {
         visExitStartRef.current = now;
-        setInExit(true);
+        setVisHidden(true);
         setLiveElapsedMs(0);
       } else if (document.visibilityState === 'visible' && visExitStartRef.current != null) {
         const durationMs = now - visExitStartRef.current;
         const at = new Date(visExitStartRef.current).toISOString();
         visExitStartRef.current = null;
-        setInExit(false);
+        setVisHidden(false);
         setExitCount((n) => n + 1);
         setExitTotalMs((v) => v + durationMs);
         void logBrowserEvent({ token, event: 'visibility_hidden', at, durationMs });
