@@ -223,12 +223,17 @@ export async function submitSession(token: string): Promise<{ error?: string }> 
       const correctKey = (q.correct as { key?: string } | null)?.key;
       if (correctKey && ans && (ans as { key?: string }).key === correctKey) autoScore += q.score;
     } else if (q.type === 'short_text') {
-      const keywords = ((q.correct as { keywords?: string[] } | null)?.keywords ?? []).map((k) =>
-        k.trim().toLowerCase()
-      );
-      const text = String((ans as { text?: string } | null)?.text ?? '')
-        .trim()
-        .toLowerCase();
+      // 채점 관대화: 공백·구두점·괄호·특수문자를 전부 제거하고 소문자 비교.
+      // "Q, K, V", "q k v", "QKV" 를 keywords 하나로 커버하고, 응시자가 표기 변형해도 인정.
+      const norm = (raw: string) =>
+        raw
+          .trim()
+          .toLowerCase()
+          .replace(/[\s,·、\.\-_/\\|()<>"'`~!?;:*+=&%$#@\[\]{}]/g, '');
+      const keywords = ((q.correct as { keywords?: string[] } | null)?.keywords ?? [])
+        .map(norm)
+        .filter((k) => k.length > 0);
+      const text = norm(String((ans as { text?: string } | null)?.text ?? ''));
       if (text && keywords.some((k) => text === k)) autoScore += q.score;
     } else if (q.type === 'task_based') {
       hasManual = true;
