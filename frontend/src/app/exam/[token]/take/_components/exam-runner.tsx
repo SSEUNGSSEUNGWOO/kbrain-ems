@@ -642,20 +642,6 @@ export function ExamRunner(props: Props) {
                       />
                     </div>
 
-                    {/* GitHub URL (선택) */}
-                    <div>
-                      <label className='flex items-baseline gap-1.5 text-[11px] font-semibold uppercase tracking-widest text-slate-500 mb-1.5'>
-                        GitHub · 배포 URL
-                        <span className='text-slate-400 text-[10px] font-normal normal-case tracking-normal'>(선택)</span>
-                      </label>
-                      <input
-                        type='url'
-                        value={(answer as { url?: string }).url ?? ''}
-                        onChange={(e) => setAnswerFor({ url: e.target.value })}
-                        className='w-full rounded-xl border-2 border-slate-200 bg-white px-5 py-3 text-[15px] focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100'
-                        placeholder='https://github.com/... (파일 대신 URL로도 제출 가능)'
-                      />
-                    </div>
                   </div>
                 )}
               </div>
