@@ -191,27 +191,52 @@ function getDonutCenterLabel(c: CohortStatus, today: string): string {
   }
 }
 
+// PostgREST max-rows(1000) 우회: range로 chunk fetch.
+// students/attendance/applications가 1000행 넘어가면 통계가 잘렸음.
+async function fetchAllRows<T>(
+  builder: () => any // eslint-disable-line @typescript-eslint/no-explicit-any
+): Promise<T[]> {
+  const chunk = 1000;
+  const out: T[] = [];
+  for (let from = 0; from < 1_000_000; from += chunk) {
+    const { data, error } = await builder().range(from, from + chunk - 1);
+    if (error) throw new Error(error.message);
+    const batch = (data ?? []) as T[];
+    out.push(...batch);
+    if (batch.length < chunk) break;
+  }
+  return out;
+}
+
 export default async function OverviewPage() {
   const today = todayKst();
   const supabase = createAdminClient();
 
   // === Fetch ===
-  const [cohortRes, studentRes, sessionRes, attendanceRes, appRes] = await Promise.all([
+  const [cohortRes, students, sessionRes, attendanceRows, appRows] = await Promise.all([
     supabase
       .from('cohorts')
       .select(
         'id, name, started_at, ended_at, application_start_at, application_end_at, decided_at, notified_at, orientation_date, recruiting_slug, max_capacity'
       )
       .order('name', { ascending: true }),
-    supabase.from('students').select('id, cohort_id'),
+    fetchAllRows<{ id: string; cohort_id: string }>(() =>
+      supabase.from('students').select('id, cohort_id')
+    ),
     supabase.from('sessions').select('id, cohort_id, session_date, title').order('session_date'),
-    supabase.from('attendance_records').select('session_id, status'),
-    supabase.from('applications').select('cohort_id')
+    fetchAllRows<{ session_id: string; status: string }>(() =>
+      supabase.from('attendance_records').select('session_id, status')
+    ),
+    fetchAllRows<{ cohort_id: string }>(() =>
+      supabase.from('applications').select('cohort_id')
+    )
   ]);
   if (cohortRes.error) throw new Error(cohortRes.error.message);
-  if (studentRes.error) throw new Error(studentRes.error.message);
   if (sessionRes.error) throw new Error(sessionRes.error.message);
-  if (attendanceRes.error) throw new Error(attendanceRes.error.message);
+  // 기존 studentRes / attendanceRes / appRes 호환 alias
+  const studentRes = { data: students, error: null } as const;
+  const attendanceRes = { data: attendanceRows, error: null } as const;
+  const appRes = { data: appRows, error: null } as const;
 
   // risks/issues — 테이블 없을 수도 있어 try-catch
   let openRiskCount = 0;
