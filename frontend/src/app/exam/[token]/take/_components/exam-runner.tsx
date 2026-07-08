@@ -307,6 +307,10 @@ export function ExamRunner(props: Props) {
     void toggleFlag({ token, questionId: question.id });
   };
 
+  // 최종 제출 확인 다이얼로그 상태
+  const [showFinalConfirm, setShowFinalConfirm] = useState(false);
+  const [finalAgree, setFinalAgree] = useState(false);
+
   // 섹션 진행 → 다음 섹션 이동 (or 마지막이면 최종 제출)
   const handleAdvanceSection = async (timeoutReached: boolean) => {
     startTransition(async () => {
@@ -325,6 +329,29 @@ export function ExamRunner(props: Props) {
       }
     });
   };
+
+  const isFinalSection = SECTION_ORDER.indexOf(currentSection) === SECTION_ORDER.length - 1;
+  // 마지막 섹션에서 '최종 제출' 클릭 시: 다이얼로그 오픈 (즉시 제출 안 함)
+  const handleFinalSubmitClick = () => {
+    if (isFinalSection) {
+      setFinalAgree(false);
+      setShowFinalConfirm(true);
+    } else {
+      void handleAdvanceSection(false);
+    }
+  };
+  const confirmFinalSubmit = () => {
+    setShowFinalConfirm(false);
+    void handleAdvanceSection(false);
+  };
+  const cancelFinalSubmit = () => setShowFinalConfirm(false);
+
+  // 전체 문항에서 미답변 계산 (섹션 무관)
+  const unansweredTotal = questions.filter((q) => {
+    const a = answers[q.id];
+    if (!a) return true;
+    return Object.keys(a).length === 0;
+  }).length;
 
   const canGoPrev = currentIdx > 0;
   const canGoNext = currentIdx < sectionQuestions.length - 1;
@@ -365,6 +392,84 @@ export function ExamRunner(props: Props) {
             >
               전체화면으로 복귀
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* 최종 제출 확인 다이얼로그 */}
+      {showFinalConfirm && (
+        <div className='fixed inset-0 z-[55] flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-6'>
+          <div className='max-w-md w-full rounded-2xl bg-white shadow-2xl border-2 border-slate-200 overflow-hidden'>
+            <div className='px-6 pt-6 pb-4 border-b border-slate-100'>
+              <div className='flex items-center gap-3'>
+                <div className='flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-600'>
+                  <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round' className='h-6 w-6'>
+                    <path d='M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z' />
+                    <line x1='12' x2='12' y1='9' y2='13' />
+                    <line x1='12' x2='12.01' y1='17' y2='17' />
+                  </svg>
+                </div>
+                <div>
+                  <h2 className='text-lg font-bold text-slate-900'>최종 제출하시겠습니까?</h2>
+                  <p className='text-xs text-slate-500 mt-0.5'>제출 후에는 답변을 수정할 수 없습니다.</p>
+                </div>
+              </div>
+            </div>
+
+            <div className='px-6 py-4 space-y-3 bg-slate-50/50'>
+              <div className='flex items-center justify-between rounded-lg bg-white border border-slate-200 px-3 py-2.5'>
+                <span className='text-xs text-slate-500'>미답변 문항</span>
+                <span className={`text-sm font-bold tabular-nums ${unansweredTotal > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                  {unansweredTotal}개 / {questions.length}개 중
+                </span>
+              </div>
+              <div className='flex items-center justify-between rounded-lg bg-white border border-slate-200 px-3 py-2.5'>
+                <span className='text-xs text-slate-500'>남은 시간</span>
+                <span className='font-mono text-sm font-bold text-slate-900 tabular-nums'>
+                  {formatMinSec(Math.max(0, remaining))}
+                </span>
+              </div>
+              {unansweredTotal > 0 && (
+                <div className='rounded-lg border border-rose-200 bg-rose-50 px-3 py-2.5 text-xs text-rose-800'>
+                  ⚠ 아직 답하지 않은 문항이 <b>{unansweredTotal}개</b> 남아 있습니다. 그래도 제출하시겠어요?
+                </div>
+              )}
+            </div>
+
+            <div className='px-6 py-4'>
+              <label className='flex items-start gap-2.5 cursor-pointer'>
+                <input
+                  type='checkbox'
+                  checked={finalAgree}
+                  onChange={(e) => setFinalAgree(e.target.checked)}
+                  className='mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500'
+                />
+                <span className='text-sm text-slate-700 leading-snug'>
+                  모든 답변을 검토했으며 <b className='text-slate-900'>최종 제출에 동의</b>합니다.
+                  <br />
+                  <span className='text-xs text-slate-500'>(제출 후 답변 수정·재응시 불가)</span>
+                </span>
+              </label>
+            </div>
+
+            <div className='px-6 pb-6 flex gap-2'>
+              <button
+                type='button'
+                onClick={cancelFinalSubmit}
+                disabled={pending}
+                className='flex-1 rounded-xl border-2 border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold py-2.5 text-sm'
+              >
+                취소하고 계속 응시
+              </button>
+              <button
+                type='button'
+                onClick={confirmFinalSubmit}
+                disabled={!finalAgree || pending}
+                className='flex-1 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold py-2.5 text-sm shadow-sm'
+              >
+                {pending ? '제출 중…' : '최종 제출'}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -725,13 +830,13 @@ export function ExamRunner(props: Props) {
             ) : (
               <button
                 type='button'
-                onClick={() => void handleAdvanceSection(false)}
+                onClick={handleFinalSubmitClick}
                 disabled={pending}
                 className='rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white font-semibold px-6 py-2.5 shadow-sm'
               >
                 {pending
                   ? '이동 중...'
-                  : SECTION_ORDER.indexOf(currentSection) === SECTION_ORDER.length - 1
+                  : isFinalSection
                     ? '최종 제출'
                     : `다음 섹션 (${SECTION_LABEL[SECTION_ORDER[SECTION_ORDER.indexOf(currentSection) + 1]]}) →`}
               </button>
