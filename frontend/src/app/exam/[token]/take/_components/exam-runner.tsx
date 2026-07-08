@@ -211,6 +211,20 @@ export function ExamRunner(props: Props) {
     return () => clearInterval(id);
   }, [inExit]);
 
+  // 진입 시점에 이미 전체화면이 풀린 상태(브라우저의 페이지 이동 정책으로 종종 발생)면
+  // 즉시 이탈 오버레이 표시해서 응시자가 '전체화면으로 복귀' 버튼 누르게 유도.
+  // 단, 이 초기 상태는 실제 이탈이 아니므로 exitCount 카운트는 안 늘림 (fsExitStartRef 유지 X).
+  useEffect(() => {
+    if (isTask) return;
+    if (!fullscreenRequired) return;
+    if (!document.fullscreenElement) {
+      // fsExitStartRef는 null로 두어 재진입 시 exitCount 증가 안 됨
+      setFsExited(true);
+    }
+    // 마운트 직후 한 번만
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     if (isTask) return;
     const onFs = () => {
@@ -464,22 +478,37 @@ export function ExamRunner(props: Props) {
       {inExit && !isTask && (
         <div className='fixed inset-0 z-50 flex items-center justify-center bg-rose-950/80 backdrop-blur-sm p-6'>
           <div className='max-w-md w-full rounded-2xl bg-white p-8 shadow-2xl text-center border-4 border-rose-500'>
-            <h2 className='text-xl font-bold text-slate-900 mb-2'>전체화면 이탈 감지</h2>
-            <p className='text-sm text-slate-600 mb-3'>시험 중 화면 이탈이 기록됩니다.</p>
-            <div className='my-4 py-3 rounded-lg bg-rose-50 border border-rose-200'>
-              <div className='font-mono text-3xl font-bold text-rose-700 tabular-nums'>
-                {Math.round(liveElapsedMs / 1000)}초
-              </div>
-              <div className='text-[11px] text-rose-600 mt-1'>
-                누적: {exitCount}회 · {Math.round(exitTotalMs / 1000)}초
-              </div>
-            </div>
+            {fsExitStartRef.current == null && visExitStartRef.current == null ? (
+              // 초기 진입 시(브라우저 페이지 이동으로 fullscreen 풀린 경우) — 카운트 표시 X
+              <>
+                <h2 className='text-xl font-bold text-slate-900 mb-2'>전체화면으로 진입해주세요</h2>
+                <p className='text-sm text-slate-600 mb-5'>
+                  시험은 전체화면 모드에서만 진행됩니다.
+                  <br />
+                  아래 버튼을 눌러 전체화면으로 진입하세요.
+                </p>
+              </>
+            ) : (
+              // 실제 이탈 감지
+              <>
+                <h2 className='text-xl font-bold text-slate-900 mb-2'>전체화면 이탈 감지</h2>
+                <p className='text-sm text-slate-600 mb-3'>시험 중 화면 이탈이 기록됩니다.</p>
+                <div className='my-4 py-3 rounded-lg bg-rose-50 border border-rose-200'>
+                  <div className='font-mono text-3xl font-bold text-rose-700 tabular-nums'>
+                    {Math.round(liveElapsedMs / 1000)}초
+                  </div>
+                  <div className='text-[11px] text-rose-600 mt-1'>
+                    누적: {exitCount}회 · {Math.round(exitTotalMs / 1000)}초
+                  </div>
+                </div>
+              </>
+            )}
             <button
               type='button'
               onClick={() => void requestReenterFullscreen()}
               className='w-full rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-semibold px-6 py-3'
             >
-              전체화면으로 복귀
+              전체화면으로 진입
             </button>
           </div>
         </div>
