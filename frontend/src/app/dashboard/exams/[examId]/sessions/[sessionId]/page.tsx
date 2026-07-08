@@ -182,15 +182,17 @@ export default async function ExamSessionDetailPage({ params }: Props) {
                     : 'wrong';
                 }
               } else {
-                // task_based: 응답 값을 사람이 읽을 수 있는 형태로
+                // task_based: 응답 값을 사람이 읽을 수 있는 형태로 (파일 목록은 아래에서 별도 표시)
                 const parts: string[] = [];
+                const filesCount = ((ans as { files?: unknown[] } | null)?.files ?? []).length;
+                if (filesCount > 0) parts.push(`📎 파일 ${filesCount}개 (아래 목록 참조)`);
                 if ((ans as { notes?: string } | null)?.notes) {
-                  parts.push(`메모: ${(ans as { notes: string }).notes}`);
+                  parts.push(`📝 메모: ${(ans as { notes: string }).notes}`);
                 }
                 if ((ans as { url?: string } | null)?.url) {
-                  parts.push(`URL: ${(ans as { url: string }).url}`);
+                  parts.push(`🔗 URL: ${(ans as { url: string }).url}`);
                 }
-                displayAnswer = parts.length > 0 ? parts.join('\n') : '(미제출)';
+                displayAnswer = parts.length > 0 ? parts.join('\n\n') : '(미제출)';
                 correctness = 'pending';
               }
 
@@ -235,6 +237,36 @@ export default async function ExamSessionDetailPage({ params }: Props) {
                       </div>
                     </div>
                   </div>
+                  {q.type === 'task_based' && (() => {
+                    const files = ((ans as { files?: { name: string; url: string; size: number; path: string }[] } | null)?.files) ?? [];
+                    return files.length > 0 ? (
+                      <div className='rounded-md border border-blue-200 bg-blue-50/40 p-3'>
+                        <div className='text-xs font-semibold text-blue-800 mb-2 flex items-center gap-1.5'>
+                          📎 첨부 파일 <span className='text-blue-600'>({files.length}개)</span>
+                        </div>
+                        <ul className='space-y-1.5'>
+                          {files.map((f, i) => (
+                            <li key={f.path ?? i} className='flex items-center gap-3 rounded bg-white border border-slate-200 px-3 py-2'>
+                              <span className='text-lg flex-shrink-0'>📄</span>
+                              <div className='flex-1 min-w-0'>
+                                <div className='text-sm text-slate-800 truncate' title={f.name}>{f.name}</div>
+                                <div className='text-[11px] text-slate-500'>{(f.size / 1024).toFixed(1)} KB</div>
+                              </div>
+                              <a
+                                href={f.url}
+                                target='_blank'
+                                rel='noopener noreferrer'
+                                download={f.name}
+                                className='flex-shrink-0 inline-flex items-center gap-1 rounded-md bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold px-3 py-1.5'
+                              >
+                                ↓ 다운로드
+                              </a>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null;
+                  })()}
                   {q.type === 'task_based' && (
                     <ManualScoreForm
                       examId={examId}
