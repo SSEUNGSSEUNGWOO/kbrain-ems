@@ -42,7 +42,7 @@ export function DoneActions({ shareCode }: { shareCode: string | null }) {
               <circle cx='12' cy='12' r='10' /><polyline points='12 6 12 12 16 14' />
             </svg>
             <span>
-              <b className='tabular-nums'>{countdown}초</b> 후 다음 응시자 로그인 화면으로 이동합니다
+              <b className='tabular-nums'>{countdown}초</b> 후 로그인 화면으로 이동합니다
             </span>
           </div>
           <button
@@ -54,11 +54,10 @@ export function DoneActions({ shareCode }: { shareCode: string | null }) {
           </button>
         </div>
       )}
-      <div className='mt-6 flex flex-col sm:flex-row gap-2'>
-      {loginUrl && (
+      <div className='mt-6'>
         <a
-          href={loginUrl}
-          className='flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold px-4 py-3 transition-colors shadow-sm'
+          href={loginUrl ?? '/'}
+          className='w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold px-4 py-3 transition-colors shadow-sm'
         >
           <svg
             xmlns='http://www.w3.org/2000/svg'
@@ -70,32 +69,11 @@ export function DoneActions({ shareCode }: { shareCode: string | null }) {
             strokeLinejoin='round'
             className='h-4 w-4'
           >
-            <path d='M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4' />
-            <polyline points='10 17 15 12 10 7' />
-            <line x1='15' x2='3' y1='12' y2='12' />
+            <path d='M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z' />
+            <polyline points='9 22 9 12 15 12 15 22' />
           </svg>
-          다음 응시자 로그인
+          홈으로
         </a>
-      )}
-      <a
-        href='/'
-        className='flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-sm font-semibold px-4 py-3 transition-colors shadow-sm'
-      >
-        <svg
-          xmlns='http://www.w3.org/2000/svg'
-          viewBox='0 0 24 24'
-          fill='none'
-          stroke='currentColor'
-          strokeWidth='2'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-          className='h-4 w-4'
-        >
-          <path d='M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z' />
-          <polyline points='9 22 9 12 15 12 15 22' />
-        </svg>
-        홈으로
-      </a>
       </div>
     </>
   );
