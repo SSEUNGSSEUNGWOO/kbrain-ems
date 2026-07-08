@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import ExcelJS from 'exceljs';
 import { createAdminClient } from '@/lib/supabase/server';
 import { isDeveloper } from '@/lib/auth';
+import { isMultipleChoiceCorrect, isShortAnswerCorrect } from '@/lib/exam-grading';
 
 type Params = { params: Promise<{ examId: string }> };
 
@@ -98,15 +99,13 @@ export async function GET(_req: Request, { params }: Params) {
     if (q.type === 'multiple_choice') {
       const key = (ans as { key?: string } | null)?.key;
       const correctKey = (q.correct as { key?: string } | null)?.key;
-      if (key && correctKey && key === correctKey) return { earned: q.score, isCorrect: 'correct' };
+      if (isMultipleChoiceCorrect(key, correctKey)) return { earned: q.score, isCorrect: 'correct' };
       return { earned: 0, isCorrect: key ? 'wrong' : 'pending' };
     }
     if (q.type === 'short_text') {
-      const text = String((ans as { text?: string } | null)?.text ?? '').trim().toLowerCase();
-      const keywords = ((q.correct as { keywords?: string[] } | null)?.keywords ?? []).map((k) =>
-        k.trim().toLowerCase()
-      );
-      if (text && keywords.some((k) => text === k)) return { earned: q.score, isCorrect: 'correct' };
+      const text = (ans as { text?: string } | null)?.text ?? null;
+      const keywords = ((q.correct as { keywords?: string[] } | null)?.keywords ?? []);
+      if (isShortAnswerCorrect(text, keywords)) return { earned: q.score, isCorrect: 'correct' };
       return { earned: 0, isCorrect: text ? 'wrong' : 'pending' };
     }
     return { earned: manual ?? 0, isCorrect: manual != null ? 'correct' : 'pending' };
