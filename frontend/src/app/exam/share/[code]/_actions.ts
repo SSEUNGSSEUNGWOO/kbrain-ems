@@ -71,7 +71,26 @@ export async function enterExamViaShare(input: {
       phone_last4: digits,
       status: 'in_progress'
     });
-    if (insErr) return { error: `세션 생성 실패: ${insErr.message}` };
+    if (insErr) {
+      // 동시 요청으로 UNIQUE 제약(exam_id, student_id) 위반 시:
+      // 다른 요청이 먼저 insert 성공한 상태라 그 세션을 재조회해서 사용.
+      const isUniqueViolation = insErr.code === '23505';
+      if (isUniqueViolation) {
+        const { data: raced } = await s
+          .from('exam_sessions')
+          .select('token')
+          .eq('exam_id', exam.id)
+          .eq('student_id', matched.id)
+          .maybeSingle();
+        if (raced?.token) {
+          token = raced.token;
+        } else {
+          return { error: '세션 생성 실패 (충돌 복구 실패)' };
+        }
+      } else {
+        return { error: `세션 생성 실패: ${insErr.message}` };
+      }
+    }
   }
 
   redirect(`/exam/${token}`);
