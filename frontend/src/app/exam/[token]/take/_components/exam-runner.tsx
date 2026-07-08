@@ -243,8 +243,18 @@ export function ExamRunner(props: Props) {
     }
   };
 
-  // 응답 저장 (debounced 아닌 즉시. 재시도 3회)
+  // 저장 상태 표시 (응시자 불안 제거)
+  // idle: 표시 없음, saving: 저장 중, saved: 방금 저장됨(잠깐 표시), error: 실패
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  // 서버 저장 성공한 문항 id — 좌측 그리드 상태 정확성 (client state != server state 방어)
+  const [serverSavedIds, setServerSavedIds] = useState<Set<string>>(() => new Set(Object.keys(savedAnswers)));
+  // 실패한 마지막 payload — '재시도' 버튼 클릭 시 다시 시도
+  const failedRef = useRef<{ questionId: string; payload: Record<string, unknown> | null } | null>(null);
+  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 응답 저장 (debounced 아닌 즉시. 재시도 3회 + 상태 반영)
   const runSave = async (questionId: string, payload: Record<string, unknown> | null) => {
+    setSaveState('saving');
     for (let i = 0; i < 3; i++) {
       try {
         const res = await saveAnswer({
@@ -253,13 +263,45 @@ export function ExamRunner(props: Props) {
           sectionKind: currentSection,
           answer: (payload as never) ?? null
         });
-        if (!res.error) return res;
+        if (!res.error) {
+          // 성공: 서버 저장 확정
+          if (payload && Object.keys(payload).length > 0) {
+            setServerSavedIds((prev) => {
+              if (prev.has(questionId)) return prev;
+              const next = new Set(prev);
+              next.add(questionId);
+              return next;
+            });
+          } else {
+            // 빈 답변으로 저장한 경우 = 삭제
+            setServerSavedIds((prev) => {
+              if (!prev.has(questionId)) return prev;
+              const next = new Set(prev);
+              next.delete(questionId);
+              return next;
+            });
+          }
+          failedRef.current = null;
+          setSaveState('saved');
+          if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+          savedTimerRef.current = setTimeout(() => setSaveState('idle'), 2000);
+          return res;
+        }
       } catch {
         /* retry */
       }
       if (i < 2) await new Promise((r) => setTimeout(r, 300 * (i + 1)));
     }
+    // 3회 다 실패
+    failedRef.current = { questionId, payload };
+    setSaveState('error');
     return { error: '저장 실패' };
+  };
+
+  const retryFailedSave = () => {
+    const f = failedRef.current;
+    if (!f) return;
+    void runSave(f.questionId, f.payload);
   };
 
   // 문항별 debounce 타이머 관리
@@ -345,15 +387,12 @@ export function ExamRunner(props: Props) {
   const cancelFinalSubmit = () => setShowFinalConfirm(false);
 
   // 현재 섹션의 미답변 개수 (섹션 이동 확인용)
-  const unansweredCurrent = sectionQuestions.filter((q) => {
-    const a = answers[q.id];
-    if (!a) return true;
-    return Object.keys(a).length === 0;
-  }).length;
+  // 서버 저장 성공한 문항만 답변 완료로 인정 (실패한 답변은 미답변 취급 → 응시자에게 경고)
+  const unansweredCurrent = sectionQuestions.filter((q) => !serverSavedIds.has(q.id)).length;
 
   const canGoPrev = currentIdx > 0;
   const canGoNext = currentIdx < sectionQuestions.length - 1;
-  const answeredCount = sectionQuestions.filter((q) => (answers[q.id] ?? {}) && Object.keys(answers[q.id] ?? {}).length > 0).length;
+  const answeredCount = sectionQuestions.filter((q) => serverSavedIds.has(q.id)).length;
 
   const currentSectionIdxInFlow = SECTION_ORDER.indexOf(currentSection);
 
@@ -527,6 +566,39 @@ export function ExamRunner(props: Props) {
                 </div>
               </div>
             )}
+            {/* 저장 상태 배지 */}
+            {saveState !== 'idle' && (
+              <div
+                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
+                  saveState === 'saving'
+                    ? 'border-slate-300 bg-slate-100 text-slate-600'
+                    : saveState === 'saved'
+                      ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                      : 'border-rose-400 bg-rose-100 text-rose-700 animate-pulse'
+                }`}
+              >
+                {saveState === 'saving' && (
+                  <>
+                    <span className='inline-block h-1.5 w-1.5 rounded-full bg-slate-500 animate-pulse' />
+                    저장 중…
+                  </>
+                )}
+                {saveState === 'saved' && (
+                  <>
+                    <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='3' strokeLinecap='round' strokeLinejoin='round' className='h-3 w-3'>
+                      <polyline points='20 6 9 17 4 12' />
+                    </svg>
+                    저장됨
+                  </>
+                )}
+                {saveState === 'error' && (
+                  <>
+                    <span className='text-sm'>⚠</span>
+                    저장 실패
+                  </>
+                )}
+              </div>
+            )}
             <div
               className={`flex items-center gap-2 px-4 py-2 rounded-lg font-mono text-2xl font-bold tabular-nums border-2 shadow-sm ${
                 remaining <= 30
@@ -546,6 +618,26 @@ export function ExamRunner(props: Props) {
             style={{ width: `${(remaining / sectionLimit) * 100}%` }}
           />
         </div>
+        {/* 저장 실패 배너 (헤더 바로 아래, 재시도 버튼) */}
+        {saveState === 'error' && (
+          <div className='border-t border-rose-300 bg-rose-50 px-6 py-2.5'>
+            <div className='mx-auto max-w-6xl flex items-center justify-between gap-3'>
+              <div className='flex items-center gap-2 text-sm text-rose-900'>
+                <span className='text-lg'>⚠</span>
+                <span>
+                  <b>답변 저장에 실패했습니다.</b> 인터넷 연결을 확인하고 재시도해 주세요. (미저장된 답변은 서버에 기록되지 않습니다)
+                </span>
+              </div>
+              <button
+                type='button'
+                onClick={retryFailedSave}
+                className='flex-shrink-0 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-sm font-semibold px-4 py-1.5 shadow-sm'
+              >
+                재시도
+              </button>
+            </div>
+          </div>
+        )}
       </header>
 
       <div className='flex-1 mx-auto max-w-6xl w-full px-6 py-6 flex gap-6'>
@@ -565,7 +657,8 @@ export function ExamRunner(props: Props) {
             <div className='grid grid-cols-5 gap-1.5'>
               {sectionQuestions.map((q, i) => {
                 const isCurrent = i === currentIdx;
-                const isAnswered = Object.keys(answers[q.id] ?? {}).length > 0;
+                // 서버에 저장된 답변만 '답변됨'으로 표시 (client-only 상태는 함정)
+                const isAnswered = serverSavedIds.has(q.id);
                 const isFlagged = flagged.has(q.id);
                 const cls = isCurrent
                   ? 'bg-slate-900 text-white ring-2 ring-slate-900 ring-offset-1'
