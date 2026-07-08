@@ -170,19 +170,37 @@ export function ExamRunner(props: Props) {
   const [liveElapsedMs, setLiveElapsedMs] = useState(0);
   const [duplicateTab, setDuplicateTab] = useState(false);
 
+  // 다중 탭 감지 + 응시자가 하나 골라서 계속 응시할 수 있게 해제 옵션.
+  // 예전에는 두 탭 모두 잠겨서 실수 시 시험 불가 → 하나 선택할 수 있게 개선.
+  const bcRef = useRef<BroadcastChannel | null>(null);
+  const [tabId] = useState(() => Math.random().toString(36).slice(2, 10));
   useEffect(() => {
     if (typeof BroadcastChannel === 'undefined') return;
     const bc = new BroadcastChannel(`exam-${token}`);
-    bc.postMessage({ type: 'hello' });
+    bcRef.current = bc;
+    bc.postMessage({ type: 'hello', id: tabId });
     bc.onmessage = (ev: MessageEvent) => {
-      const t = (ev.data as { type?: string })?.type;
-      if (t === 'hello' || t === 'here') {
+      const msg = ev.data as { type?: string; id?: string };
+      if (msg.type === 'hello' || msg.type === 'here') {
+        if (msg.id === tabId) return; // 자기 자신 무시
         setDuplicateTab(true);
-        if (t === 'hello') bc.postMessage({ type: 'here' });
+        if (msg.type === 'hello') bc.postMessage({ type: 'here', id: tabId });
+      } else if (msg.type === 'claimed') {
+        // 다른 탭이 '이 탭에서 계속' 선택 → 이 탭은 잠긴 상태 유지 (선택 못 함)
+        if (msg.id !== tabId) setDuplicateTab(true);
       }
     };
-    return () => bc.close();
-  }, [token]);
+    return () => {
+      bcRef.current = null;
+      bc.close();
+    };
+  }, [token, tabId]);
+
+  const claimThisTab = () => {
+    // BC로 '이 탭 사용 선언' 전송 → 다른 탭은 계속 잠긴 상태
+    bcRef.current?.postMessage({ type: 'claimed', id: tabId });
+    setDuplicateTab(false);
+  };
 
   useEffect(() => {
     if (!inExit) return;
@@ -402,8 +420,23 @@ export function ExamRunner(props: Props) {
       {duplicateTab && (
         <div className='fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/85 backdrop-blur-sm p-6'>
           <div className='max-w-md w-full rounded-2xl bg-white p-8 shadow-2xl text-center border-4 border-slate-700'>
-            <h2 className='text-xl font-bold text-slate-900 mb-2'>다른 탭에서 이미 응시 중입니다</h2>
-            <p className='text-sm text-slate-600'>한 응시자는 하나의 창에서만 응시할 수 있습니다.</p>
+            <div className='mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 text-amber-600 text-xl'>
+              ⚠
+            </div>
+            <h2 className='text-xl font-bold text-slate-900 mb-2'>다른 탭에서도 열려 있습니다</h2>
+            <p className='text-sm text-slate-600 mb-6 leading-relaxed'>
+              같은 시험이 여러 탭에서 열렸습니다.
+              <br />
+              <b>이 탭에서 계속</b> 버튼을 누르면 다른 탭은 자동으로 잠깁니다.
+            </p>
+            <button
+              type='button'
+              onClick={claimThisTab}
+              className='w-full rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold py-3 shadow-sm'
+            >
+              이 탭에서 계속 응시
+            </button>
+            <p className='mt-3 text-[11px] text-slate-400'>다른 탭에서 계속 응시하려면 그 탭에서 같은 버튼을 누르세요.</p>
           </div>
         </div>
       )}
