@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { saveAnswer, logBrowserEvent, submitSection, submitSession, toggleFlag } from '../../_actions';
+import { QuestionText } from './question-text';
 
 export type SectionKind = 'multiple_choice' | 'short_text' | 'task_based';
 
@@ -514,7 +515,7 @@ export function ExamRunner(props: Props) {
                     </div>
                   </div>
                 )}
-                <div className='text-[15px] leading-8 whitespace-pre-wrap text-slate-800'>{question.text}</div>
+                <QuestionText text={question.text} />
               </div>
 
               <div className='px-8 pt-2 pb-8'>
