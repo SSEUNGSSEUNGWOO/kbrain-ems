@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { saveAnswer, logBrowserEvent, submitSection, submitSession, toggleFlag } from '../../_actions';
 import { QuestionText } from './question-text';
+import { TaskFileUpload, type UploadedFile } from './task-file-upload';
 
 export type SectionKind = 'multiple_choice' | 'short_text' | 'task_based';
 
@@ -574,31 +575,49 @@ export function ExamRunner(props: Props) {
                 )}
 
                 {question.type === 'task_based' && (
-                  <div className='space-y-4'>
-                    <div className='rounded-lg border border-amber-200 bg-amber-50/60 px-4 py-3 text-xs text-amber-900'>
-                      💡 작업형 문항입니다. 결과 URL과 구현 메모를 입력하세요. 외부 앱 사용 가능합니다.
-                    </div>
+                  <div className='space-y-5'>
+                    {/* 파일 업로드 (필수) */}
                     <div>
-                      <label className='block text-[11px] font-semibold uppercase tracking-widest text-slate-500 mb-1.5'>
-                        구현 메모·요약
+                      <label className='flex items-baseline gap-1.5 text-[11px] font-semibold uppercase tracking-widest text-slate-500 mb-1.5'>
+                        결과물 파일
+                        <span className='text-rose-500 text-[10px] font-bold'>* 필수</span>
+                      </label>
+                      <p className='text-xs text-slate-500 mb-2'>
+                        코드(<code className='bg-slate-100 px-1 rounded'>app.py</code>·<code className='bg-slate-100 px-1 rounded'>index.html</code>), 응답 캡처 이미지, 관련 자료를 함께 업로드하세요.
+                      </p>
+                      <TaskFileUpload
+                        token={token}
+                        files={((answer as { files?: UploadedFile[] }).files) ?? []}
+                        onChange={(next) => setAnswerFor({ files: next })}
+                      />
+                    </div>
+
+                    {/* 메모 (필수) */}
+                    <div>
+                      <label className='flex items-baseline gap-1.5 text-[11px] font-semibold uppercase tracking-widest text-slate-500 mb-1.5'>
+                        구현 메모
+                        <span className='text-rose-500 text-[10px] font-bold'>* 필수</span>
                       </label>
                       <textarea
                         value={(answer as { notes?: string }).notes ?? ''}
                         onChange={(e) => setAnswerFor({ notes: e.target.value })}
                         className='w-full min-h-[120px] rounded-xl border-2 border-slate-200 bg-white px-5 py-4 text-[15px] focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 resize-none'
-                        placeholder='구현 방법·사용 도구·주요 코드 요약'
+                        placeholder='실행 명령 · 사용한 Ollama 모델명 · 생성한 파일 목록 · 구현 방식 요약'
                       />
                     </div>
+
+                    {/* GitHub URL (선택) */}
                     <div>
-                      <label className='block text-[11px] font-semibold uppercase tracking-widest text-slate-500 mb-1.5'>
-                        제출 URL
+                      <label className='flex items-baseline gap-1.5 text-[11px] font-semibold uppercase tracking-widest text-slate-500 mb-1.5'>
+                        GitHub · 배포 URL
+                        <span className='text-slate-400 text-[10px] font-normal normal-case tracking-normal'>(선택)</span>
                       </label>
                       <input
                         type='url'
                         value={(answer as { url?: string }).url ?? ''}
                         onChange={(e) => setAnswerFor({ url: e.target.value })}
                         className='w-full rounded-xl border-2 border-slate-200 bg-white px-5 py-3 text-[15px] focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100'
-                        placeholder='https://github.com/... 또는 npm 패키지 URL'
+                        placeholder='https://github.com/... (파일 대신 URL로도 제출 가능)'
                       />
                     </div>
                   </div>
