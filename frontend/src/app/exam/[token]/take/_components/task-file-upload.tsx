@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
+import { uploadTaskFile, deleteTaskFile } from '../../_actions';
 
 export type UploadedFile = {
   name: string;
@@ -10,7 +10,6 @@ export type UploadedFile = {
   url: string;
 };
 
-const BUCKET = 'exam-submissions';
 const MAX_MB = 20;
 
 export function TaskFileUpload({
@@ -32,26 +31,14 @@ export function TaskFileUpload({
       setError(`${file.name}: 파일 크기가 ${MAX_MB}MB를 초과합니다.`);
       return null;
     }
-    const supabase = createClient();
-    const safeName = file.name.replace(/[^\w.\-]/g, '_');
-    const path = `${token}/${Date.now()}_${safeName}`;
-    const { error: upErr } = await supabase.storage.from(BUCKET).upload(path, file, {
-      cacheControl: '3600',
-      upsert: false
-    });
-    if (upErr) {
-      setError(`${file.name}: ${upErr.message}`);
+    const fd = new FormData();
+    fd.append('file', file);
+    const res = await uploadTaskFile(token, fd);
+    if (res.error) {
+      setError(`${file.name}: ${res.error}`);
       return null;
     }
-    const { data: signed } = await supabase.storage
-      .from(BUCKET)
-      .createSignedUrl(path, 60 * 60 * 24 * 365);
-    return {
-      name: file.name,
-      path,
-      size: file.size,
-      url: signed?.signedUrl ?? ''
-    };
+    return res.file ?? null;
   };
 
   const handleFiles = async (fs: FileList | File[]) => {
@@ -67,7 +54,10 @@ export function TaskFileUpload({
     setBusy(false);
   };
 
-  const removeAt = (idx: number) => {
+  const removeAt = async (idx: number) => {
+    const target = files[idx];
+    // 서버에서도 파일 제거 (실패해도 UI에서는 지움)
+    void deleteTaskFile(token, target.path);
     const next = files.filter((_, i) => i !== idx);
     onChange(next);
   };
@@ -137,7 +127,7 @@ export function TaskFileUpload({
               </div>
               <button
                 type='button'
-                onClick={() => removeAt(i)}
+                onClick={() => void removeAt(i)}
                 className='flex-shrink-0 text-xs text-rose-600 hover:text-rose-700 font-medium'
               >
                 삭제

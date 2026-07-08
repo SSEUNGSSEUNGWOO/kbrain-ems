@@ -6,6 +6,77 @@ import type { Json } from '@/lib/supabase/types';
 type Answer = { key?: string; text?: string; file_path?: string; notes?: string; url?: string };
 type SectionKind = 'multiple_choice' | 'short_text' | 'task_based';
 
+// 작업형 파일 업로드 (Storage RLS 정책 없어도 admin client로 우회)
+// 브라우저에서 anon key로 직접 업로드하면 정책 없이 실패하므로
+// 서버 액션에서 admin으로 처리하고 클라이언트에 파일 정보만 반환.
+const UPLOAD_BUCKET = 'exam-submissions';
+const MAX_MB = 20;
+
+export async function uploadTaskFile(
+  token: string,
+  formData: FormData
+): Promise<{ error?: string; file?: { name: string; path: string; size: number; url: string } }> {
+  try {
+    const file = formData.get('file') as File | null;
+    if (!file) return { error: '파일이 없습니다.' };
+    if (file.size > MAX_MB * 1024 * 1024) return { error: `파일 크기가 ${MAX_MB}MB를 초과합니다.` };
+
+    const s = createAdminClient();
+    // 세션 검증 (제출 안 된 세션만 업로드 허용)
+    const { data: session } = await s
+      .from('exam_sessions')
+      .select('id, submitted_at')
+      .eq('token', token)
+      .maybeSingle();
+    if (!session) return { error: '세션이 없습니다.' };
+    if (session.submitted_at) return { error: '이미 제출된 세션입니다.' };
+
+    const safeName = file.name.replace(/[^\w.\-가-힣]/g, '_');
+    const path = `${token}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}_${safeName}`;
+    const buf = new Uint8Array(await file.arrayBuffer());
+
+    const { error: upErr } = await s.storage.from(UPLOAD_BUCKET).upload(path, buf, {
+      contentType: file.type || 'application/octet-stream',
+      upsert: false
+    });
+    if (upErr) return { error: `업로드 실패: ${upErr.message}` };
+
+    const { data: signed } = await s.storage
+      .from(UPLOAD_BUCKET)
+      .createSignedUrl(path, 60 * 60 * 24 * 365);
+
+    return {
+      file: {
+        name: file.name,
+        path,
+        size: file.size,
+        url: signed?.signedUrl ?? ''
+      }
+    };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : '알 수 없는 오류' };
+  }
+}
+
+export async function deleteTaskFile(token: string, path: string): Promise<{ error?: string }> {
+  try {
+    if (!path.startsWith(`${token}/`)) return { error: '경로가 잘못됐습니다.' };
+    const s = createAdminClient();
+    const { data: session } = await s
+      .from('exam_sessions')
+      .select('submitted_at')
+      .eq('token', token)
+      .maybeSingle();
+    if (!session) return { error: '세션이 없습니다.' };
+    if (session.submitted_at) return { error: '이미 제출된 세션입니다.' };
+    const { error } = await s.storage.from(UPLOAD_BUCKET).remove([path]);
+    if (error) return { error: error.message };
+    return {};
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : '삭제 실패' };
+  }
+}
+
 const SECTION_ORDER: SectionKind[] = ['multiple_choice', 'short_text', 'task_based'];
 
 type SectionState = {
