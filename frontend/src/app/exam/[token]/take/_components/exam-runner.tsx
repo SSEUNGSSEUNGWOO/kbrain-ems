@@ -21,21 +21,52 @@ export type QuestionForRunner = {
   category: string | null;
 };
 
-// 문항 코드별 제출 체크리스트 (작업형 UI 상단 안내)
-// 코드가 매핑에 없으면 기본 안내 사용.
-const SUBMISSION_HINTS: Record<string, string[]> = {
+// 문항 코드별 제출 체크리스트 — 각 항목이 답변 상태로 자동 체크됨.
+type SubmissionCheck = {
+  label: string;
+  check: (a: { files?: { name: string }[]; notes?: string }) => boolean;
+};
+
+const IMG_EXT = /\.(png|jpe?g|gif|webp|bmp|svg)$/i;
+const hasExt = (files: { name: string }[] | undefined, re: RegExp) =>
+  !!files?.some((f) => re.test(f.name));
+const countExt = (files: { name: string }[] | undefined, re: RegExp) =>
+  files?.filter((f) => re.test(f.name)).length ?? 0;
+
+const SUBMISSION_HINTS: Record<string, SubmissionCheck[]> = {
   // 실전 1기·2기 — 로컬 Ollama 도구 구축
   'T-E-036': [
-    '코드 파일 (app.py · index.html)',
-    '질문 1·2 각각의 응답 화면 캡처 2장',
-    '실행 명령 · Ollama 모델명 · 파일 목록 메모'
+    {
+      label: '코드 파일 (app.py · index.html)',
+      check: (a) => hasExt(a.files, /\.(py|html?)$/i)
+    },
+    {
+      label: '질문 1·2 각각의 응답 화면 캡처 2장',
+      check: (a) => countExt(a.files, IMG_EXT) >= 2
+    },
+    {
+      label: '실행 명령 · Ollama 모델명 · 파일 목록 메모',
+      check: (a) => (a.notes ?? '').trim().length >= 20
+    }
   ],
   // 테스트 CBT — HTML 대시보드
   'PRACT-TB-001': [
-    'HTML/CSS/JS 대시보드 파일 (index.html 등)',
-    '샘플 CSV 파일 (동작 확인용)',
-    '핵심 화면 캡처 1~2장',
-    '계산 기준·사용 방법 메모'
+    {
+      label: 'HTML/CSS/JS 대시보드 파일 (index.html 등)',
+      check: (a) => hasExt(a.files, /\.(html?|css|js)$/i)
+    },
+    {
+      label: '샘플 CSV 파일 (동작 확인용)',
+      check: (a) => hasExt(a.files, /\.csv$/i)
+    },
+    {
+      label: '핵심 화면 캡처 1~2장',
+      check: (a) => countExt(a.files, IMG_EXT) >= 1
+    },
+    {
+      label: '계산 기준·사용 방법 메모',
+      check: (a) => (a.notes ?? '').trim().length >= 20
+    }
   ]
 };
 
@@ -595,22 +626,46 @@ export function ExamRunner(props: Props) {
 
                 {question.type === 'task_based' && (
                   <div className='space-y-5'>
-                    {/* 문항별 제출 체크리스트 */}
-                    {SUBMISSION_HINTS[question.code] && (
-                      <div className='rounded-xl border-2 border-blue-200 bg-blue-50/50 p-4'>
-                        <div className='flex items-center gap-2 text-[11px] font-semibold uppercase tracking-widest text-blue-800 mb-2'>
-                          📋 이 문항 제출 체크리스트
+                    {/* 문항별 제출 체크리스트 (파일·메모 상태로 자동 체크) */}
+                    {SUBMISSION_HINTS[question.code] && (() => {
+                      const items = SUBMISSION_HINTS[question.code];
+                      const ans = answer as { files?: { name: string }[]; notes?: string };
+                      const doneCount = items.filter((it) => it.check(ans)).length;
+                      const allDone = doneCount === items.length;
+                      return (
+                        <div className={`rounded-xl border-2 p-4 transition-colors ${
+                          allDone ? 'border-emerald-300 bg-emerald-50/60' : 'border-blue-200 bg-blue-50/50'
+                        }`}>
+                          <div className='flex items-center justify-between text-[11px] font-semibold uppercase tracking-widest mb-2'>
+                            <span className={allDone ? 'text-emerald-800' : 'text-blue-800'}>
+                              📋 이 문항 제출 체크리스트
+                            </span>
+                            <span className={`tabular-nums ${allDone ? 'text-emerald-700' : 'text-blue-600'}`}>
+                              {doneCount} / {items.length}
+                            </span>
+                          </div>
+                          <ul className='space-y-1'>
+                            {items.map((item, i) => {
+                              const done = item.check(ans);
+                              return (
+                                <li key={i} className={`flex items-start gap-2 text-sm ${done ? 'text-emerald-900' : 'text-blue-950'}`}>
+                                  <span className={`flex-shrink-0 mt-0.5 h-4 w-4 rounded border flex items-center justify-center transition-colors ${
+                                    done ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-blue-400 bg-white'
+                                  }`}>
+                                    {done && (
+                                      <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='3' strokeLinecap='round' strokeLinejoin='round' className='h-3 w-3'>
+                                        <polyline points='20 6 9 17 4 12' />
+                                      </svg>
+                                    )}
+                                  </span>
+                                  <span className={done ? 'line-through opacity-70' : ''}>{item.label}</span>
+                                </li>
+                              );
+                            })}
+                          </ul>
                         </div>
-                        <ul className='space-y-1'>
-                          {SUBMISSION_HINTS[question.code].map((item, i) => (
-                            <li key={i} className='flex items-start gap-2 text-sm text-blue-950'>
-                              <span className='flex-shrink-0 mt-0.5 h-4 w-4 rounded border border-blue-400 bg-white' />
-                              <span>{item}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
+                      );
+                    })()}
 
                     {/* 파일 업로드 (필수) */}
                     <div>
