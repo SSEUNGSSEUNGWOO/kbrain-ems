@@ -44,10 +44,19 @@ export async function enterExamViaShare(input: {
   if (!students || students.length === 0) {
     return { error: '명단에 이름이 없습니다. 오타 확인 후 다시 시도하세요.' };
   }
-  const matched = students.find((st) => st.phone && last4(st.phone) === digits);
-  if (!matched) {
+  // 이름+뒷4자리 모두 일치하는 학생만 후보로.
+  const candidates = students.filter((st) => st.phone && last4(st.phone) === digits);
+  if (candidates.length === 0) {
     return { error: '이름은 확인되지만 전화번호 뒷 4자리가 일치하지 않습니다.' };
   }
+  if (candidates.length > 1) {
+    // 동명이인 + 같은 뒷4자리 → 정확한 매칭 불가. 운영자 문의 요구.
+    return {
+      error:
+        '동명이인이 확인됩니다. 운영자에게 별도 로그인 정보를 요청해 주세요.'
+    };
+  }
+  const matched = candidates[0];
 
   // 이미 발급된 세션 있는지 (같은 exam·student)
   const { data: existing } = await s
