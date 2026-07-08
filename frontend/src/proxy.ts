@@ -12,11 +12,24 @@ const PUBLIC_PATH_PREFIXES = [
 ];
 const PUBLIC_API_PREFIXES = ['/api/auth'];
 
+// bfcache·브라우저 캐시로 이전 응시자 정보가 남지 않게 no-store 강제.
+// exam 관련 페이지·share 진입 페이지·done 페이지 전부 적용.
+function noStore(res: NextResponse): NextResponse {
+  res.headers.set('Cache-Control', 'no-store, no-cache, max-age=0, must-revalidate');
+  res.headers.set('Pragma', 'no-cache');
+  return res;
+}
+
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   if (PUBLIC_PATHS.some((p) => pathname === p)) return NextResponse.next();
-  if (PUBLIC_PATH_PREFIXES.some((p) => pathname.startsWith(p))) return NextResponse.next();
+  if (PUBLIC_PATH_PREFIXES.some((p) => pathname.startsWith(p))) {
+    const res = NextResponse.next();
+    // 응시자 개인 정보(이름·응답 답변·완료 시각) 화면은 브라우저 캐시 금지
+    if (pathname.startsWith('/exam')) return noStore(res);
+    return res;
+  }
   if (PUBLIC_API_PREFIXES.some((p) => pathname.startsWith(p))) return NextResponse.next();
   if (pathname.startsWith('/_next') || pathname.includes('.')) return NextResponse.next();
 
