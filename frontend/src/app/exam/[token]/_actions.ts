@@ -32,8 +32,11 @@ export async function uploadTaskFile(
     if (!session) return { error: '세션이 없습니다.' };
     if (session.submitted_at) return { error: '이미 제출된 세션입니다.' };
 
-    const safeName = file.name.replace(/[^\w.\-가-힣]/g, '_');
-    const path = `${token}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}_${safeName}`;
+    // Storage 경로는 완전 안전한 문자로만 (한글·특수문자 있으면 Invalid key 에러).
+    // 원본 파일명은 응답에 담아서 관리자 xlsx에 표시하고, path는 timestamp+random+확장자만.
+    const dot = file.name.lastIndexOf('.');
+    const ext = dot > 0 ? file.name.slice(dot).replace(/[^\w.]/g, '').slice(0, 10) : '';
+    const path = `${token}/${Date.now()}_${Math.random().toString(36).slice(2, 10)}${ext}`;
     const buf = new Uint8Array(await file.arrayBuffer());
 
     const { error: upErr } = await s.storage.from(UPLOAD_BUCKET).upload(path, buf, {
@@ -48,7 +51,7 @@ export async function uploadTaskFile(
 
     return {
       file: {
-        name: file.name,
+        name: file.name, // 원본 파일명 (한글 포함) — DB·UI·xlsx에는 그대로 표시
         path,
         size: file.size,
         url: signed?.signedUrl ?? ''
