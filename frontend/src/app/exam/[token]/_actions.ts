@@ -146,11 +146,16 @@ export async function saveAnswer(input: {
 
   // 서버 시각 기준 섹션 시간 초과 검증 (클라 시계 조작 방어).
   // 유예 10초 — 마지막 1초에 답한 응답도 안전하게 받음.
-  const { data: exam } = await s
+  const { data: examRaw } = await s
     .from('exams')
     .select('time_limit_mc, time_limit_st, time_limit_task')
     .eq('id', session.exam_id)
     .maybeSingle();
+  const exam = examRaw as unknown as {
+    time_limit_mc: number | null;
+    time_limit_st: number | null;
+    time_limit_task: number | null;
+  } | null;
   const limitSec =
     input.sectionKind === 'multiple_choice'
       ? exam?.time_limit_mc
