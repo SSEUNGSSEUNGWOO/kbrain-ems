@@ -61,7 +61,7 @@ export default async function ExamTakePage({ params }: Props) {
     s
       .from('exam_questions_in_exam')
       .select(
-        'order_no, question_id, exam_questions(id, type, text, score, choices, allow_file_upload, attachment_url, category)'
+        'order_no, question_id, exam_questions(id, code, type, text, score, choices, allow_file_upload, attachment_url, category)'
       )
       .eq('exam_id', session.exam_id)
       .order('order_no'),
@@ -73,6 +73,7 @@ export default async function ExamTakePage({ params }: Props) {
     question_id: string;
     exam_questions: {
       id: string;
+      code: string;
       type: SectionKind;
       text: string;
       score: number;
@@ -86,6 +87,7 @@ export default async function ExamTakePage({ params }: Props) {
   const questions: QuestionForRunner[] = qie.map((r) => ({
     order_no: r.order_no,
     id: r.exam_questions.id,
+    code: r.exam_questions.code,
     type: r.exam_questions.type,
     text: r.exam_questions.text,
     score: r.exam_questions.score,

@@ -11,6 +11,7 @@ export type SectionKind = 'multiple_choice' | 'short_text' | 'task_based';
 export type QuestionForRunner = {
   order_no: number;
   id: string;
+  code: string;
   type: SectionKind;
   text: string;
   score: number;
@@ -18,6 +19,24 @@ export type QuestionForRunner = {
   allow_file_upload: boolean;
   attachment_url: string | null;
   category: string | null;
+};
+
+// 문항 코드별 제출 체크리스트 (작업형 UI 상단 안내)
+// 코드가 매핑에 없으면 기본 안내 사용.
+const SUBMISSION_HINTS: Record<string, string[]> = {
+  // 실전 1기·2기 — 로컬 Ollama 도구 구축
+  'T-E-036': [
+    '코드 파일 (app.py · index.html)',
+    '질문 1·2 각각의 응답 화면 캡처 2장',
+    '실행 명령 · Ollama 모델명 · 파일 목록 메모'
+  ],
+  // 테스트 CBT — HTML 대시보드
+  'PRACT-TB-001': [
+    'HTML/CSS/JS 대시보드 파일 (index.html 등)',
+    '샘플 CSV 파일 (동작 확인용)',
+    '핵심 화면 캡처 1~2장',
+    '계산 기준·사용 방법 메모'
+  ]
 };
 
 const SECTION_LABEL: Record<SectionKind, string> = {
@@ -576,6 +595,23 @@ export function ExamRunner(props: Props) {
 
                 {question.type === 'task_based' && (
                   <div className='space-y-5'>
+                    {/* 문항별 제출 체크리스트 */}
+                    {SUBMISSION_HINTS[question.code] && (
+                      <div className='rounded-xl border-2 border-blue-200 bg-blue-50/50 p-4'>
+                        <div className='flex items-center gap-2 text-[11px] font-semibold uppercase tracking-widest text-blue-800 mb-2'>
+                          📋 이 문항 제출 체크리스트
+                        </div>
+                        <ul className='space-y-1'>
+                          {SUBMISSION_HINTS[question.code].map((item, i) => (
+                            <li key={i} className='flex items-start gap-2 text-sm text-blue-950'>
+                              <span className='flex-shrink-0 mt-0.5 h-4 w-4 rounded border border-blue-400 bg-white' />
+                              <span>{item}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
                     {/* 파일 업로드 (필수) */}
                     <div>
                       <label className='flex items-baseline gap-1.5 text-[11px] font-semibold uppercase tracking-widest text-slate-500 mb-1.5'>
@@ -583,7 +619,7 @@ export function ExamRunner(props: Props) {
                         <span className='text-rose-500 text-[10px] font-bold'>* 필수</span>
                       </label>
                       <p className='text-xs text-slate-500 mb-2'>
-                        코드(<code className='bg-slate-100 px-1 rounded'>app.py</code>·<code className='bg-slate-100 px-1 rounded'>index.html</code>), 응답 캡처 이미지, 관련 자료를 함께 업로드하세요.
+                        위 체크리스트의 파일들을 모두 업로드하세요.
                       </p>
                       <TaskFileUpload
                         token={token}
