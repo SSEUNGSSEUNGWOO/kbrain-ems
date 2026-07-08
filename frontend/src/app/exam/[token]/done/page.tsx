@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
 import { createAdminClient } from '@/lib/supabase/server';
+import { DoneActions } from './_components/done-actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,13 +34,13 @@ export default async function ExamDonePage({ params }: Props) {
 
   const { data: session } = await s
     .from('exam_sessions')
-    .select('id, name, submitted_at, exams(name)')
+    .select('id, name, submitted_at, exams(name, share_code)')
     .eq('token', token)
     .maybeSingle<{
       id: string;
       name: string | null;
       submitted_at: string | null;
-      exams: { name: string } | null;
+      exams: { name: string; share_code: string | null } | null;
     }>();
 
   if (!session || !session.exams) notFound();
@@ -134,6 +135,9 @@ export default async function ExamDonePage({ params }: Props) {
             </div>
           </div>
         </div>
+
+        {/* 액션 버튼 (F5 재진입 시 자동 로그인 화면 이동) */}
+        <DoneActions shareCode={session.exams.share_code} />
 
         {/* 푸터 */}
         <div className='mt-8 text-center'>
