@@ -240,6 +240,50 @@ export async function submitSection(input: {
   const nxt = nextSectionOf(input.sectionKind);
   if (nxt) sp[nxt] = { ...(sp[nxt] ?? {}), started_at: now, submitted_at: null };
 
+  // 마지막 섹션이면 이 요청에서 자동채점까지 함께 처리 (서버 왕복 2회 → 1회로 단축)
+  if (!nxt) {
+    // 응답 조회 + 채점
+    const { data: joined } = await s
+      .from('exam_responses')
+      .select('question_id, answer_value, exam_questions(id, type, score, correct)')
+      .eq('session_id', session.id);
+    type Joined = {
+      question_id: string;
+      answer_value: Record<string, unknown> | null;
+      exam_questions: { id: string; type: string; score: number; correct: unknown } | null;
+    };
+    let autoScore = 0;
+    let hasManual = false;
+    for (const r of (joined ?? []) as unknown as Joined[]) {
+      const q = r.exam_questions;
+      if (!q) continue;
+      const ans = r.answer_value;
+      if (q.type === 'multiple_choice') {
+        const ansKey = (ans as { key?: string } | null)?.key;
+        const correctKey = (q.correct as { key?: string } | null)?.key;
+        if (isMultipleChoiceCorrect(ansKey, correctKey)) autoScore += q.score;
+      } else if (q.type === 'short_text') {
+        const text = (ans as { text?: string } | null)?.text ?? null;
+        const keywords = ((q.correct as { keywords?: string[] } | null)?.keywords ?? []);
+        if (isShortAnswerCorrect(text, keywords)) autoScore += q.score;
+      } else if (q.type === 'task_based') {
+        hasManual = true;
+      }
+    }
+    const { error } = await s
+      .from('exam_sessions')
+      .update({
+        section_progress: sp as unknown as Json,
+        submitted_at: now,
+        auto_score: autoScore,
+        status: hasManual ? 'submitted' : 'graded',
+        total_score: hasManual ? null : autoScore
+      })
+      .eq('id', session.id);
+    if (error) return { error: error.message };
+    return { nextSection: null };
+  }
+
   const { error } = await s
     .from('exam_sessions')
     .update({ section_progress: sp as unknown as Json })

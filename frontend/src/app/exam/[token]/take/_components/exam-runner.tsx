@@ -372,16 +372,21 @@ export function ExamRunner(props: Props) {
   const [finalAgree, setFinalAgree] = useState(false);
 
   // 섹션 진행 → 다음 섹션 이동 (or 마지막이면 최종 제출)
+  // 마지막 섹션인 경우 submitSection이 자동채점까지 함께 처리 → 서버 왕복 1회로 단축
   const handleAdvanceSection = async (timeoutReached: boolean) => {
     startTransition(async () => {
+      // pending debounce 강제 flush (마지막 textarea 저장 유실 방지)
+      const timers = saveTimersRef.current;
+      for (const [, t] of timers) clearTimeout(t);
+      timers.clear();
+
       const res = await submitSection({ token, sectionKind: currentSection, timeoutReached });
       if (res.error) {
         alert(res.error);
         return;
       }
       if (!res.nextSection) {
-        // 마지막 섹션 종료 → 최종 제출
-        await submitSession(token);
+        // 마지막 섹션 종료 = 서버에서 이미 최종 제출·자동채점 완료
         if (document.fullscreenElement) await document.exitFullscreen().catch(() => {});
         router.push(`/exam/${token}/done`);
       } else {
@@ -417,6 +422,20 @@ export function ExamRunner(props: Props) {
   return (
     <div className='min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50/30 text-slate-900 flex flex-col'>
       {/* 다중 탭 오버레이 */}
+      {/* 제출·이동 진행 중 전면 로딩 오버레이 (서버 왕복 몇 초 응시자 안심용) */}
+      {pending && !showFinalConfirm && (
+        <div className='fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm'>
+          <div className='rounded-2xl bg-white px-8 py-6 shadow-2xl border-2 border-slate-200 flex items-center gap-4'>
+            <div className='h-8 w-8 rounded-full border-4 border-blue-200 border-t-blue-600 animate-spin' />
+            <div>
+              <div className='text-sm font-bold text-slate-900'>
+                {isFinalSection ? '제출 중…' : '다음 섹션으로 이동 중…'}
+              </div>
+              <div className='text-xs text-slate-500 mt-0.5'>잠시만 기다려주세요</div>
+            </div>
+          </div>
+        </div>
+      )}
       {duplicateTab && (
         <div className='fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/85 backdrop-blur-sm p-6'>
           <div className='max-w-md w-full rounded-2xl bg-white p-8 shadow-2xl text-center border-4 border-slate-700'>
