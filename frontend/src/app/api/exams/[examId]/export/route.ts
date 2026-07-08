@@ -52,13 +52,30 @@ export async function GET(_req: Request, { params }: Params) {
   }));
   const qById = new Map(questions.map((x) => [x.q.id, x]));
 
-  const { data: allResponses } = await supabase
-    .from('exam_responses')
-    .select('session_id, question_id, answer_value, manual_score, feedback')
-    .in(
-      'session_id',
-      (sessions ?? []).map((s) => s.id)
-    );
+  // PostgREST max-rows(1000) 우회: 응시자 30명 × 문항 36개 = 1080건이라 이미 잘림.
+  // range로 chunk fetch해서 전체 응답 로드.
+  const sessionIds = (sessions ?? []).map((s) => s.id);
+  const allResponses: {
+    session_id: string;
+    question_id: string;
+    answer_value: Record<string, unknown> | null;
+    manual_score: number | null;
+    feedback: string | null;
+  }[] = [];
+  if (sessionIds.length > 0) {
+    const chunk = 1000;
+    for (let from = 0; from < 1_000_000; from += chunk) {
+      const { data: batch, error } = await supabase
+        .from('exam_responses')
+        .select('session_id, question_id, answer_value, manual_score, feedback')
+        .in('session_id', sessionIds)
+        .range(from, from + chunk - 1);
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      const arr = batch ?? [];
+      allResponses.push(...(arr as typeof allResponses));
+      if (arr.length < chunk) break;
+    }
+  }
 
   type Resp = {
     session_id: string;
