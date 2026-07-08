@@ -331,14 +331,12 @@ export function ExamRunner(props: Props) {
   };
 
   const isFinalSection = SECTION_ORDER.indexOf(currentSection) === SECTION_ORDER.length - 1;
-  // 마지막 섹션에서 '최종 제출' 클릭 시: 다이얼로그 오픈 (즉시 제출 안 함)
+  const nextSectionKind = isFinalSection ? null : SECTION_ORDER[SECTION_ORDER.indexOf(currentSection) + 1];
+
+  // 모든 섹션 전환에 확인 다이얼로그 (실수 방지)
   const handleFinalSubmitClick = () => {
-    if (isFinalSection) {
-      setFinalAgree(false);
-      setShowFinalConfirm(true);
-    } else {
-      void handleAdvanceSection(false);
-    }
+    setFinalAgree(false);
+    setShowFinalConfirm(true);
   };
   const confirmFinalSubmit = () => {
     setShowFinalConfirm(false);
@@ -346,8 +344,8 @@ export function ExamRunner(props: Props) {
   };
   const cancelFinalSubmit = () => setShowFinalConfirm(false);
 
-  // 전체 문항에서 미답변 계산 (섹션 무관)
-  const unansweredTotal = questions.filter((q) => {
+  // 현재 섹션의 미답변 개수 (섹션 이동 확인용)
+  const unansweredCurrent = sectionQuestions.filter((q) => {
     const a = answers[q.id];
     if (!a) return true;
     return Object.keys(a).length === 0;
@@ -396,7 +394,7 @@ export function ExamRunner(props: Props) {
         </div>
       )}
 
-      {/* 최종 제출 확인 다이얼로그 */}
+      {/* 섹션 종료 / 최종 제출 확인 다이얼로그 */}
       {showFinalConfirm && (
         <div className='fixed inset-0 z-[55] flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-6'>
           <div className='max-w-md w-full rounded-2xl bg-white shadow-2xl border-2 border-slate-200 overflow-hidden'>
@@ -410,28 +408,38 @@ export function ExamRunner(props: Props) {
                   </svg>
                 </div>
                 <div>
-                  <h2 className='text-lg font-bold text-slate-900'>최종 제출하시겠습니까?</h2>
-                  <p className='text-xs text-slate-500 mt-0.5'>제출 후에는 답변을 수정할 수 없습니다.</p>
+                  <h2 className='text-lg font-bold text-slate-900'>
+                    {isFinalSection
+                      ? '최종 제출하시겠습니까?'
+                      : `${SECTION_LABEL[currentSection]} 섹션을 종료하시겠습니까?`}
+                  </h2>
+                  <p className='text-xs text-slate-500 mt-0.5'>
+                    {isFinalSection
+                      ? '제출 후에는 답변을 수정할 수 없습니다.'
+                      : `종료하면 ${nextSectionKind ? SECTION_LABEL[nextSectionKind] : ''} 섹션으로 이동하며, ${SECTION_LABEL[currentSection]}으로 되돌아갈 수 없습니다.`}
+                  </p>
                 </div>
               </div>
             </div>
 
             <div className='px-6 py-4 space-y-3 bg-slate-50/50'>
               <div className='flex items-center justify-between rounded-lg bg-white border border-slate-200 px-3 py-2.5'>
-                <span className='text-xs text-slate-500'>미답변 문항</span>
-                <span className={`text-sm font-bold tabular-nums ${unansweredTotal > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
-                  {unansweredTotal}개 / {questions.length}개 중
+                <span className='text-xs text-slate-500'>
+                  {SECTION_LABEL[currentSection]} 섹션 미답변
+                </span>
+                <span className={`text-sm font-bold tabular-nums ${unansweredCurrent > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                  {unansweredCurrent}개 / {sectionQuestions.length}개 중
                 </span>
               </div>
               <div className='flex items-center justify-between rounded-lg bg-white border border-slate-200 px-3 py-2.5'>
-                <span className='text-xs text-slate-500'>남은 시간</span>
+                <span className='text-xs text-slate-500'>이 섹션 남은 시간</span>
                 <span className='font-mono text-sm font-bold text-slate-900 tabular-nums'>
                   {formatMinSec(Math.max(0, remaining))}
                 </span>
               </div>
-              {unansweredTotal > 0 && (
+              {unansweredCurrent > 0 && (
                 <div className='rounded-lg border border-rose-200 bg-rose-50 px-3 py-2.5 text-xs text-rose-800'>
-                  ⚠ 아직 답하지 않은 문항이 <b>{unansweredTotal}개</b> 남아 있습니다. 그래도 제출하시겠어요?
+                  ⚠ 아직 답하지 않은 문항이 <b>{unansweredCurrent}개</b> 남아 있습니다. 그래도 {isFinalSection ? '제출' : '이동'}하시겠어요?
                 </div>
               )}
             </div>
@@ -445,9 +453,19 @@ export function ExamRunner(props: Props) {
                   className='mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500'
                 />
                 <span className='text-sm text-slate-700 leading-snug'>
-                  모든 답변을 검토했으며 <b className='text-slate-900'>최종 제출에 동의</b>합니다.
-                  <br />
-                  <span className='text-xs text-slate-500'>(제출 후 답변 수정·재응시 불가)</span>
+                  {isFinalSection ? (
+                    <>
+                      모든 답변을 검토했으며 <b className='text-slate-900'>최종 제출에 동의</b>합니다.
+                      <br />
+                      <span className='text-xs text-slate-500'>(제출 후 답변 수정·재응시 불가)</span>
+                    </>
+                  ) : (
+                    <>
+                      {SECTION_LABEL[currentSection]} 답변을 검토했으며 <b className='text-slate-900'>다음 섹션으로 이동에 동의</b>합니다.
+                      <br />
+                      <span className='text-xs text-slate-500'>(이동 후 이 섹션으로 되돌아올 수 없음)</span>
+                    </>
+                  )}
                 </span>
               </label>
             </div>
@@ -467,7 +485,11 @@ export function ExamRunner(props: Props) {
                 disabled={!finalAgree || pending}
                 className='flex-1 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold py-2.5 text-sm shadow-sm'
               >
-                {pending ? '제출 중…' : '최종 제출'}
+                {pending
+                  ? '이동 중…'
+                  : isFinalSection
+                    ? '최종 제출'
+                    : `${nextSectionKind ? SECTION_LABEL[nextSectionKind] : ''}으로 이동`}
               </button>
             </div>
           </div>
