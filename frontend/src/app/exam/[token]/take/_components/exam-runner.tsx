@@ -980,7 +980,13 @@ export function ExamRunner(props: Props) {
                       <TaskFileUpload
                         token={token}
                         files={((answer as { files?: UploadedFile[] }).files) ?? []}
-                        onChange={(next) => setAnswerFor({ files: next })}
+                        onChange={(next) => {
+                          // 파일 목록 변경은 debounce 없이 즉시 서버 저장 (파일 자체는 이미 Storage 저장됨).
+                          if (!question) return;
+                          const merged = { ...(answers[question.id] ?? {}), files: next };
+                          setAnswers((prev) => ({ ...prev, [question.id]: merged }));
+                          scheduleSave(question.id, merged, 0);
+                        }}
                       />
                     </div>
 
