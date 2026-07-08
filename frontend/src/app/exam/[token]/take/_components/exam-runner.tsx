@@ -462,17 +462,59 @@ export function ExamRunner(props: Props) {
               </div>
 
               <div className='px-8 pt-6 pb-4'>
-                <div className='text-[15px] leading-8 whitespace-pre-wrap text-slate-800'>{question.text}</div>
-                {question.attachment_url && (
-                  <a
-                    href={question.attachment_url}
-                    target='_blank'
-                    rel='noopener noreferrer'
-                    className='inline-flex items-center gap-1 mt-4 text-xs text-blue-600 hover:underline'
-                  >
-                    📎 첨부파일 열기
-                  </a>
+                {/* 작업형 전용 안내 배너 — AI 자유 사용·이탈 허용 강조 */}
+                {question.type === 'task_based' && (
+                  <div className='mb-5 rounded-xl border-2 border-emerald-300 bg-gradient-to-br from-emerald-50 to-teal-50 p-4'>
+                    <div className='flex items-start gap-3'>
+                      <div className='flex-shrink-0 flex items-center justify-center h-9 w-9 rounded-lg bg-emerald-500 text-white text-lg'>
+                        ✓
+                      </div>
+                      <div className='flex-1 space-y-1.5 text-sm text-emerald-950'>
+                        <div className='font-bold text-emerald-900'>
+                          작업형 섹션 — 자유 작업 환경
+                        </div>
+                        <div className='space-y-0.5 text-[13px] leading-relaxed'>
+                          <div>• <b>AI 코딩 에이전트 사용 가능</b> (Claude Code · Cursor · GPT · Copilot 등)</div>
+                          <div>• <b>전체화면 이탈 자유</b> — 다른 창·IDE·터미널 자유롭게 사용하세요</div>
+                          <div>• 인터넷 검색은 불가하며, 외부 LLM API·CDN도 사용 불가입니다</div>
+                          <div>• 로컬 Ollama만 사용 가능 (첨부 zip에 model_config 포함)</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 )}
+                {/* 첨부파일 다운로드 카드 — 큰 버튼으로 강조 */}
+                {question.attachment_url && (
+                  <div className='mb-5 rounded-xl border-2 border-blue-300 bg-blue-50/60 p-4'>
+                    <div className='flex items-center gap-4'>
+                      <div className='flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-lg bg-blue-600 text-white text-xl'>
+                        📎
+                      </div>
+                      <div className='flex-1 min-w-0'>
+                        <div className='text-[11px] font-semibold uppercase tracking-widest text-blue-700 mb-0.5'>
+                          작업형 첨부파일
+                        </div>
+                        <div className='text-sm font-semibold text-slate-900 truncate'>
+                          압축 파일 (config · data 포함)
+                        </div>
+                      </div>
+                      <a
+                        href={question.attachment_url}
+                        target='_blank'
+                        rel='noopener noreferrer'
+                        className='flex-shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold px-4 py-2.5 shadow-sm transition-colors'
+                      >
+                        <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round' className='h-4 w-4'>
+                          <path d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4' />
+                          <polyline points='7 10 12 15 17 10' />
+                          <line x1='12' x2='12' y1='15' y2='3' />
+                        </svg>
+                        다운로드
+                      </a>
+                    </div>
+                  </div>
+                )}
+                <div className='text-[15px] leading-8 whitespace-pre-wrap text-slate-800'>{question.text}</div>
               </div>
 
               <div className='px-8 pt-2 pb-8'>
