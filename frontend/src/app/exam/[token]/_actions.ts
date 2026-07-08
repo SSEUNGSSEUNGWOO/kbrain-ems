@@ -133,7 +133,7 @@ export async function saveAnswer(input: {
 
   const { data: session } = await s
     .from('exam_sessions')
-    .select('id, submitted_at, section_progress')
+    .select('id, submitted_at, section_progress, exam_id')
     .eq('token', input.token)
     .maybeSingle();
   if (!session) return { error: '세션이 없습니다.' };
@@ -143,6 +143,26 @@ export async function saveAnswer(input: {
   const sect = sp[input.sectionKind];
   if (!sect?.started_at) return { error: '섹션이 시작되지 않았습니다.' };
   if (sect.submitted_at) return { error: '섹션이 이미 종료됐습니다.' };
+
+  // 서버 시각 기준 섹션 시간 초과 검증 (클라 시계 조작 방어).
+  // 유예 10초 — 마지막 1초에 답한 응답도 안전하게 받음.
+  const { data: exam } = await s
+    .from('exams')
+    .select('time_limit_mc, time_limit_st, time_limit_task')
+    .eq('id', session.exam_id)
+    .maybeSingle();
+  const limitSec =
+    input.sectionKind === 'multiple_choice'
+      ? exam?.time_limit_mc
+      : input.sectionKind === 'short_text'
+        ? exam?.time_limit_st
+        : exam?.time_limit_task;
+  if (limitSec && sect.started_at) {
+    const elapsed = (Date.now() - new Date(sect.started_at).getTime()) / 1000;
+    if (elapsed > limitSec + 10) {
+      return { error: '섹션 시간이 만료되었습니다.' };
+    }
+  }
 
   const { error } = await s.from('exam_responses').upsert(
     {
