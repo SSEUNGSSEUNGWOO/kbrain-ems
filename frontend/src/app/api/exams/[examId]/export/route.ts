@@ -201,9 +201,11 @@ export async function GET(_req: Request, { params }: Params) {
       else if (q.type === 'short_text') displayAnswer = (ans as { text?: string } | null)?.text ?? '';
       else {
         const parts: string[] = [];
+        const files = (ans as { files?: { name: string }[] } | null)?.files;
+        if (files && files.length > 0) parts.push(`📎 파일 ${files.length}개 (→ 파일목록 시트 참조)`);
         if ((ans as { notes?: string } | null)?.notes) parts.push(`메모: ${(ans as { notes: string }).notes}`);
         if ((ans as { url?: string } | null)?.url) parts.push(`URL: ${(ans as { url: string }).url}`);
-        displayAnswer = parts.join(' / ');
+        displayAnswer = parts.join('\n');
       }
 
       let correctText = '';
@@ -225,6 +227,41 @@ export async function GET(_req: Request, { params }: Params) {
         earned,
         feedback: r?.feedback ?? ''
       });
+    }
+  }
+
+  // 시트3: 작업형 파일 목록 (관리자 채점용 — 파일별 다운로드 URL 포함)
+  // 이 시트가 없으면 관리자가 Supabase Studio에서 파일을 하나하나 찾아야 해서 채점 지옥.
+  type TaskFileEntry = { name: string; path: string; size: number; url: string };
+  const files = wb.addWorksheet('작업형 파일');
+  files.columns = [
+    { header: '응시자', key: 'name', width: 12 },
+    { header: '이메일', key: 'email', width: 24 },
+    { header: 'Q', key: 'order', width: 5 },
+    { header: '파일명', key: 'filename', width: 40 },
+    { header: '크기(KB)', key: 'sizeKb', width: 10 },
+    { header: '다운로드 URL', key: 'url', width: 60 },
+    { header: '경로', key: 'path', width: 40 }
+  ];
+  files.getRow(1).font = { bold: true };
+  for (const sess of sessions ?? []) {
+    const resps = responsesBySession.get(sess.id) ?? [];
+    for (const r of resps) {
+      const q = qById.get(r.question_id);
+      if (!q || q.q.type !== 'task_based') continue;
+      const ans = r.answer_value as { files?: TaskFileEntry[] } | null;
+      const list = ans?.files ?? [];
+      for (const f of list) {
+        files.addRow({
+          name: sess.name ?? '',
+          email: sess.email ?? '',
+          order: q.order_no,
+          filename: f.name,
+          sizeKb: Math.round((f.size ?? 0) / 1024),
+          url: f.url ?? '',
+          path: f.path ?? ''
+        });
+      }
     }
   }
 
