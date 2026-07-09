@@ -230,34 +230,21 @@ export function ExamRunner(props: Props) {
     const onFs = () => {
       const now = Date.now();
       if (!document.fullscreenElement) {
-        fsExitStartRef.current = now;
+        // 이미 이탈 상태면 시작 시각 유지 (여러 번 fullscreenchange 재발화 방지)
+        if (fsExitStartRef.current == null) fsExitStartRef.current = now;
         setFsExited(true);
         setLiveElapsedMs(0);
-      } else if (fsExitStartRef.current != null) {
-        const durationMs = now - fsExitStartRef.current;
-        const at = new Date(fsExitStartRef.current).toISOString();
-        fsExitStartRef.current = null;
-        setFsExited(false);
-        setExitCount((n) => n + 1);
-        setExitTotalMs((v) => v + durationMs);
-        void logBrowserEvent({ token, event: 'fullscreen_exit', at, durationMs });
       }
+      // fullscreen 복귀 시 자동 해제하지 않음 — 응시자가 오버레이의 '복귀' 버튼 눌러야 재개
     };
     const onVis = () => {
       const now = Date.now();
       if (document.visibilityState === 'hidden') {
-        visExitStartRef.current = now;
+        if (visExitStartRef.current == null) visExitStartRef.current = now;
         setVisHidden(true);
         setLiveElapsedMs(0);
-      } else if (document.visibilityState === 'visible' && visExitStartRef.current != null) {
-        const durationMs = now - visExitStartRef.current;
-        const at = new Date(visExitStartRef.current).toISOString();
-        visExitStartRef.current = null;
-        setVisHidden(false);
-        setExitCount((n) => n + 1);
-        setExitTotalMs((v) => v + durationMs);
-        void logBrowserEvent({ token, event: 'visibility_hidden', at, durationMs });
       }
+      // visible 복귀 시 자동 해제하지 않음 — Alt+Tab으로 다른 창 잠깐 봐도 오버레이 유지
     };
     document.addEventListener('fullscreenchange', onFs);
     document.addEventListener('visibilitychange', onVis);
@@ -266,6 +253,40 @@ export function ExamRunner(props: Props) {
       document.removeEventListener('visibilitychange', onVis);
     };
   }, [token, isTask]);
+
+  // 응시자가 명시적으로 '복귀' 버튼을 눌러 오버레이 해제 (이탈 카운트·시간 기록).
+  // 자동 해제하지 않아서 Alt+Tab으로 잠깐 봐도 시험 재개 불가.
+  const acknowledgeReenter = async () => {
+    const now = Date.now();
+    // fullscreen 이탈 기록
+    if (fsExitStartRef.current != null) {
+      const durationMs = now - fsExitStartRef.current;
+      const at = new Date(fsExitStartRef.current).toISOString();
+      fsExitStartRef.current = null;
+      setExitCount((n) => n + 1);
+      setExitTotalMs((v) => v + durationMs);
+      void logBrowserEvent({ token, event: 'fullscreen_exit', at, durationMs });
+    }
+    if (visExitStartRef.current != null) {
+      const durationMs = now - visExitStartRef.current;
+      const at = new Date(visExitStartRef.current).toISOString();
+      visExitStartRef.current = null;
+      setExitCount((n) => n + 1);
+      setExitTotalMs((v) => v + durationMs);
+      void logBrowserEvent({ token, event: 'visibility_hidden', at, durationMs });
+    }
+    // 전체화면 안 되어 있으면 재진입 요청
+    if (!document.fullscreenElement) {
+      try {
+        await document.documentElement.requestFullscreen({ navigationUI: 'hide' });
+      } catch {
+        /* 사용자가 거부하면 오버레이 유지 */
+        return;
+      }
+    }
+    setFsExited(false);
+    setVisHidden(false);
+  };
 
   const requestReenterFullscreen = async () => {
     try {
@@ -505,10 +526,12 @@ export function ExamRunner(props: Props) {
             )}
             <button
               type='button'
-              onClick={() => void requestReenterFullscreen()}
+              onClick={() => void acknowledgeReenter()}
               className='w-full rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-semibold px-6 py-3'
             >
-              전체화면으로 진입
+              {fsExitStartRef.current == null && visExitStartRef.current == null
+                ? '전체화면으로 진입'
+                : '전체화면으로 복귀'}
             </button>
           </div>
         </div>
