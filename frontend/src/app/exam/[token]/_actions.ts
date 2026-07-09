@@ -53,7 +53,8 @@ async function assertSectionAlive(
         : exam?.time_limit_task;
   if (limitSec) {
     const elapsed = (Date.now() - new Date(sect.started_at).getTime()) / 1000;
-    if (elapsed > limitSec)
+    // grace 0초 hard-cut. 경계 시점(정확히 limitSec초 경과)에도 저장 거부.
+    if (elapsed >= limitSec)
       return { ok: false, code: 'expired', error: '섹션 시간이 만료되었습니다.' };
   }
   return { ok: true, sessionId: session.id };
@@ -226,31 +227,32 @@ export async function saveAnswer(input: {
     return { error: check.error, code: check.code };
   }
 
-  // 작업형 응답의 files 필드는 uploadTaskFile / deleteTaskFile이 원자적으로 관리하는 채널.
-  // admin_rubric_scores는 saveManualScore가 관리하는 관리자 데이터 채널.
-  // saveAnswer가 두 필드를 통째 upsert하면 방금 저장된 파일·채점이 유실될 수 있음 → 서버 기존값 보존.
-  let answerValue: Record<string, unknown> | null = (input.answer ?? null) as Record<string, unknown> | null;
-  if (input.sectionKind === 'task_based' && answerValue) {
-    const { data: existing } = await s
-      .from('exam_responses')
-      .select('answer_value')
-      .eq('session_id', check.sessionId)
-      .eq('question_id', input.questionId)
-      .maybeSingle();
-    const prevValue = (existing?.answer_value ?? {}) as Record<string, unknown>;
-    const prevFiles = Array.isArray(prevValue.files) ? prevValue.files : [];
-    // notes·url 등 클라이언트가 보낸 필드로 덮되, 서버 관리 필드는 기존값 보존
-    answerValue = { ...answerValue, files: prevFiles };
-    if (prevValue.admin_rubric_scores) {
-      answerValue.admin_rubric_scores = prevValue.admin_rubric_scores;
-    }
+  // task_based: notes/url만 원자적 partial update (files·admin_rubric_scores 안 건드림).
+  // 이전엔 read-merge-upsert 방식이라 uploadTaskFile과 겹치면 files 유실 위험.
+  // update_task_meta RPC로 jsonb_set 파티셔닝 update → race 없음.
+  if (input.sectionKind === 'task_based') {
+    const ans = (input.answer ?? {}) as { notes?: string; url?: string };
+    const { error } = await (
+      s.rpc as unknown as (
+        name: string,
+        args: Record<string, unknown>
+      ) => Promise<{ data: unknown; error: { message: string } | null }>
+    )('update_task_meta', {
+      p_session_id: check.sessionId,
+      p_question_id: input.questionId,
+      p_notes: ans.notes ?? '',
+      p_url: ans.url ?? ''
+    });
+    if (error) return { error: error.message };
+    return {};
   }
 
+  // 객관식·단답형: 응답 값 통째 upsert (files 필드 없음)
   const { error } = await s.from('exam_responses').upsert(
     {
       session_id: check.sessionId,
       question_id: input.questionId,
-      answer_value: answerValue as unknown as Json,
+      answer_value: (input.answer ?? null) as unknown as Json,
       submitted_at: new Date().toISOString()
     },
     { onConflict: 'session_id,question_id' }

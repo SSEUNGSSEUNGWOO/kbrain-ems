@@ -27,8 +27,8 @@ const nextConfig: NextConfig = {
   },
   experimental: {
     serverActions: {
-      // LMS 명단(~11k row) 등 대용량 batch upsert 위해 body 한도 상향
-      bodySizeLimit: '10mb'
+      // LMS 명단(~11k row) 대용량 batch upsert + 시험 작업형 파일 업로드 최대 20MB
+      bodySizeLimit: '25mb'
     }
   }
 };

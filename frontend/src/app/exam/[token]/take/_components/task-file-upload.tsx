@@ -105,10 +105,13 @@ export function TaskFileUpload({
       })
     );
 
-    // 결과 정리 (완료 순서 무관)
+    // 결과 정리 — 병렬 요청 완료 순서와 입력 순서가 다르므로 files 배열 길이가 가장 긴 응답을
+    // "최신 서버 상태"로 간주해야 UI가 후퇴하지 않음. (짧은 응답은 앞서 도착한 요청 시점의 스냅샷)
     for (const { file, res } of results) {
       if (res.ok) {
-        latestServerFiles = res.files;
+        if (!latestServerFiles || res.files.length > latestServerFiles.length) {
+          latestServerFiles = res.files;
+        }
       } else if (res.code === 'expired') {
         expiredHit = true;
       } else {
