@@ -230,12 +230,19 @@ export function ExamRunner(props: Props) {
     const onFs = () => {
       const now = Date.now();
       if (!document.fullscreenElement) {
-        // 이미 이탈 상태면 시작 시각 유지 (여러 번 fullscreenchange 재발화 방지)
         if (fsExitStartRef.current == null) fsExitStartRef.current = now;
         setFsExited(true);
         setLiveElapsedMs(0);
       }
-      // fullscreen 복귀 시 자동 해제하지 않음 — 응시자가 오버레이의 '복귀' 버튼 눌러야 재개
+    };
+    // Alt+Tab·Cmd+Tab·다른 앱 클릭 등 창 포커스 상실.
+    // Chrome fullscreen에서 Alt+Tab 시 visibilitychange가 안 오는 경우가 있어서
+    // window.blur 이벤트로도 병행 감지.
+    const onBlur = () => {
+      const now = Date.now();
+      if (visExitStartRef.current == null) visExitStartRef.current = now;
+      setVisHidden(true);
+      setLiveElapsedMs(0);
     };
     const onVis = () => {
       const now = Date.now();
@@ -244,13 +251,14 @@ export function ExamRunner(props: Props) {
         setVisHidden(true);
         setLiveElapsedMs(0);
       }
-      // visible 복귀 시 자동 해제하지 않음 — Alt+Tab으로 다른 창 잠깐 봐도 오버레이 유지
     };
     document.addEventListener('fullscreenchange', onFs);
     document.addEventListener('visibilitychange', onVis);
+    window.addEventListener('blur', onBlur);
     return () => {
       document.removeEventListener('fullscreenchange', onFs);
       document.removeEventListener('visibilitychange', onVis);
+      window.removeEventListener('blur', onBlur);
     };
   }, [token, isTask]);
 
