@@ -10,7 +10,7 @@ const PUBLIC_PATH_PREFIXES = [
   '/pretraining',
   '/exam'
 ];
-const PUBLIC_API_PREFIXES = ['/api/auth'];
+const PUBLIC_API_PREFIXES = ['/api/auth', '/api/exam'];
 
 // bfcache·브라우저 캐시로 이전 응시자 정보가 남지 않게 no-store 강제.
 // exam 관련 페이지·share 진입 페이지·done 페이지 전부 적용.
