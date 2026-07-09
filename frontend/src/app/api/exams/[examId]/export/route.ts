@@ -130,10 +130,12 @@ export async function GET(_req: Request, { params }: Params) {
   ];
   summary.getRow(1).font = { bold: true };
 
+  // status는 '진행중' vs '제출완료' 이분 — 채점 완료 여부는 총점 컬럼이 구분함.
+  // 기존 'graded' 값은 과거 세션에 남아있을 수 있으므로 동일하게 매핑.
   const STATUS_KO: Record<string, string> = {
     in_progress: '진행중',
-    submitted: '제출',
-    graded: '채점완료'
+    submitted: '제출완료',
+    graded: '제출완료'
   };
   for (const sess of sessions ?? []) {
     const events = (Array.isArray(sess.browser_events) ? sess.browser_events : []) as {

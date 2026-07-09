@@ -388,7 +388,8 @@ export async function submitSection(input: {
         section_progress: sp as unknown as Json,
         submitted_at: now,
         auto_score: autoScore,
-        status: hasManual ? 'submitted' : 'graded',
+        // status는 응시자 최종 제출 시점부터 '제출완료'로 통일 (자동채점 여부는 total_score로 구분).
+        status: 'submitted',
         total_score: hasManual ? null : autoScore
       })
       .eq('id', session.id);
@@ -494,7 +495,7 @@ export async function submitSession(token: string): Promise<{ error?: string }> 
     .update({
       submitted_at: now,
       auto_score: autoScore,
-      status: hasManual ? 'submitted' : 'graded',
+      status: 'submitted',
       total_score: hasManual ? null : autoScore
     })
     .eq('id', sessionId);

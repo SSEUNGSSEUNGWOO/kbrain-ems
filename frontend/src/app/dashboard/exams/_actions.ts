@@ -57,16 +57,15 @@ async function recalculateSession(sessionId: string): Promise<void> {
   }
 
   const allTaskGraded = taskTotal === 0 || taskGraded === taskTotal;
-  const status = allTaskGraded ? 'graded' : 'submitted';
   const totalScore = allTaskGraded ? autoScore + manualScore : null;
 
+  // status는 최종 제출 시점부터 'submitted' 하나로 유지 (채점 완료 여부는 total_score로 구분).
   await s
     .from('exam_sessions')
     .update({
       auto_score: autoScore,
       manual_score: manualScore,
-      total_score: totalScore,
-      status
+      total_score: totalScore
     })
     .eq('id', sessionId);
 }
