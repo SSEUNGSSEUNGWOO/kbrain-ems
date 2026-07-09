@@ -20,6 +20,16 @@ function formatSecFromMs(ms: number): string {
   return rs === 0 ? `${m}분` : `${m}분 ${rs}초`;
 }
 
+// 서버가 Vercel(UTC)에서 렌더되므로 명시적으로 KST 지정 필요.
+// dateStyle/timeStyle 'short'로 컴팩트하게: "26. 7. 9. 오전 10:39"
+function formatKst(iso: string): string {
+  return new Date(iso).toLocaleString('ko-KR', {
+    timeZone: 'Asia/Seoul',
+    dateStyle: 'short',
+    timeStyle: 'short'
+  });
+}
+
 // 응시자 관점에서 '제출'과 '채점완료'는 헷갈리기만 함.
 // 채점 완료 여부는 점수 컬럼(total_score vs auto_score)이 이미 명확히 표시하므로
 // 뱃지는 '진행중' vs '제출완료' 이분으로 단순화.
@@ -268,10 +278,10 @@ export default async function ExamDetailPage({ params }: Props) {
                     )}
                   </TableCell>
                   <TableCell className='text-xs text-muted-foreground'>
-                    {s.started_at ? new Date(s.started_at).toLocaleString('ko-KR') : '-'}
+                    {s.started_at ? formatKst(s.started_at) : '-'}
                   </TableCell>
                   <TableCell className='text-xs text-muted-foreground'>
-                    {s.submitted_at ? new Date(s.submitted_at).toLocaleString('ko-KR') : '-'}
+                    {s.submitted_at ? formatKst(s.submitted_at) : '-'}
                   </TableCell>
                   <TableCell className='text-right'>
                     <Link

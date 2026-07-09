@@ -21,6 +21,15 @@ const STATUS_LABEL: Record<string, string> = {
   graded: '제출완료'
 };
 
+// Vercel(UTC)에서 서버 렌더되므로 KST 지정 필수. dateStyle/timeStyle 컴팩트.
+function formatKst(iso: string, opts?: { long?: boolean }): string {
+  return new Date(iso).toLocaleString('ko-KR', {
+    timeZone: 'Asia/Seoul',
+    dateStyle: opts?.long ? 'medium' : 'short',
+    timeStyle: opts?.long ? 'medium' : 'short'
+  });
+}
+
 export default async function ExamSessionDetailPage({ params }: Props) {
   if (!(await isDeveloper())) notFound();
   const { examId, sessionId } = await params;
@@ -105,13 +114,9 @@ export default async function ExamSessionDetailPage({ params }: Props) {
           <Stat
             label='시작 / 제출'
             value={
-              (session.started_at
-                ? new Date(session.started_at).toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short' })
-                : '-') +
+              (session.started_at ? formatKst(session.started_at) : '-') +
               ' / ' +
-              (session.submitted_at
-                ? new Date(session.submitted_at).toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short' })
-                : '-')
+              (session.submitted_at ? formatKst(session.submitted_at) : '-')
             }
           />
           <Stat label='자동 채점' value={session.auto_score != null ? `${session.auto_score}점` : '-'} />
@@ -151,7 +156,7 @@ export default async function ExamSessionDetailPage({ params }: Props) {
                     <li key={i} className='px-4 py-2 text-xs flex justify-between gap-3'>
                       <span>{EVENT_LABEL[e.event] ?? e.event}</span>
                       <span className='text-muted-foreground tabular-nums'>
-                        {new Date(e.at).toLocaleString('ko-KR')}
+                        {formatKst(e.at, { long: true })}
                         {e.duration_ms != null && ` · ${formatSec(e.duration_ms)}`}
                       </span>
                     </li>
