@@ -126,6 +126,7 @@ export function ExamRunner(props: Props) {
   const [answers, setAnswers] = useState<Record<string, Record<string, unknown>>>(savedAnswers);
   const [flagged, setFlagged] = useState<Set<string>>(new Set(flaggedIds));
   const [currentIdx, setCurrentIdx] = useState(0);
+  const [taskUploadBusy, setTaskUploadBusy] = useState(false);
   const [pending, startTransition] = useTransition();
 
   const question = sectionQuestions[currentIdx];
@@ -504,17 +505,21 @@ export function ExamRunner(props: Props) {
 
   // 문항별 debounce 타이머 관리
   const saveTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const pendingPayloadsRef = useRef<Map<string, Record<string, unknown> | null>>(new Map());
   const scheduleSave = (questionId: string, payload: Record<string, unknown> | null, delayMs: number) => {
     const timers = saveTimersRef.current;
     const prev = timers.get(questionId);
     if (prev) clearTimeout(prev);
+    pendingPayloadsRef.current.set(questionId, payload);
     if (delayMs === 0) {
       timers.delete(questionId);
+      pendingPayloadsRef.current.delete(questionId);
       void runSave(questionId, payload);
       return;
     }
     const t = setTimeout(() => {
       timers.delete(questionId);
+      pendingPayloadsRef.current.delete(questionId);
       void runSave(questionId, payload);
     }, delayMs);
     timers.set(questionId, t);
@@ -559,6 +564,18 @@ export function ExamRunner(props: Props) {
       const timers = saveTimersRef.current;
       for (const [, t] of timers) clearTimeout(t);
       timers.clear();
+      const pendingPayloads = Array.from(pendingPayloadsRef.current.entries());
+      pendingPayloadsRef.current.clear();
+      if (pendingPayloads.length > 0) {
+        const saveResults = await Promise.all(
+          pendingPayloads.map(([questionId, payload]) => runSave(questionId, payload))
+        );
+        const failed = saveResults.find((r) => r?.error);
+        if (failed?.error) {
+          alert(`마지막 답안 저장 실패: ${failed.error}\n저장 후 다시 제출해주세요.`);
+          return;
+        }
+      }
 
       const res = await submitSection({ token, sectionKind: currentSection, timeoutReached });
       if (res.error) {
@@ -580,6 +597,10 @@ export function ExamRunner(props: Props) {
 
   // 모든 섹션 전환에 확인 다이얼로그 (실수 방지)
   const handleFinalSubmitClick = () => {
+    if (taskUploadBusy) {
+      alert('파일 업로드가 아직 진행 중입니다. 업로드 완료 후 제출해주세요.');
+      return;
+    }
     setFinalAgree(false);
     setShowFinalConfirm(true);
   };
@@ -592,10 +613,20 @@ export function ExamRunner(props: Props) {
   // 현재 섹션의 미답변 개수 (섹션 이동 확인용)
   // 서버 저장 성공한 문항만 답변 완료로 인정 (실패한 답변은 미답변 취급 → 응시자에게 경고)
   const unansweredCurrent = sectionQuestions.filter((q) => !serverSavedIds.has(q.id)).length;
+  const hasLocalAnswer = (questionId: string): boolean => {
+    const a = answers[questionId];
+    if (!a) return false;
+    if (typeof a.key === 'string' && a.key.trim()) return true;
+    if (typeof a.text === 'string' && a.text.trim()) return true;
+    if (typeof a.notes === 'string' && a.notes.trim()) return true;
+    if (typeof a.url === 'string' && a.url.trim()) return true;
+    if (Array.isArray(a.files) && a.files.length > 0) return true;
+    return false;
+  };
 
   const canGoPrev = currentIdx > 0;
   const canGoNext = currentIdx < sectionQuestions.length - 1;
-  const answeredCount = sectionQuestions.filter((q) => serverSavedIds.has(q.id)).length;
+  const answeredCount = sectionQuestions.filter((q) => serverSavedIds.has(q.id) || hasLocalAnswer(q.id)).length;
 
   const currentSectionIdxInFlow = SECTION_ORDER.indexOf(currentSection);
 
@@ -935,8 +966,8 @@ export function ExamRunner(props: Props) {
             <div className='grid grid-cols-5 gap-1.5'>
               {sectionQuestions.map((q, i) => {
                 const isCurrent = i === currentIdx;
-                // 서버에 저장된 답변만 '답변됨'으로 표시 (client-only 상태는 함정)
-                const isAnswered = serverSavedIds.has(q.id);
+                // 좌측 그리드는 응시자 체감상 입력 즉시 반영. 실제 섹션 이동 경고는 서버 저장 기준 유지.
+                const isAnswered = serverSavedIds.has(q.id) || hasLocalAnswer(q.id);
                 const isFlagged = flagged.has(q.id);
                 const cls = isCurrent
                   ? 'bg-slate-900 text-white ring-2 ring-slate-900 ring-offset-1'
@@ -1026,6 +1057,7 @@ export function ExamRunner(props: Props) {
                         <div className='space-y-0.5 text-[13px] leading-relaxed'>
                           <div>• <b>AI 코딩 에이전트 사용 가능</b> (Claude Code · Cursor · GPT · Copilot 등)</div>
                           <div>• <b>전체화면 이탈 자유</b> — 다른 창·IDE·터미널 자유롭게 사용하세요</div>
+                          <div>• 웹 화면이 뒤에 있어도 서버 기준 마감 시각은 계속 흐릅니다</div>
                           <div>• 인터넷 검색은 불가하며, 외부 LLM API·CDN도 사용 불가입니다</div>
                           <div>• 로컬 Ollama만 사용 가능 (첨부 zip에 model_config 포함)</div>
                         </div>
@@ -1181,6 +1213,7 @@ export function ExamRunner(props: Props) {
                         questionId={question?.id ?? ''}
                         files={((answer as { files?: UploadedFile[] }).files) ?? []}
                         disabled={remaining <= 5}
+                        onBusyChange={setTaskUploadBusy}
                         onExpired={() => {
                           if (!timeoutFiredRef.current) {
                             timeoutFiredRef.current = true;

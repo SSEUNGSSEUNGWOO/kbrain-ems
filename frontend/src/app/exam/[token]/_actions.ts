@@ -70,6 +70,81 @@ type ExpiryCode = 'no_session' | 'submitted' | 'not_started' | 'expired';
 
 type TaskFile = { name: string; path: string; size: number; url: string };
 
+function buildTaskFilePath(token: string, fileName: string): string {
+  const dot = fileName.lastIndexOf('.');
+  const ext = dot > 0 ? fileName.slice(dot).replace(/[^\w.]/g, '').slice(0, 10) : '';
+  return `${token}/${Date.now()}_${Math.random().toString(36).slice(2, 10)}${ext}`;
+}
+
+// Vercel Function 본문 제한을 피하기 위한 2단계 업로드.
+// 서버 액션은 권한·시간 검증 후 Supabase signed upload token만 발급하고,
+// 실제 파일 바이트는 브라우저가 Supabase Storage로 직접 전송한다.
+export async function prepareTaskFileUpload(input: {
+  token: string;
+  questionId: string;
+  fileName: string;
+  fileSize: number;
+}): Promise<{ error?: string; code?: ExpiryCode; path?: string; signedUrl?: string }> {
+  try {
+    if (!input.questionId) return { error: '문항 정보가 없습니다.' };
+    if (!input.fileName) return { error: '파일명이 없습니다.' };
+    if (input.fileSize > MAX_MB * 1024 * 1024) return { error: `파일 크기가 ${MAX_MB}MB를 초과합니다.` };
+
+    const s = createAdminClient();
+    const check = await assertSectionAlive(s, input.token, 'task_based');
+    if (!check.ok) return { error: check.error, code: check.code };
+
+    const path = buildTaskFilePath(input.token, input.fileName);
+    const { data, error } = await s.storage.from(UPLOAD_BUCKET).createSignedUploadUrl(path);
+    if (error || !data?.signedUrl) {
+      return { error: `업로드 준비 실패: ${error?.message ?? 'signed token 없음'}` };
+    }
+    return { path, signedUrl: data.signedUrl };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : '업로드 준비 실패' };
+  }
+}
+
+export async function completeTaskFileUpload(input: {
+  token: string;
+  questionId: string;
+  file: { name: string; path: string; size: number };
+}): Promise<{ error?: string; files?: TaskFile[] }> {
+  try {
+    if (!input.file.path.startsWith(`${input.token}/`)) return { error: '경로가 잘못됐습니다.' };
+
+    const s = createAdminClient();
+    const { data: session } = await s
+      .from('exam_sessions')
+      .select('id, submitted_at')
+      .eq('token', input.token)
+      .maybeSingle();
+    if (!session) return { error: '세션이 없습니다.' };
+
+    const { data: signed } = await s.storage
+      .from(UPLOAD_BUCKET)
+      .createSignedUrl(input.file.path, 60 * 60 * 24 * 365);
+
+    const newFile: TaskFile = {
+      name: input.file.name,
+      path: input.file.path,
+      size: input.file.size,
+      url: signed?.signedUrl ?? ''
+    };
+
+    const { data: mergedFiles, error: dbErr } = await (s.rpc as unknown as (name: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }>)('append_task_file', {
+      p_session_id: session.id,
+      p_question_id: input.questionId,
+      p_new_file: newFile as unknown as Json
+    });
+    if (dbErr) return { error: `저장 실패: ${dbErr.message}` };
+
+    return { files: (mergedFiles as unknown as TaskFile[]) ?? [newFile] };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : '업로드 완료 처리 실패' };
+  }
+}
+
 // 원자적 파일 append.
 // 이전 방식(Storage 업로드 후 클라이언트가 saveAnswer로 files 배열을 별도 저장)은
 // 두 요청 사이 실패 시 Storage-DB 불일치 발생 → 실제 시험에서 "5개 올렸는데 2개만 저장" 사고 원인.
@@ -97,9 +172,7 @@ export async function uploadTaskFile(
 
     // Storage 경로는 완전 안전한 문자로만 (한글·특수문자 있으면 Invalid key 에러).
     // 원본 파일명은 응답에 담아서 관리자 xlsx에 표시하고, path는 timestamp+random+확장자만.
-    const dot = file.name.lastIndexOf('.');
-    const ext = dot > 0 ? file.name.slice(dot).replace(/[^\w.]/g, '').slice(0, 10) : '';
-    const path = `${token}/${Date.now()}_${Math.random().toString(36).slice(2, 10)}${ext}`;
+    const path = buildTaskFilePath(token, file.name);
     const buf = new Uint8Array(await file.arrayBuffer());
 
     const { error: upErr } = await s.storage.from(UPLOAD_BUCKET).upload(path, buf, {

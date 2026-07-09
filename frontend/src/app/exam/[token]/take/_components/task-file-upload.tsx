@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { uploadTaskFile, deleteTaskFile } from '../../_actions';
+import { completeTaskFileUpload, deleteTaskFile, prepareTaskFileUpload } from '../../_actions';
 
 export type UploadedFile = {
   name: string;
@@ -11,6 +11,7 @@ export type UploadedFile = {
 };
 
 const MAX_MB = 20;
+const MAX_PARALLEL_UPLOADS = 2;
 
 export function TaskFileUpload({
   token,
@@ -18,6 +19,7 @@ export function TaskFileUpload({
   files,
   onServerFiles,
   disabled = false,
+  onBusyChange,
   onExpired
 }: {
   token: string;
@@ -27,6 +29,7 @@ export function TaskFileUpload({
   // 클라이언트가 직접 배열을 만들지 않으므로 상태 divergence 원천 차단.
   onServerFiles: (next: UploadedFile[]) => void;
   disabled?: boolean;
+  onBusyChange?: (busy: boolean) => void;
   onExpired?: () => void;
 }) {
   const [dragOver, setDragOver] = useState(false);
@@ -61,15 +64,40 @@ export function TaskFileUpload({
     let lastError = '네트워크 오류 (3회 실패)';
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        const fd = new FormData();
-        fd.append('file', file);
-        fd.append('questionId', questionId);
-        const res = await uploadTaskFile(token, fd);
-        if (res.files) return { ok: true, files: res.files };
-        if (isNonRetryable(res)) {
-          return { ok: false, reason: res.error ?? '업로드 거부됨', code: res.code };
+        const prepared = await prepareTaskFileUpload({
+          token,
+          questionId,
+          fileName: file.name,
+          fileSize: file.size
+        });
+        if (!prepared.path || !prepared.signedUrl) {
+          if (isNonRetryable(prepared)) {
+            return { ok: false, reason: prepared.error ?? '업로드 거부됨', code: prepared.code };
+          }
+          if (prepared.error) lastError = prepared.error;
+          continue;
         }
-        if (res.error) lastError = res.error;
+
+        const uploadBody = new FormData();
+        uploadBody.append('cacheControl', '3600');
+        uploadBody.append('', file);
+        const uploaded = await fetch(prepared.signedUrl, {
+          method: 'PUT',
+          body: uploadBody
+        });
+        if (!uploaded.ok) {
+          const detail = await uploaded.text().catch(() => '');
+          lastError = `Storage 업로드 실패: HTTP ${uploaded.status}${detail ? ` · ${detail.slice(0, 120)}` : ''}`;
+          continue;
+        }
+
+        const completed = await completeTaskFileUpload({
+          token,
+          questionId,
+          file: { name: file.name, path: prepared.path, size: file.size }
+        });
+        if (completed.files) return { ok: true, files: completed.files };
+        if (completed.error) lastError = completed.error;
       } catch (e) {
         lastError = e instanceof Error ? e.message : '네트워크 오류';
       }
@@ -88,22 +116,27 @@ export function TaskFileUpload({
     setFailed([]);
     const list = Array.from(fs);
     setBusy(true);
+    onBusyChange?.(true);
     setPendingCount(list.length);
 
-    // 병렬 실행 — 서버가 Postgres RPC의 jsonb || 연산자로 원자적 append하므로
-    // 여러 요청이 겹쳐도 race 없음. 5개 파일 순차 15~25초 → 병렬 3~5초로 단축.
-    // 낙관적 UI는 각 요청 완료 순간 반영 (마지막 완료의 files 배열이 서버 상태).
+    // 사용자별 동시 업로드를 제한한다. 50명이 5개씩 올리면 무제한 병렬은 순간 250요청까지 튀므로
+    // 2개씩만 보내 Storage/네트워크 피크를 낮춘다.
     let latestServerFiles: UploadedFile[] | null = null;
     const newFailed: { file: File; reason: string }[] = [];
     let expiredHit = false;
 
-    const results = await Promise.all(
-      list.map(async (f) => {
+    const results: { file: File; res: Awaited<ReturnType<typeof uploadOne>> }[] = [];
+    let cursor = 0;
+    const workers = Array.from({ length: Math.min(MAX_PARALLEL_UPLOADS, list.length) }, async () => {
+      while (cursor < list.length) {
+        const f = list[cursor];
+        cursor++;
         const res = await uploadOne(f);
         setPendingCount((n) => n - 1);
-        return { file: f, res };
-      })
-    );
+        results.push({ file: f, res });
+      }
+    });
+    await Promise.all(workers);
 
     // 결과 정리 — 병렬 요청 완료 순서와 입력 순서가 다르므로 files 배열 길이가 가장 긴 응답을
     // "최신 서버 상태"로 간주해야 UI가 후퇴하지 않음. (짧은 응답은 앞서 도착한 요청 시점의 스냅샷)
@@ -128,6 +161,7 @@ export function TaskFileUpload({
       setError(`${newFailed.length}개 파일이 업로드 실패했습니다. 아래에서 재시도해 주세요.`);
     }
     setBusy(false);
+    onBusyChange?.(false);
     setPendingCount(0);
   };
 
