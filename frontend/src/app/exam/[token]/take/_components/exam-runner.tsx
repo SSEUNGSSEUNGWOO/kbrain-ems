@@ -131,19 +131,50 @@ export function ExamRunner(props: Props) {
   const question = sectionQuestions[currentIdx];
   const answer = question ? answers[question.id] ?? {} : {};
 
-  // 섹션 타이머 — wall-clock 기반.
-  // 이전 방식(setTimeout 1초씩 감소)은 background 탭에서 Chrome이 1분 이상으로 스로틀링해
-  // 응시자 화면 시간이 실제보다 훨씬 크게 표시되던 문제 → 매 tick마다 Date.now()로 재계산.
+  // 섹션 타이머 — wall-clock 기반 + NTP 방식 시각 동기화.
   //
-  // 서버 시각 offset: 마운트 시점 1회 계산. serverNow(SSR)가 이 위치를 지날 때 실제 서버 시각.
-  // 응시자 시계가 5분 앞서/뒤로 맞춰져도 offset이 그만큼 보정.
+  // 초기 offset은 SSR serverNow로 계산 (SSR~마운트 지연으로 몇 초 오차 발생).
+  // 마운트 직후 /api/exam/now fetch로 정확한 offset 재조정 (NTP 원리, RTT/2 보정).
+  // 30초마다 재동기화 + visibilitychange·focus 시 즉시 재동기화 → 오차 1초 이내 유지.
   const sectionLimit = sectionLimits[currentSection];
-  const serverClockOffsetRef = useRef(0);
-  const clockOffsetInitedRef = useRef(false);
-  if (!clockOffsetInitedRef.current) {
-    serverClockOffsetRef.current = new Date(serverNow).getTime() - Date.now();
-    clockOffsetInitedRef.current = true;
-  }
+  const [serverClockOffset, setServerClockOffset] = useState(
+    () => new Date(serverNow).getTime() - Date.now()
+  );
+
+  // 서버 시각 정밀 재동기화 (NTP 원리)
+  useEffect(() => {
+    let cancelled = false;
+    const sync = async () => {
+      try {
+        const t0 = Date.now();
+        const res = await fetch('/api/exam/now', { cache: 'no-store' });
+        const t1 = Date.now();
+        if (cancelled) return;
+        const { now: serverIso } = (await res.json()) as { now: string };
+        // 서버 응답이 도착한 시점의 서버 시각은 대략 (server_time_at_response + RTT/2 이전)
+        // 즉 클라 시각 t_mid = (t0+t1)/2 시점에 서버는 serverIso로 계산됨 → offset = serverIso - t_mid
+        const tMid = (t0 + t1) / 2;
+        const offset = new Date(serverIso).getTime() - tMid;
+        setServerClockOffset(offset);
+      } catch {
+        // 실패해도 기존 SSR offset 유지
+      }
+    };
+    // 즉시 1회
+    void sync();
+    // 30초마다 재동기화
+    const id = setInterval(sync, 30_000);
+    // 탭 복귀·창 포커스 시 즉시 재동기화 (background에서 오래 있으면 드리프트)
+    const onFocus = () => void sync();
+    document.addEventListener('visibilitychange', onFocus);
+    window.addEventListener('focus', onFocus);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', onFocus);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, []);
 
   // 절대 마감 시각 (서버 시각 기준의 ms).
   // = (섹션 시작 서버 시각) + (제한 초 × 1000)
@@ -152,9 +183,9 @@ export function ExamRunner(props: Props) {
     [currentSectionStartedAt, sectionLimit]
   );
   // 클라이언트 wall-clock 기준으로 환산한 마감 시각 (툴팁·표시용).
-  const deadlineLocalMs = deadlineServerMs - serverClockOffsetRef.current;
+  const deadlineLocalMs = deadlineServerMs - serverClockOffset;
 
-  const nowServerMs = () => Date.now() + serverClockOffsetRef.current;
+  const nowServerMs = () => Date.now() + serverClockOffset;
   const computeRemaining = () =>
     Math.max(0, Math.floor((deadlineServerMs - nowServerMs()) / 1000));
 
@@ -174,8 +205,10 @@ export function ExamRunner(props: Props) {
 
   // 매 500ms tick — setInterval도 background에서 스로틀되지만 매번 wall-clock으로 재계산하므로
   // 값 자체는 항상 정확. UI 갱신 주기만 느려질 뿐.
+  // offset이 재동기화되면 즉시 remaining 재계산 → deps에 serverClockOffset 포함.
   useEffect(() => {
     const tick = () => setRemaining(computeRemaining());
+    tick(); // offset 변경 즉시 반영
     const id = setInterval(tick, 500);
     // 탭 복귀·창 포커스 회복 시 즉시 재계산 (스로틀 tick 기다리지 않고 바로 반영).
     const onVis = () => tick();
@@ -188,7 +221,7 @@ export function ExamRunner(props: Props) {
       window.removeEventListener('focus', onFocus);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [deadlineServerMs]);
+  }, [deadlineServerMs, serverClockOffset]);
 
   // 만료 감지 — 별도 effect (tick과 분리해서 중복 발화 방지)
   useEffect(() => {
