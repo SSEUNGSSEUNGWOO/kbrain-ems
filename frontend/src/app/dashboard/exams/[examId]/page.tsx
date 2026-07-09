@@ -1,38 +1,19 @@
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import PageContainer from '@/components/layout/page-container';
 import { createAdminClient } from '@/lib/supabase/server';
 import { isDeveloper } from '@/lib/auth';
 import { isMultipleChoiceCorrect, isShortAnswerCorrect } from '@/lib/exam-grading';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
 import { ShareLinkCopy } from './_components/share-link-copy';
+import { SessionsTable, type SessionRow } from './_components/sessions-table';
 
 export const dynamic = 'force-dynamic';
 
 type Props = { params: Promise<{ examId: string }> };
 
-function formatSecFromMs(ms: number): string {
-  const s = Math.round(ms / 1000);
-  if (s < 60) return `${s}초`;
-  const m = Math.floor(s / 60);
-  const rs = s % 60;
-  return rs === 0 ? `${m}분` : `${m}분 ${rs}초`;
-}
-
-// 서버가 Vercel(UTC)에서 렌더되므로 명시적으로 KST 지정 필요.
-// dateStyle/timeStyle 'short'로 컴팩트하게: "26. 7. 9. 오전 10:39"
-function formatKst(iso: string): string {
-  return new Date(iso).toLocaleString('ko-KR', {
-    timeZone: 'Asia/Seoul',
-    dateStyle: 'short',
-    timeStyle: 'short'
-  });
-}
-
 // 응시자 관점에서 '제출'과 '채점완료'는 헷갈리기만 함.
 // 채점 완료 여부는 점수 컬럼(total_score vs auto_score)이 이미 명확히 표시하므로
 // 뱃지는 '진행중' vs '제출완료' 이분으로 단순화.
+// (formatKst · formatSecFromMs 유틸은 sessions-table.tsx 내부에서 자체 정의)
 const STATUS_LABEL: Record<string, string> = {
   in_progress: '진행중',
   submitted: '제출완료',
@@ -176,121 +157,52 @@ export default async function ExamDetailPage({ params }: Props) {
           </div>
         </div>
       )}
-      <div className='rounded-lg border overflow-x-auto'>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>응시자</TableHead>
-              <TableHead>상태</TableHead>
-              <TableHead className='text-right'>진행</TableHead>
-              <TableHead className='text-right' title={`객관식 만점 ${sectionMax.multiple_choice}점`}>
-                객관식
-              </TableHead>
-              <TableHead className='text-right' title={`단답형 만점 ${sectionMax.short_text}점`}>
-                단답형
-              </TableHead>
-              <TableHead className='text-right' title={`작업형 만점 ${sectionMax.task_based}점`}>
-                작업형
-              </TableHead>
-              <TableHead className='text-right'>총점</TableHead>
-              <TableHead className='text-right'>이탈</TableHead>
-              <TableHead>시작</TableHead>
-              <TableHead>제출</TableHead>
-              <TableHead className='w-12'></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {(sessions ?? []).length === 0 && (
-              <TableRow>
-                <TableCell colSpan={11} className='text-muted-foreground py-10 text-center text-sm'>
-                  아직 발급된 응시자 세션이 없습니다.
-                </TableCell>
-              </TableRow>
-            )}
-            {(sessions ?? []).map((s) => {
-              const events = (Array.isArray(s.browser_events) ? s.browser_events : []) as {
-                event: string;
-                at: string;
-                duration_ms?: number;
-              }[];
-              const exitTotalMs = events.reduce((sum, e) => sum + (e.duration_ms ?? 0), 0);
-              const progress = s.submitted_at
-                ? `${totalQ ?? 0}/${totalQ ?? 0}`
-                : s.current_order_no
-                  ? `${s.current_order_no}/${totalQ ?? 0}`
-                  : '-';
-              const sc = scoreBySession.get(s.id);
-              const isSubmitted = !!s.submitted_at;
-              // 각 섹션 셀: 제출 후에만 점수 표시. 작업형은 채점 대기면 '대기'.
-              const mcCell = isSubmitted && sc ? `${sc.mc}/${sectionMax.multiple_choice}` : '-';
-              const stCell = isSubmitted && sc ? `${sc.st}/${sectionMax.short_text}` : '-';
-              const taskCell = !isSubmitted || !sc
-                ? '-'
-                : sc.task != null
-                  ? `${sc.task}/${sectionMax.task_based}`
-                  : sc.taskHasResponse
-                    ? '대기'
-                    : `0/${sectionMax.task_based}`;
-              const totalMax = sectionMax.multiple_choice + sectionMax.short_text + sectionMax.task_based;
-              // 총점은 항상 지금까지 채점된 합계. 작업형 수동채점 대기 중이면 task=0으로 취급되어
-              // '자동채점만 반영된 임시 합계'가 표시됨 (관리자가 채점 진행할수록 자연스럽게 상승).
-              const totalCell = !isSubmitted || !sc
-                ? '-'
-                : `${sc.mc + sc.st + (sc.task ?? 0)}/${totalMax}`;
-              return (
-                <TableRow key={s.id}>
-                  <TableCell>
-                    <div className='font-medium'>{s.name ?? '(미지정)'}</div>
-                    {s.email && <div className='text-muted-foreground text-xs'>{s.email}</div>}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant='outline' className={STATUS_TONE[s.status] ?? ''}>
-                      {STATUS_LABEL[s.status] ?? s.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className='text-right tabular-nums'>{progress}</TableCell>
-                  <TableCell className='text-right tabular-nums'>{mcCell}</TableCell>
-                  <TableCell className='text-right tabular-nums'>{stCell}</TableCell>
-                  <TableCell className='text-right tabular-nums'>
-                    {taskCell === '대기' ? (
-                      <span className='text-amber-700 font-medium'>대기</span>
-                    ) : (
-                      taskCell
-                    )}
-                  </TableCell>
-                  <TableCell className='text-right tabular-nums font-semibold'>{totalCell}</TableCell>
-                  <TableCell className='text-right tabular-nums'>
-                    {events.length > 0 ? (
-                      <span className='text-amber-700 font-medium'>
-                        {events.length}회
-                        {exitTotalMs > 0 && (
-                          <span className='ml-1 text-xs opacity-80'>· {formatSecFromMs(exitTotalMs)}</span>
-                        )}
-                      </span>
-                    ) : (
-                      <span className='text-muted-foreground'>-</span>
-                    )}
-                  </TableCell>
-                  <TableCell className='text-xs text-muted-foreground'>
-                    {s.started_at ? formatKst(s.started_at) : '-'}
-                  </TableCell>
-                  <TableCell className='text-xs text-muted-foreground'>
-                    {s.submitted_at ? formatKst(s.submitted_at) : '-'}
-                  </TableCell>
-                  <TableCell className='text-right'>
-                    <Link
-                      href={`/dashboard/exams/${examId}/sessions/${s.id}`}
-                      className='text-xs text-blue-600 hover:underline'
-                    >
-                      상세
-                    </Link>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      </div>
+      {(() => {
+        // 세션 → SessionRow 변환 (서버에서 미리 계산해서 클라 테이블에 넘김)
+        const rows: SessionRow[] = (sessions ?? []).map((s) => {
+          const events = (Array.isArray(s.browser_events) ? s.browser_events : []) as {
+            event: string;
+            at: string;
+            duration_ms?: number;
+          }[];
+          const exitTotalMs = events.reduce((sum, e) => sum + (e.duration_ms ?? 0), 0);
+          const sc = scoreBySession.get(s.id);
+          const isSubmitted = !!s.submitted_at;
+          const mc = isSubmitted && sc ? sc.mc : null;
+          const st = isSubmitted && sc ? sc.st : null;
+          const task = isSubmitted && sc && sc.task != null ? sc.task : null;
+          const total = isSubmitted && sc ? sc.mc + sc.st + (sc.task ?? 0) : 0;
+          return {
+            id: s.id,
+            name: s.name ?? '(미지정)',
+            email: s.email,
+            status: s.status,
+            startedAtIso: s.started_at,
+            submittedAtIso: s.submitted_at,
+            progressCurrent: isSubmitted ? totalQ ?? 0 : s.current_order_no ?? 0,
+            progressTotal: totalQ ?? 0,
+            mcScore: mc,
+            stScore: st,
+            taskScore: task,
+            totalScore: total,
+            exitCount: events.length,
+            exitTotalMs
+          };
+        });
+        return (
+          <SessionsTable
+            examId={examId}
+            rows={rows}
+            sectionMax={{
+              mc: sectionMax.multiple_choice,
+              st: sectionMax.short_text,
+              task: sectionMax.task_based
+            }}
+            statusLabel={STATUS_LABEL}
+            statusTone={STATUS_TONE}
+          />
+        );
+      })()}
     </PageContainer>
   );
 }
