@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { createAdminClient } from '@/lib/supabase/server';
 import { isDeveloper } from '@/lib/auth';
+import type { Json } from '@/lib/supabase/types';
 
 // 세션 전체 재채점 — 자동 채점(객관식·단답) + 수동 점수 합산
 async function recalculateSession(sessionId: string): Promise<void> {
@@ -74,7 +75,11 @@ export async function saveManualScore(input: {
   examId: string;
   sessionId: string;
   questionId: string;
-  score: number;
+  // 단일 총점 채점 (rubric 없는 문항용). rubric_scores와 배타.
+  score?: number;
+  // 항목별 세부 점수 (rubric 기반 채점용). 관리자가 100점 기준으로 입력.
+  // 저장 시 문항 만점(예: 45)에 맞춰 스케일링해서 manual_score로 저장.
+  rubric_scores?: Record<string, number>;
   feedback?: string | null;
 }): Promise<{ error?: string }> {
   if (!(await isDeveloper())) return { error: '권한이 없습니다.' };
@@ -83,34 +88,70 @@ export async function saveManualScore(input: {
 
   const { data: q } = await s
     .from('exam_questions')
-    .select('score')
+    .select('score, correct')
     .eq('id', input.questionId)
     .maybeSingle();
   if (!q) return { error: '문항이 없습니다.' };
-  if (input.score < 0 || input.score > q.score) {
-    return { error: `점수는 0~${q.score} 범위여야 합니다.` };
+
+  // rubric 기반이면 합계 산출 + 스케일링
+  let finalScore: number;
+  let scaledFromRubric = false;
+  if (input.rubric_scores) {
+    const rubric = ((q.correct as { rubric?: { id: string; label?: string; max: number }[] } | null)?.rubric) ?? [];
+    const rubricMax = rubric.reduce((sum, r) => sum + r.max, 0) || 100;
+    // 각 항목 범위 검증
+    for (const r of rubric) {
+      const v = input.rubric_scores[r.id];
+      if (v == null) continue;
+      if (v < 0 || v > r.max) {
+        return { error: `${r.label ?? r.id} 항목 점수는 0~${r.max} 범위여야 합니다.` };
+      }
+    }
+    const raw = rubric.reduce((sum, r) => sum + (input.rubric_scores?.[r.id] ?? 0), 0);
+    // 스케일링: rubric 100점 → 문항 만점(예: 45점)
+    finalScore = Math.round((raw * q.score) / rubricMax);
+    scaledFromRubric = true;
+  } else if (input.score != null) {
+    if (input.score < 0 || input.score > q.score) {
+      return { error: `점수는 0~${q.score} 범위여야 합니다.` };
+    }
+    finalScore = input.score;
+  } else {
+    return { error: '점수 또는 rubric_scores를 지정하세요.' };
   }
 
   const { data: existing } = await s
     .from('exam_responses')
-    .select('id')
+    .select('id, answer_value')
     .eq('session_id', input.sessionId)
     .eq('question_id', input.questionId)
     .maybeSingle();
 
+  // rubric 세부 점수는 answer_value.admin_rubric_scores에 원본 100점 기준으로 저장.
+  // 응시자 flow는 이 필드 안 건드림 (saveAnswer가 task_based일 때 유지 로직 별도).
+  const prevValue = (existing?.answer_value ?? {}) as Record<string, unknown>;
+  const nextValue = scaledFromRubric
+    ? { ...prevValue, admin_rubric_scores: input.rubric_scores }
+    : prevValue;
+
   if (existing) {
-    const { error } = await s
-      .from('exam_responses')
-      .update({ manual_score: input.score, feedback: input.feedback ?? null })
-      .eq('id', existing.id);
+    const patch: {
+      manual_score: number;
+      feedback: string | null;
+      answer_value?: Json;
+    } = {
+      manual_score: finalScore,
+      feedback: input.feedback ?? null
+    };
+    if (scaledFromRubric) patch.answer_value = nextValue as unknown as Json;
+    const { error } = await s.from('exam_responses').update(patch).eq('id', existing.id);
     if (error) return { error: error.message };
   } else {
-    // 응답이 아예 없는 경우 — 새 row 생성
     const { error } = await s.from('exam_responses').insert({
       session_id: input.sessionId,
       question_id: input.questionId,
-      answer_value: null,
-      manual_score: input.score,
+      answer_value: scaledFromRubric ? (nextValue as unknown as Json) : null,
+      manual_score: finalScore,
       feedback: input.feedback ?? null
     });
     if (error) return { error: error.message };

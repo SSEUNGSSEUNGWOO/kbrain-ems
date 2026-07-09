@@ -259,8 +259,8 @@ export async function saveAnswer(input: {
   }
 
   // 작업형 응답의 files 필드는 uploadTaskFile / deleteTaskFile이 원자적으로 관리하는 채널.
-  // saveAnswer가 files까지 통째 upsert하면 debounced notes 저장과 파일 업로드가 겹칠 때
-  // 서버 응답 순서에 따라 방금 올린 파일이 유실될 수 있음 → files는 서버 기존값으로 유지.
+  // admin_rubric_scores는 saveManualScore가 관리하는 관리자 데이터 채널.
+  // saveAnswer가 두 필드를 통째 upsert하면 방금 저장된 파일·채점이 유실될 수 있음 → 서버 기존값 보존.
   let answerValue: Record<string, unknown> | null = (input.answer ?? null) as Record<string, unknown> | null;
   if (input.sectionKind === 'task_based' && answerValue) {
     const { data: existing } = await s
@@ -271,8 +271,11 @@ export async function saveAnswer(input: {
       .maybeSingle();
     const prevValue = (existing?.answer_value ?? {}) as Record<string, unknown>;
     const prevFiles = Array.isArray(prevValue.files) ? prevValue.files : [];
-    // notes·url 등 클라이언트가 보낸 필드로 덮되, files는 서버 기존값 보존
+    // notes·url 등 클라이언트가 보낸 필드로 덮되, 서버 관리 필드는 기존값 보존
     answerValue = { ...answerValue, files: prevFiles };
+    if (prevValue.admin_rubric_scores) {
+      answerValue.admin_rubric_scores = prevValue.admin_rubric_scores;
+    }
   }
 
   const { error } = await s.from('exam_responses').upsert(

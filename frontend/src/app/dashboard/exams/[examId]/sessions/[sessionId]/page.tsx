@@ -293,6 +293,14 @@ export default async function ExamSessionDetailPage({ params }: Props) {
                       maxScore={q.score}
                       currentScore={r?.manualScore ?? null}
                       currentFeedback={r?.feedback ?? null}
+                      rubric={
+                        ((q.correct as { rubric?: { id: string; label: string; max: number; desc?: string }[] } | null)
+                          ?.rubric) ?? null
+                      }
+                      currentRubricScores={
+                        ((r?.answer as { admin_rubric_scores?: Record<string, number> } | null)
+                          ?.admin_rubric_scores) ?? null
+                      }
                     />
                   )}
                 </div>
