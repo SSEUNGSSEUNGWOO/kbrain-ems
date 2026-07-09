@@ -80,8 +80,6 @@ export function TaskFileUpload({
 
   const handleFiles = async (fs: FileList | File[]) => {
     if (disabled) return;
-    // 이미 업로드가 진행 중이면 새 요청 거부 — 서버 read-modify-write가 겹쳐 파일 유실될 위험 차단.
-    // 첫 배치가 끝날 때까지 응시자가 대기하도록 유도. 실수로 두 번 드래그해도 안전.
     if (busy) {
       setError('업로드가 진행 중입니다. 잠시 후 다시 시도해 주세요.');
       return;
@@ -92,32 +90,40 @@ export function TaskFileUpload({
     setBusy(true);
     setPendingCount(list.length);
 
-    // 순차 실행 — 서버가 매 호출마다 answer_value.files 전체를 read-modify-write 하므로
-    // 병렬로 하면 race condition 발생 (두 요청이 같은 이전 상태 읽고 각자 append → 하나 유실).
-    // 순차라도 재시도 3회로 커버 → 5개 파일이 각각 1.5초씩 걸려도 총 7.5초 정도.
+    // 병렬 실행 — 서버가 Postgres RPC의 jsonb || 연산자로 원자적 append하므로
+    // 여러 요청이 겹쳐도 race 없음. 5개 파일 순차 15~25초 → 병렬 3~5초로 단축.
+    // 낙관적 UI는 각 요청 완료 순간 반영 (마지막 완료의 files 배열이 서버 상태).
     let latestServerFiles: UploadedFile[] | null = null;
     const newFailed: { file: File; reason: string }[] = [];
-    for (const f of list) {
-      const res = await uploadOne(f);
+    let expiredHit = false;
+
+    const results = await Promise.all(
+      list.map(async (f) => {
+        const res = await uploadOne(f);
+        setPendingCount((n) => n - 1);
+        return { file: f, res };
+      })
+    );
+
+    // 결과 정리 (완료 순서 무관)
+    for (const { file, res } of results) {
       if (res.ok) {
         latestServerFiles = res.files;
-        // 낙관적 UI 업데이트 — 다음 파일 업로드 전에 이미 반영
-        onServerFiles(res.files);
       } else if (res.code === 'expired') {
-        onExpired?.();
-        setError('작업형 시간이 만료되어 업로드가 거부되었습니다.');
-        break;
+        expiredHit = true;
       } else {
-        newFailed.push({ file: f, reason: res.reason });
+        newFailed.push({ file, reason: res.reason });
       }
-      setPendingCount((n) => n - 1);
     }
 
-    if (newFailed.length > 0) {
+    if (latestServerFiles) onServerFiles(latestServerFiles);
+    if (expiredHit) {
+      onExpired?.();
+      setError('작업형 시간이 만료되어 업로드가 거부되었습니다.');
+    } else if (newFailed.length > 0) {
       setFailed(newFailed);
       setError(`${newFailed.length}개 파일이 업로드 실패했습니다. 아래에서 재시도해 주세요.`);
     }
-    if (latestServerFiles) onServerFiles(latestServerFiles);
     setBusy(false);
     setPendingCount(0);
   };

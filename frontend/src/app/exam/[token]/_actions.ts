@@ -118,37 +118,20 @@ export async function uploadTaskFile(
       url: signed?.signedUrl ?? ''
     };
 
-    // DB append — 기존 response.answer_value 읽어서 files 배열에 추가한 뒤 upsert
-    const { data: existing } = await s
-      .from('exam_responses')
-      .select('answer_value')
-      .eq('session_id', check.sessionId)
-      .eq('question_id', questionId)
-      .maybeSingle();
-    const prevValue = (existing?.answer_value ?? {}) as Record<string, unknown>;
-    const prevFiles = Array.isArray(prevValue.files) ? (prevValue.files as TaskFile[]) : [];
-    // 같은 path 중복 방지 (재시도 대비 idempotent)
-    const merged = prevFiles.some((f) => f.path === newFile.path)
-      ? prevFiles
-      : [...prevFiles, newFile];
-    const nextValue = { ...prevValue, files: merged };
-
-    const { error: dbErr } = await s.from('exam_responses').upsert(
-      {
-        session_id: check.sessionId,
-        question_id: questionId,
-        answer_value: nextValue as unknown as Json,
-        submitted_at: new Date().toISOString()
-      },
-      { onConflict: 'session_id,question_id' }
-    );
+    // DB append — Postgres RPC로 원자적 처리. jsonb || 연산자를 UPDATE 안에서 사용해
+    // concurrent 요청이 서로 덮어쓰지 않음 → 클라이언트가 병렬 업로드해도 파일 유실 없음.
+    const { data: mergedFiles, error: dbErr } = await (s.rpc as unknown as (name: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }>)('append_task_file', {
+      p_session_id: check.sessionId,
+      p_question_id: questionId,
+      p_new_file: newFile as unknown as Json
+    });
     if (dbErr) {
       // DB 저장 실패 → Storage 파일도 롤백해서 orphan 방지
       await s.storage.from(UPLOAD_BUCKET).remove([path]).catch(() => {});
       return { error: `저장 실패: ${dbErr.message}` };
     }
 
-    return { files: merged };
+    return { files: (mergedFiles as unknown as TaskFile[]) ?? [newFile] };
   } catch (e) {
     return { error: e instanceof Error ? e.message : '알 수 없는 오류' };
   }
@@ -166,32 +149,17 @@ export async function deleteTaskFile(
     const check = await assertSectionAlive(s, token, 'task_based');
     if (!check.ok) return { error: check.error, code: check.code };
 
-    // DB에서 먼저 제거 (실패해도 Storage는 남기고, orphan은 관리자가 스크립트로 정리 가능)
-    const { data: existing } = await s
-      .from('exam_responses')
-      .select('answer_value')
-      .eq('session_id', check.sessionId)
-      .eq('question_id', questionId)
-      .maybeSingle();
-    const prevValue = (existing?.answer_value ?? {}) as Record<string, unknown>;
-    const prevFiles = Array.isArray(prevValue.files) ? (prevValue.files as TaskFile[]) : [];
-    const nextFiles = prevFiles.filter((f) => f.path !== path);
-    const nextValue = { ...prevValue, files: nextFiles };
-
-    const { error: dbErr } = await s.from('exam_responses').upsert(
-      {
-        session_id: check.sessionId,
-        question_id: questionId,
-        answer_value: nextValue as unknown as Json,
-        submitted_at: new Date().toISOString()
-      },
-      { onConflict: 'session_id,question_id' }
-    );
+    // Postgres RPC로 원자적 제거 (concurrent 안전)
+    const { data: nextFiles, error: dbErr } = await (s.rpc as unknown as (name: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }>)('remove_task_file', {
+      p_session_id: check.sessionId,
+      p_question_id: questionId,
+      p_path: path
+    });
     if (dbErr) return { error: dbErr.message };
 
     // Storage 제거 — 실패해도 UI는 성공 처리 (DB에 반영됐으므로 관리자에게 안 보임)
     await s.storage.from(UPLOAD_BUCKET).remove([path]).catch(() => {});
-    return { files: nextFiles };
+    return { files: (nextFiles as unknown as TaskFile[]) ?? [] };
   } catch (e) {
     return { error: e instanceof Error ? e.message : '삭제 실패' };
   }
