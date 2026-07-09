@@ -288,6 +288,58 @@ export function ExamRunner(props: Props) {
     setVisHidden(false);
   };
 
+  // 객관식·단답형 섹션에서 복사·우클릭·개발자도구 단축키 차단
+  // 작업형은 자유 (외부 도구 사용 허용).
+  useEffect(() => {
+    if (isTask) return;
+    // 우클릭 방지 (컨텍스트 메뉴로 '검사' 열기 차단)
+    const onContext = (e: MouseEvent) => e.preventDefault();
+    // 복사·잘라내기 차단 (문항 텍스트를 AI에 붙여넣기 방지)
+    // 단답형 textarea에서 자기 답변은 복사 가능하도록 target 판단
+    const isTextInput = (t: EventTarget | null) => {
+      if (!(t instanceof HTMLElement)) return false;
+      const tag = t.tagName;
+      return tag === 'TEXTAREA' || tag === 'INPUT';
+    };
+    const onCopy = (e: ClipboardEvent) => {
+      if (!isTextInput(e.target)) e.preventDefault();
+    };
+    const onCut = (e: ClipboardEvent) => {
+      if (!isTextInput(e.target)) e.preventDefault();
+    };
+    // 개발자도구·소스보기 단축키 차단
+    const onKey = (e: KeyboardEvent) => {
+      // F12
+      if (e.key === 'F12') { e.preventDefault(); return; }
+      // Ctrl/Cmd + Shift + I/J/C (DevTools)
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && ['I','J','C','i','j','c'].includes(e.key)) {
+        e.preventDefault(); return;
+      }
+      // Ctrl/Cmd + U (view source)
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'u' || e.key === 'U')) {
+        e.preventDefault(); return;
+      }
+      // Ctrl/Cmd + S (save page) — 지문 저장 방지
+      if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
+        e.preventDefault(); return;
+      }
+      // Ctrl/Cmd + P (print) — 지문 인쇄 방지
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'p' || e.key === 'P')) {
+        e.preventDefault(); return;
+      }
+    };
+    document.addEventListener('contextmenu', onContext);
+    document.addEventListener('copy', onCopy);
+    document.addEventListener('cut', onCut);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('contextmenu', onContext);
+      document.removeEventListener('copy', onCopy);
+      document.removeEventListener('cut', onCut);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [isTask]);
+
   const requestReenterFullscreen = async () => {
     try {
       await document.documentElement.requestFullscreen({ navigationUI: 'hide' });
@@ -890,12 +942,14 @@ export function ExamRunner(props: Props) {
                     </div>
                   </div>
                 )}
-                <QuestionText text={question.text} />
+                <div className={isTask ? '' : 'select-none'} style={isTask ? {} : { userSelect: 'none', WebkitUserSelect: 'none' }}>
+                  <QuestionText text={question.text} />
+                </div>
               </div>
 
               <div className='px-8 pt-2 pb-8'>
                 {question.type === 'multiple_choice' && question.choices && (
-                  <div className='space-y-2.5'>
+                  <div className='space-y-2.5 select-none' style={{ userSelect: 'none', WebkitUserSelect: 'none' }}>
                     {question.choices.map((c) => {
                       const selected = (answer as { key?: string }).key === c.key;
                       return (
