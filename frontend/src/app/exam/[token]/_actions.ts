@@ -360,20 +360,26 @@ export async function submitSection(input: {
     };
     let autoScore = 0;
     let hasManual = false;
+    // 개별 문항 채점 시 예외가 나도 다른 문항 계속 진행. 응시자 총점이 부분 유실되는 사고 방지.
+    // (answer_value / q.correct가 seed 실수로 예상 밖 형식이어도 여기서 죽지 않게)
     for (const r of (joined ?? []) as unknown as Joined[]) {
       const q = r.exam_questions;
       if (!q) continue;
-      const ans = r.answer_value;
-      if (q.type === 'multiple_choice') {
-        const ansKey = (ans as { key?: string } | null)?.key;
-        const correctKey = (q.correct as { key?: string } | null)?.key;
-        if (isMultipleChoiceCorrect(ansKey, correctKey)) autoScore += q.score;
-      } else if (q.type === 'short_text') {
-        const text = (ans as { text?: string } | null)?.text ?? null;
-        const keywords = ((q.correct as { keywords?: string[] } | null)?.keywords ?? []);
-        if (isShortAnswerCorrect(text, keywords)) autoScore += q.score;
-      } else if (q.type === 'task_based') {
-        hasManual = true;
+      try {
+        const ans = r.answer_value;
+        if (q.type === 'multiple_choice') {
+          const ansKey = (ans as { key?: string } | null)?.key;
+          const correctKey = (q.correct as { key?: string } | null)?.key;
+          if (isMultipleChoiceCorrect(ansKey, correctKey)) autoScore += q.score;
+        } else if (q.type === 'short_text') {
+          const text = (ans as { text?: string } | null)?.text ?? null;
+          const keywords = ((q.correct as { keywords?: string[] } | null)?.keywords ?? []);
+          if (isShortAnswerCorrect(text, keywords)) autoScore += q.score;
+        } else if (q.type === 'task_based') {
+          hasManual = true;
+        }
+      } catch {
+        // 개별 문항 예외는 무시 — 오답 처리하고 다음 문항 계속
       }
     }
     const { error } = await s
@@ -461,21 +467,25 @@ export async function submitSession(token: string): Promise<{ error?: string }> 
 
   let autoScore = 0;
   let hasManual = false;
+  // 문항별 try-catch — 예상 밖 answer_value/q.correct 형식이 있어도 나머지 문항은 그대로 채점.
   for (const r of rows) {
     const q = r.exam_questions;
     if (!q) continue;
-    const ans = r.answer_value;
-
-    if (q.type === 'multiple_choice') {
-      const correctKey = (q.correct as { key?: string } | null)?.key;
-      const ansKey = (ans as { key?: string } | null)?.key;
-      if (isMultipleChoiceCorrect(ansKey, correctKey)) autoScore += q.score;
-    } else if (q.type === 'short_text') {
-      const keywords = ((q.correct as { keywords?: string[] } | null)?.keywords ?? []);
-      const text = (ans as { text?: string } | null)?.text ?? null;
-      if (isShortAnswerCorrect(text, keywords)) autoScore += q.score;
-    } else if (q.type === 'task_based') {
-      hasManual = true;
+    try {
+      const ans = r.answer_value;
+      if (q.type === 'multiple_choice') {
+        const correctKey = (q.correct as { key?: string } | null)?.key;
+        const ansKey = (ans as { key?: string } | null)?.key;
+        if (isMultipleChoiceCorrect(ansKey, correctKey)) autoScore += q.score;
+      } else if (q.type === 'short_text') {
+        const keywords = ((q.correct as { keywords?: string[] } | null)?.keywords ?? []);
+        const text = (ans as { text?: string } | null)?.text ?? null;
+        if (isShortAnswerCorrect(text, keywords)) autoScore += q.score;
+      } else if (q.type === 'task_based') {
+        hasManual = true;
+      }
+    } catch {
+      // 개별 문항 예외는 무시
     }
   }
 
