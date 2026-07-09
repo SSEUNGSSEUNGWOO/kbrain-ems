@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import PageContainer from '@/components/layout/page-container';
 import { createAdminClient } from '@/lib/supabase/server';
 import { isDeveloper } from '@/lib/auth';
+import { isMultipleChoiceCorrect, isShortAnswerCorrect } from '@/lib/exam-grading';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { ShareLinkCopy } from './_components/share-link-copy';
@@ -58,6 +59,87 @@ export default async function ExamDetailPage({ params }: Props) {
     .eq('exam_id', examId)
     .order('created_at', { ascending: true });
 
+  // 문항 마스터 조회 — 섹션별 점수 집계용 (type, score, correct)
+  const { data: qie } = await supabase
+    .from('exam_questions_in_exam')
+    .select('question_id, exam_questions(id, type, score, correct)')
+    .eq('exam_id', examId);
+  type QMeta = {
+    id: string;
+    type: 'multiple_choice' | 'short_text' | 'task_based';
+    score: number;
+    correct: unknown;
+  };
+  const qById = new Map<string, QMeta>();
+  const sectionMax = { multiple_choice: 0, short_text: 0, task_based: 0 };
+  for (const r of (qie ?? []) as unknown as { question_id: string; exam_questions: QMeta }[]) {
+    const q = r.exam_questions;
+    if (!q) continue;
+    qById.set(q.id, q);
+    sectionMax[q.type] += q.score;
+  }
+
+  // 세션당 응답을 한 번에 조회 (N+1 방지, 앞선 export route와 동일 패턴)
+  const sessionIds = (sessions ?? []).map((s) => s.id);
+  type RespRow = {
+    session_id: string;
+    question_id: string;
+    answer_value: Record<string, unknown> | null;
+    manual_score: number | null;
+  };
+  const allResponses: RespRow[] = [];
+  if (sessionIds.length > 0) {
+    // PostgREST 1000-row 우회: chunk fetch (24명 × 36 = 864이라 넉넉히 커버되지만 방어)
+    let from = 0;
+    const CHUNK = 1000;
+    for (;;) {
+      const { data: chunk } = await supabase
+        .from('exam_responses')
+        .select('session_id, question_id, answer_value, manual_score')
+        .in('session_id', sessionIds)
+        .range(from, from + CHUNK - 1);
+      const rows = (chunk ?? []) as unknown as RespRow[];
+      allResponses.push(...rows);
+      if (rows.length < CHUNK) break;
+      from += CHUNK;
+    }
+  }
+
+  // 응시자별 섹션 점수 집계.
+  // 객관식·단답 = 자동채점 (정답 여부 × 만점), 작업형 = manual_score (null이면 대기).
+  type Scored = {
+    mc: number;
+    st: number;
+    task: number | null; // null = 아직 수동채점 대기
+    taskHasResponse: boolean;
+  };
+  const scoreBySession = new Map<string, Scored>();
+  for (const sid of sessionIds) scoreBySession.set(sid, { mc: 0, st: 0, task: null, taskHasResponse: false });
+  for (const r of allResponses) {
+    const q = qById.get(r.question_id);
+    if (!q) continue;
+    const s = scoreBySession.get(r.session_id);
+    if (!s) continue;
+    try {
+      if (q.type === 'multiple_choice') {
+        const ansKey = (r.answer_value as { key?: string } | null)?.key;
+        const correctKey = (q.correct as { key?: string } | null)?.key;
+        if (isMultipleChoiceCorrect(ansKey, correctKey)) s.mc += q.score;
+      } else if (q.type === 'short_text') {
+        const text = (r.answer_value as { text?: string } | null)?.text ?? null;
+        const keywords = ((q.correct as { keywords?: string[] } | null)?.keywords ?? []);
+        if (isShortAnswerCorrect(text, keywords)) s.st += q.score;
+      } else if (q.type === 'task_based') {
+        s.taskHasResponse = true;
+        if (r.manual_score != null) {
+          s.task = (s.task ?? 0) + r.manual_score;
+        }
+      }
+    } catch {
+      // 개별 채점 예외는 무시
+    }
+  }
+
   return (
     <PageContainer
       pageTitle={exam.name}
@@ -91,7 +173,16 @@ export default async function ExamDetailPage({ params }: Props) {
               <TableHead>응시자</TableHead>
               <TableHead>상태</TableHead>
               <TableHead className='text-right'>진행</TableHead>
-              <TableHead className='text-right'>점수</TableHead>
+              <TableHead className='text-right' title={`객관식 만점 ${sectionMax.multiple_choice}점`}>
+                객관식
+              </TableHead>
+              <TableHead className='text-right' title={`단답형 만점 ${sectionMax.short_text}점`}>
+                단답형
+              </TableHead>
+              <TableHead className='text-right' title={`작업형 만점 ${sectionMax.task_based}점`}>
+                작업형
+              </TableHead>
+              <TableHead className='text-right'>총점</TableHead>
               <TableHead className='text-right'>이탈</TableHead>
               <TableHead>시작</TableHead>
               <TableHead>제출</TableHead>
@@ -101,7 +192,7 @@ export default async function ExamDetailPage({ params }: Props) {
           <TableBody>
             {(sessions ?? []).length === 0 && (
               <TableRow>
-                <TableCell colSpan={8} className='text-muted-foreground py-10 text-center text-sm'>
+                <TableCell colSpan={11} className='text-muted-foreground py-10 text-center text-sm'>
                   아직 발급된 응시자 세션이 없습니다.
                 </TableCell>
               </TableRow>
@@ -118,12 +209,24 @@ export default async function ExamDetailPage({ params }: Props) {
                 : s.current_order_no
                   ? `${s.current_order_no}/${totalQ ?? 0}`
                   : '-';
-              const score =
-                s.total_score != null
-                  ? `${s.total_score}`
-                  : s.auto_score != null
-                    ? `자동 ${s.auto_score}`
-                    : '-';
+              const sc = scoreBySession.get(s.id);
+              const isSubmitted = !!s.submitted_at;
+              // 각 섹션 셀: 제출 후에만 점수 표시. 작업형은 채점 대기면 '대기'.
+              const mcCell = isSubmitted && sc ? `${sc.mc}/${sectionMax.multiple_choice}` : '-';
+              const stCell = isSubmitted && sc ? `${sc.st}/${sectionMax.short_text}` : '-';
+              const taskCell = !isSubmitted || !sc
+                ? '-'
+                : sc.task != null
+                  ? `${sc.task}/${sectionMax.task_based}`
+                  : sc.taskHasResponse
+                    ? '대기'
+                    : `0/${sectionMax.task_based}`;
+              const totalMax = sectionMax.multiple_choice + sectionMax.short_text + sectionMax.task_based;
+              const totalCell = !isSubmitted
+                ? '-'
+                : s.total_score != null
+                  ? `${s.total_score}/${totalMax}`
+                  : '대기';
               return (
                 <TableRow key={s.id}>
                   <TableCell>
@@ -136,7 +239,22 @@ export default async function ExamDetailPage({ params }: Props) {
                     </Badge>
                   </TableCell>
                   <TableCell className='text-right tabular-nums'>{progress}</TableCell>
-                  <TableCell className='text-right tabular-nums font-medium'>{score}</TableCell>
+                  <TableCell className='text-right tabular-nums'>{mcCell}</TableCell>
+                  <TableCell className='text-right tabular-nums'>{stCell}</TableCell>
+                  <TableCell className='text-right tabular-nums'>
+                    {taskCell === '대기' ? (
+                      <span className='text-amber-700 font-medium'>대기</span>
+                    ) : (
+                      taskCell
+                    )}
+                  </TableCell>
+                  <TableCell className='text-right tabular-nums font-semibold'>
+                    {totalCell === '대기' ? (
+                      <span className='text-amber-700'>대기</span>
+                    ) : (
+                      totalCell
+                    )}
+                  </TableCell>
                   <TableCell className='text-right tabular-nums'>
                     {events.length > 0 ? (
                       <span className='text-amber-700 font-medium'>
