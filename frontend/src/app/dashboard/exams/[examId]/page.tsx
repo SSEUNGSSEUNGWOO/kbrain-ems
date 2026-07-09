@@ -232,11 +232,11 @@ export default async function ExamDetailPage({ params }: Props) {
                     ? '대기'
                     : `0/${sectionMax.task_based}`;
               const totalMax = sectionMax.multiple_choice + sectionMax.short_text + sectionMax.task_based;
-              const totalCell = !isSubmitted
+              // 총점은 항상 지금까지 채점된 합계. 작업형 수동채점 대기 중이면 task=0으로 취급되어
+              // '자동채점만 반영된 임시 합계'가 표시됨 (관리자가 채점 진행할수록 자연스럽게 상승).
+              const totalCell = !isSubmitted || !sc
                 ? '-'
-                : s.total_score != null
-                  ? `${s.total_score}/${totalMax}`
-                  : '대기';
+                : `${sc.mc + sc.st + (sc.task ?? 0)}/${totalMax}`;
               return (
                 <TableRow key={s.id}>
                   <TableCell>
@@ -258,13 +258,7 @@ export default async function ExamDetailPage({ params }: Props) {
                       taskCell
                     )}
                   </TableCell>
-                  <TableCell className='text-right tabular-nums font-semibold'>
-                    {totalCell === '대기' ? (
-                      <span className='text-amber-700'>대기</span>
-                    ) : (
-                      totalCell
-                    )}
-                  </TableCell>
+                  <TableCell className='text-right tabular-nums font-semibold'>{totalCell}</TableCell>
                   <TableCell className='text-right tabular-nums'>
                     {events.length > 0 ? (
                       <span className='text-amber-700 font-medium'>

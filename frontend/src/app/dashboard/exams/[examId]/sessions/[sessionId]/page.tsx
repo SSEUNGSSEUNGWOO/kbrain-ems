@@ -122,7 +122,13 @@ export default async function ExamSessionDetailPage({ params }: Props) {
           <Stat label='자동 채점' value={session.auto_score != null ? `${session.auto_score}점` : '-'} />
           <Stat
             label='총점'
-            value={session.total_score != null ? `${session.total_score}점` : '(수동 채점 대기)'}
+            value={
+              session.total_score != null
+                ? `${session.total_score}점`
+                : session.auto_score != null
+                  ? `${session.auto_score + (session.manual_score ?? 0)}점` // 지금까지 채점된 합계
+                  : '-'
+            }
           />
         </div>
 
