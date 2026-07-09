@@ -19,14 +19,17 @@ function formatSecFromMs(ms: number): string {
   return rs === 0 ? `${m}분` : `${m}분 ${rs}초`;
 }
 
+// 응시자 관점에서 '제출'과 '채점완료'는 헷갈리기만 함.
+// 채점 완료 여부는 점수 컬럼(total_score vs auto_score)이 이미 명확히 표시하므로
+// 뱃지는 '진행중' vs '제출완료' 이분으로 단순화.
 const STATUS_LABEL: Record<string, string> = {
   in_progress: '진행중',
-  submitted: '제출',
-  graded: '채점완료'
+  submitted: '제출완료',
+  graded: '제출완료'
 };
 const STATUS_TONE: Record<string, string> = {
   in_progress: 'bg-slate-100 text-slate-700 border-slate-300',
-  submitted: 'bg-blue-50 text-blue-700 border-blue-200',
+  submitted: 'bg-emerald-50 text-emerald-800 border-emerald-200',
   graded: 'bg-emerald-50 text-emerald-800 border-emerald-200'
 };
 

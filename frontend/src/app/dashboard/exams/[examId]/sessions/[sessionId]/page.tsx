@@ -14,6 +14,13 @@ const EVENT_LABEL: Record<string, string> = {
   visibility_hidden: '창 전환'
 };
 
+// 응시자 관점 뱃지 통일 — submitted·graded 모두 '제출완료' (자동채점 여부는 점수 컬럼이 구분)
+const STATUS_LABEL: Record<string, string> = {
+  in_progress: '진행중',
+  submitted: '제출완료',
+  graded: '제출완료'
+};
+
 export default async function ExamSessionDetailPage({ params }: Props) {
   if (!(await isDeveloper())) notFound();
   const { examId, sessionId } = await params;
@@ -94,7 +101,7 @@ export default async function ExamSessionDetailPage({ params }: Props) {
       <div className='space-y-6'>
         {/* 요약 */}
         <div className='grid gap-3 sm:grid-cols-2 md:grid-cols-4'>
-          <Stat label='상태' value={session.status} />
+          <Stat label='상태' value={STATUS_LABEL[session.status] ?? session.status} />
           <Stat
             label='시작 / 제출'
             value={
