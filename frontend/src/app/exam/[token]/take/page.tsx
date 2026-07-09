@@ -112,6 +112,10 @@ export default async function ExamTakePage({ params }: Props) {
 
   const currentSectionStartedAt = sp[cur]?.started_at ?? null;
 
+  // 서버 시각을 SSR 시점에 스냅샷 → 클라이언트가 시각 offset 계산에 사용.
+  // 응시자 로컬 시계 조작·오차에 무관하게 서버 기준으로 남은 시간을 표시하기 위함.
+  const serverNow = new Date().toISOString();
+
   return (
     <ExamRunner
       token={token}
@@ -124,6 +128,7 @@ export default async function ExamTakePage({ params }: Props) {
       currentSection={cur}
       currentSectionStartedAt={currentSectionStartedAt!}
       sectionLimits={sectionLimits}
+      serverNow={serverNow}
     />
   );
 }

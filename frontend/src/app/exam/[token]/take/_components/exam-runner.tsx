@@ -94,6 +94,9 @@ type Props = {
   currentSection: SectionKind;
   currentSectionStartedAt: string;
   sectionLimits: Record<SectionKind, number>;
+  // 서버가 이 페이지 렌더 시점에 찍은 시각 (ISO).
+  // 클라이언트 로컬 시계와의 offset 계산에 사용 → 시계 오차·조작 방어.
+  serverNow: string;
 };
 
 export function ExamRunner(props: Props) {
@@ -107,7 +110,8 @@ export function ExamRunner(props: Props) {
     flaggedIds,
     currentSection,
     currentSectionStartedAt,
-    sectionLimits
+    sectionLimits,
+    serverNow
   } = props;
 
   const router = useRouter();
@@ -127,35 +131,73 @@ export function ExamRunner(props: Props) {
   const question = sectionQuestions[currentIdx];
   const answer = question ? answers[question.id] ?? {} : {};
 
-  // 섹션 타이머 (서버 시각 기준)
+  // 섹션 타이머 — wall-clock 기반.
+  // 이전 방식(setTimeout 1초씩 감소)은 background 탭에서 Chrome이 1분 이상으로 스로틀링해
+  // 응시자 화면 시간이 실제보다 훨씬 크게 표시되던 문제 → 매 tick마다 Date.now()로 재계산.
+  //
+  // 서버 시각 offset: 마운트 시점 1회 계산. serverNow(SSR)가 이 위치를 지날 때 실제 서버 시각.
+  // 응시자 시계가 5분 앞서/뒤로 맞춰져도 offset이 그만큼 보정.
   const sectionLimit = sectionLimits[currentSection];
-  const [remaining, setRemaining] = useState(() => {
-    const elapsed = Math.floor((Date.now() - new Date(currentSectionStartedAt).getTime()) / 1000);
-    return Math.max(0, sectionLimit - elapsed);
-  });
+  const serverClockOffsetRef = useRef(0);
+  const clockOffsetInitedRef = useRef(false);
+  if (!clockOffsetInitedRef.current) {
+    serverClockOffsetRef.current = new Date(serverNow).getTime() - Date.now();
+    clockOffsetInitedRef.current = true;
+  }
 
+  // 절대 마감 시각 (서버 시각 기준의 ms).
+  // = (섹션 시작 서버 시각) + (제한 초 × 1000)
+  const deadlineServerMs = useMemo(
+    () => new Date(currentSectionStartedAt).getTime() + sectionLimit * 1000,
+    [currentSectionStartedAt, sectionLimit]
+  );
+  // 클라이언트 wall-clock 기준으로 환산한 마감 시각 (툴팁·표시용).
+  const deadlineLocalMs = deadlineServerMs - serverClockOffsetRef.current;
+
+  const nowServerMs = () => Date.now() + serverClockOffsetRef.current;
+  const computeRemaining = () =>
+    Math.max(0, Math.floor((deadlineServerMs - nowServerMs()) / 1000));
+
+  const [remaining, setRemaining] = useState(computeRemaining);
   const timeoutFiredRef = useRef(false);
+  // 만료 자동 이동 진행 중임을 UI에 알리는 플래그 (오버레이 문구 분기용)
+  const [timedOut, setTimedOut] = useState(false);
 
   useEffect(() => {
     // 섹션 변경 시 리셋
     timeoutFiredRef.current = false;
-    const elapsed = Math.floor((Date.now() - new Date(currentSectionStartedAt).getTime()) / 1000);
-    setRemaining(Math.max(0, sectionLimit - elapsed));
+    setTimedOut(false);
+    setRemaining(computeRemaining());
     setCurrentIdx(0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentSection, currentSectionStartedAt, sectionLimit]);
 
+  // 매 500ms tick — setInterval도 background에서 스로틀되지만 매번 wall-clock으로 재계산하므로
+  // 값 자체는 항상 정확. UI 갱신 주기만 느려질 뿐.
   useEffect(() => {
-    if (remaining <= 0) {
-      if (!timeoutFiredRef.current) {
-        timeoutFiredRef.current = true;
-        void handleAdvanceSection(true);
-      }
-      return;
-    }
-    const id = setTimeout(() => setRemaining((v) => v - 1), 1000);
-    return () => clearTimeout(id);
+    const tick = () => setRemaining(computeRemaining());
+    const id = setInterval(tick, 500);
+    // 탭 복귀·창 포커스 회복 시 즉시 재계산 (스로틀 tick 기다리지 않고 바로 반영).
+    const onVis = () => tick();
+    const onFocus = () => tick();
+    document.addEventListener('visibilitychange', onVis);
+    window.addEventListener('focus', onFocus);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', onVis);
+      window.removeEventListener('focus', onFocus);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [remaining]);
+  }, [deadlineServerMs]);
+
+  // 만료 감지 — 별도 effect (tick과 분리해서 중복 발화 방지)
+  useEffect(() => {
+    if (remaining <= 0 && !timeoutFiredRef.current) {
+      timeoutFiredRef.current = true;
+      setTimedOut(true);
+      void handleAdvanceSection(true);
+    }
+  }, [remaining]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 이탈 감지 (작업형은 스킵)
   // 두 이탈 상태(fullscreen 벗어남 / 탭 hidden)를 별도로 관리해야 함.
@@ -400,6 +442,16 @@ export function ExamRunner(props: Props) {
           savedTimerRef.current = setTimeout(() => setSaveState('idle'), 2000);
           return res;
         }
+        // 서버가 명시적으로 만료(code)를 리턴 — 재시도해도 통과 안 됨. 자동 다음 섹션 이동.
+        if (res.code === 'expired' || res.code === 'not_started') {
+          setSaveState('idle');
+          if (!timeoutFiredRef.current) {
+            timeoutFiredRef.current = true;
+            setTimedOut(true);
+            void handleAdvanceSection(true);
+          }
+          return res;
+        }
       } catch {
         /* retry */
       }
@@ -517,8 +569,31 @@ export function ExamRunner(props: Props) {
   return (
     <div className='min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50/30 text-slate-900 flex flex-col'>
       {/* 다중 탭 오버레이 */}
+      {/* 시간 만료 자동 이동 오버레이 — 응시자에게 명확히 안내 (조용히 넘어가면 혼란) */}
+      {timedOut && (
+        <div className='fixed inset-0 z-[80] flex items-center justify-center bg-rose-900/60 backdrop-blur-sm p-6'>
+          <div className='max-w-md w-full rounded-2xl bg-white p-8 shadow-2xl text-center border-4 border-rose-500'>
+            <div className='mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-rose-100 text-rose-600 text-3xl'>
+              ⏰
+            </div>
+            <h2 className='text-xl font-bold text-slate-900 mb-2'>
+              {SECTION_LABEL[currentSection]} 섹션 시간 종료
+            </h2>
+            <p className='text-sm text-slate-600 mb-1'>
+              제한 시간이 만료되어 자동으로 {isFinalSection ? '최종 제출됩니다' : '다음 섹션으로 이동합니다'}.
+            </p>
+            <p className='text-xs text-slate-500'>
+              지금까지 저장된 답변은 그대로 보존됩니다.
+            </p>
+            <div className='mt-5 flex items-center justify-center gap-2 text-xs text-slate-400'>
+              <div className='h-3 w-3 rounded-full border-2 border-rose-300 border-t-rose-600 animate-spin' />
+              <span>진행 중…</span>
+            </div>
+          </div>
+        </div>
+      )}
       {/* 제출·이동 진행 중 전면 로딩 오버레이 (서버 왕복 몇 초 응시자 안심용) */}
-      {pending && !showFinalConfirm && (
+      {pending && !showFinalConfirm && !timedOut && (
         <div className='fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm'>
           <div className='rounded-2xl bg-white px-8 py-6 shadow-2xl border-2 border-slate-200 flex items-center gap-4'>
             <div className='h-8 w-8 rounded-full border-4 border-blue-200 border-t-blue-600 animate-spin' />
@@ -764,15 +839,21 @@ export function ExamRunner(props: Props) {
               </div>
             )}
             <div
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-mono text-2xl font-bold tabular-nums border-2 shadow-sm ${
+              className={`flex flex-col items-center px-4 py-1.5 rounded-lg tabular-nums border-2 shadow-sm ${
                 remaining <= 30
                   ? 'bg-rose-100 text-rose-700 border-rose-400 animate-pulse'
                   : remaining <= 60
                     ? 'bg-amber-100 text-amber-800 border-amber-400'
                     : 'bg-blue-50 text-blue-700 border-blue-300'
               }`}
+              title={`마감 ${formatHourMin(deadlineLocalMs)} · 서버 시각 기준`}
             >
-              {formatMinSec(remaining)}
+              <span className='font-mono text-2xl font-bold leading-none'>
+                {formatMinSec(remaining)}
+              </span>
+              <span className='text-[10px] font-semibold opacity-80 mt-0.5'>
+                {formatHourMin(deadlineLocalMs)} 마감
+              </span>
             </div>
           </div>
         </div>
@@ -1064,13 +1145,29 @@ export function ExamRunner(props: Props) {
                       </p>
                       <TaskFileUpload
                         token={token}
+                        questionId={question?.id ?? ''}
                         files={((answer as { files?: UploadedFile[] }).files) ?? []}
-                        onChange={(next) => {
-                          // 파일 목록 변경은 debounce 없이 즉시 서버 저장 (파일 자체는 이미 Storage 저장됨).
+                        disabled={remaining <= 5}
+                        onExpired={() => {
+                          if (!timeoutFiredRef.current) {
+                            timeoutFiredRef.current = true;
+                            setTimedOut(true);
+                            void handleAdvanceSection(true);
+                          }
+                        }}
+                        onServerFiles={(next) => {
+                          // 서버가 원자적으로 files 배열을 append/제거한 결과 그대로 반영.
+                          // 별도 saveAnswer 호출 안 함 (서버에서 이미 DB 반영됨).
                           if (!question) return;
                           const merged = { ...(answers[question.id] ?? {}), files: next };
                           setAnswers((prev) => ({ ...prev, [question.id]: merged }));
-                          scheduleSave(question.id, merged, 0);
+                          // 서버 저장 상태로 표시 (좌측 그리드 문항 완료 뱃지)
+                          setServerSavedIds((prev) => {
+                            if (prev.has(question.id)) return prev;
+                            const nextSet = new Set(prev);
+                            nextSet.add(question.id);
+                            return nextSet;
+                          });
                         }}
                       />
                     </div>
@@ -1139,4 +1236,11 @@ function formatMinSec(sec: number): string {
   const m = Math.floor(sec / 60);
   const s = sec % 60;
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
+// "14:32" 형태 — 응시자가 절대 마감 시각을 인지할 수 있게 표시.
+// 창 전환 후 돌아왔을 때 남은 시간이 실제보다 크게 표시되던 사고 재발 방지.
+function formatHourMin(ms: number): string {
+  const d = new Date(ms);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }

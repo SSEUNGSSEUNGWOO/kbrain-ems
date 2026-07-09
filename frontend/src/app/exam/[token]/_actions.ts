@@ -7,30 +7,92 @@ import { isMultipleChoiceCorrect, isShortAnswerCorrect } from '@/lib/exam-gradin
 type Answer = { key?: string; text?: string; file_path?: string; notes?: string; url?: string };
 type SectionKind = 'multiple_choice' | 'short_text' | 'task_based';
 
+type SectionCheck =
+  | { ok: true; sessionId: string }
+  | { ok: false; error: string; code: 'no_session' | 'submitted' | 'not_started' | 'expired' };
+
+// 모든 write 진입점의 공통 검증 — 세션 존재·미제출·섹션 진행 중·시간 안 지남.
+// grace 0초. 클라이언트는 이미 만료 예상 시점에 요청을 보내지 않도록 자체 억제.
+async function assertSectionAlive(
+  s: ReturnType<typeof createAdminClient>,
+  token: string,
+  sectionKind: SectionKind
+): Promise<SectionCheck> {
+  const { data: session } = await s
+    .from('exam_sessions')
+    .select('id, exam_id, submitted_at, section_progress')
+    .eq('token', token)
+    .maybeSingle();
+  if (!session) return { ok: false, code: 'no_session', error: '세션이 없습니다.' };
+  if (session.submitted_at)
+    return { ok: false, code: 'submitted', error: '이미 제출된 세션입니다.' };
+
+  const sp = (session.section_progress ?? {}) as unknown as SectionProgress;
+  const sect = sp[sectionKind];
+  if (!sect?.started_at)
+    return { ok: false, code: 'not_started', error: '섹션이 시작되지 않았습니다.' };
+  if (sect.submitted_at)
+    return { ok: false, code: 'expired', error: '섹션이 이미 종료됐습니다.' };
+
+  // supabase types.ts에 time_limit_* 컬럼이 아직 반영 안 되어있어 타입 우회.
+  const { data: examRaw } = await s
+    .from('exams')
+    .select('time_limit_mc, time_limit_st, time_limit_task')
+    .eq('id', session.exam_id)
+    .maybeSingle();
+  const exam = examRaw as unknown as {
+    time_limit_mc: number | null;
+    time_limit_st: number | null;
+    time_limit_task: number | null;
+  } | null;
+  const limitSec =
+    sectionKind === 'multiple_choice'
+      ? exam?.time_limit_mc
+      : sectionKind === 'short_text'
+        ? exam?.time_limit_st
+        : exam?.time_limit_task;
+  if (limitSec) {
+    const elapsed = (Date.now() - new Date(sect.started_at).getTime()) / 1000;
+    if (elapsed > limitSec)
+      return { ok: false, code: 'expired', error: '섹션 시간이 만료되었습니다.' };
+  }
+  return { ok: true, sessionId: session.id };
+}
+
 // 작업형 파일 업로드 (Storage RLS 정책 없어도 admin client로 우회)
 // 브라우저에서 anon key로 직접 업로드하면 정책 없이 실패하므로
 // 서버 액션에서 admin으로 처리하고 클라이언트에 파일 정보만 반환.
 const UPLOAD_BUCKET = 'exam-submissions';
 const MAX_MB = 20;
 
+type ExpiryCode = 'no_session' | 'submitted' | 'not_started' | 'expired';
+
+type TaskFile = { name: string; path: string; size: number; url: string };
+
+// 원자적 파일 append.
+// 이전 방식(Storage 업로드 후 클라이언트가 saveAnswer로 files 배열을 별도 저장)은
+// 두 요청 사이 실패 시 Storage-DB 불일치 발생 → 실제 시험에서 "5개 올렸는데 2개만 저장" 사고 원인.
+// 해결: 서버에서 Storage 업로드 + answer_value.files JSONB append를 한 요청으로 처리 (원자성).
+// upsert 대신 select→merge→update로 concurrent 업로드 시 마지막 것이 이전 파일 덮어쓰는 문제도 방지.
 export async function uploadTaskFile(
   token: string,
   formData: FormData
-): Promise<{ error?: string; file?: { name: string; path: string; size: number; url: string } }> {
+): Promise<{
+  error?: string;
+  code?: ExpiryCode;
+  files?: TaskFile[]; // 전체 파일 목록 (append 후) — 클라이언트는 이걸로 상태 통째 교체
+}> {
   try {
     const file = formData.get('file') as File | null;
+    const questionId = formData.get('questionId') as string | null;
     if (!file) return { error: '파일이 없습니다.' };
+    if (!questionId) return { error: '문항 정보가 없습니다.' };
     if (file.size > MAX_MB * 1024 * 1024) return { error: `파일 크기가 ${MAX_MB}MB를 초과합니다.` };
 
     const s = createAdminClient();
-    // 세션 검증 (제출 안 된 세션만 업로드 허용)
-    const { data: session } = await s
-      .from('exam_sessions')
-      .select('id, submitted_at')
-      .eq('token', token)
-      .maybeSingle();
-    if (!session) return { error: '세션이 없습니다.' };
-    if (session.submitted_at) return { error: '이미 제출된 세션입니다.' };
+    // 세션 + 작업형 섹션 진행 중 + 시간 안 지남 검증
+    const check = await assertSectionAlive(s, token, 'task_based');
+    if (!check.ok) return { error: check.error, code: check.code };
 
     // Storage 경로는 완전 안전한 문자로만 (한글·특수문자 있으면 Invalid key 에러).
     // 원본 파일명은 응답에 담아서 관리자 xlsx에 표시하고, path는 timestamp+random+확장자만.
@@ -49,33 +111,87 @@ export async function uploadTaskFile(
       .from(UPLOAD_BUCKET)
       .createSignedUrl(path, 60 * 60 * 24 * 365);
 
-    return {
-      file: {
-        name: file.name, // 원본 파일명 (한글 포함) — DB·UI·xlsx에는 그대로 표시
-        path,
-        size: file.size,
-        url: signed?.signedUrl ?? ''
-      }
+    const newFile: TaskFile = {
+      name: file.name,
+      path,
+      size: file.size,
+      url: signed?.signedUrl ?? ''
     };
+
+    // DB append — 기존 response.answer_value 읽어서 files 배열에 추가한 뒤 upsert
+    const { data: existing } = await s
+      .from('exam_responses')
+      .select('answer_value')
+      .eq('session_id', check.sessionId)
+      .eq('question_id', questionId)
+      .maybeSingle();
+    const prevValue = (existing?.answer_value ?? {}) as Record<string, unknown>;
+    const prevFiles = Array.isArray(prevValue.files) ? (prevValue.files as TaskFile[]) : [];
+    // 같은 path 중복 방지 (재시도 대비 idempotent)
+    const merged = prevFiles.some((f) => f.path === newFile.path)
+      ? prevFiles
+      : [...prevFiles, newFile];
+    const nextValue = { ...prevValue, files: merged };
+
+    const { error: dbErr } = await s.from('exam_responses').upsert(
+      {
+        session_id: check.sessionId,
+        question_id: questionId,
+        answer_value: nextValue as unknown as Json,
+        submitted_at: new Date().toISOString()
+      },
+      { onConflict: 'session_id,question_id' }
+    );
+    if (dbErr) {
+      // DB 저장 실패 → Storage 파일도 롤백해서 orphan 방지
+      await s.storage.from(UPLOAD_BUCKET).remove([path]).catch(() => {});
+      return { error: `저장 실패: ${dbErr.message}` };
+    }
+
+    return { files: merged };
   } catch (e) {
     return { error: e instanceof Error ? e.message : '알 수 없는 오류' };
   }
 }
 
-export async function deleteTaskFile(token: string, path: string): Promise<{ error?: string }> {
+// 파일 삭제도 원자적으로 — Storage 제거 + answer_value.files에서 해당 path 제거.
+export async function deleteTaskFile(
+  token: string,
+  questionId: string,
+  path: string
+): Promise<{ error?: string; code?: ExpiryCode; files?: TaskFile[] }> {
   try {
     if (!path.startsWith(`${token}/`)) return { error: '경로가 잘못됐습니다.' };
     const s = createAdminClient();
-    const { data: session } = await s
-      .from('exam_sessions')
-      .select('submitted_at')
-      .eq('token', token)
+    const check = await assertSectionAlive(s, token, 'task_based');
+    if (!check.ok) return { error: check.error, code: check.code };
+
+    // DB에서 먼저 제거 (실패해도 Storage는 남기고, orphan은 관리자가 스크립트로 정리 가능)
+    const { data: existing } = await s
+      .from('exam_responses')
+      .select('answer_value')
+      .eq('session_id', check.sessionId)
+      .eq('question_id', questionId)
       .maybeSingle();
-    if (!session) return { error: '세션이 없습니다.' };
-    if (session.submitted_at) return { error: '이미 제출된 세션입니다.' };
-    const { error } = await s.storage.from(UPLOAD_BUCKET).remove([path]);
-    if (error) return { error: error.message };
-    return {};
+    const prevValue = (existing?.answer_value ?? {}) as Record<string, unknown>;
+    const prevFiles = Array.isArray(prevValue.files) ? (prevValue.files as TaskFile[]) : [];
+    const nextFiles = prevFiles.filter((f) => f.path !== path);
+    const nextValue = { ...prevValue, files: nextFiles };
+
+    const { error: dbErr } = await s.from('exam_responses').upsert(
+      {
+        session_id: check.sessionId,
+        question_id: questionId,
+        answer_value: nextValue as unknown as Json,
+        submitted_at: new Date().toISOString()
+      },
+      { onConflict: 'session_id,question_id' }
+    );
+    if (dbErr) return { error: dbErr.message };
+
+    // Storage 제거 — 실패해도 UI는 성공 처리 (DB에 반영됐으므로 관리자에게 안 보임)
+    await s.storage.from(UPLOAD_BUCKET).remove([path]).catch(() => {});
+    return { files: nextFiles };
   } catch (e) {
     return { error: e instanceof Error ? e.message : '삭제 실패' };
   }
@@ -131,52 +247,39 @@ export async function saveAnswer(input: {
   questionId: string;
   sectionKind: SectionKind;
   answer: Answer | null;
-}): Promise<{ error?: string }> {
+}): Promise<{ error?: string; code?: ExpiryCode }> {
   const s = createAdminClient();
 
-  const { data: session } = await s
-    .from('exam_sessions')
-    .select('id, submitted_at, section_progress, exam_id')
-    .eq('token', input.token)
-    .maybeSingle();
-  if (!session) return { error: '세션이 없습니다.' };
-  if (session.submitted_at) return {};
+  // 세션 + 섹션 진행 중 + 시간 안 지남 (hard cut, grace 0초)
+  const check = await assertSectionAlive(s, input.token, input.sectionKind);
+  if (!check.ok) {
+    // 이미 최종 제출된 경우는 조용히 성공 처리 (재제출 UI 중복 방지)
+    if (check.code === 'submitted') return {};
+    return { error: check.error, code: check.code };
+  }
 
-  const sp = (session.section_progress ?? {}) as unknown as SectionProgress;
-  const sect = sp[input.sectionKind];
-  if (!sect?.started_at) return { error: '섹션이 시작되지 않았습니다.' };
-  if (sect.submitted_at) return { error: '섹션이 이미 종료됐습니다.' };
-
-  // 서버 시각 기준 섹션 시간 초과 검증 (클라 시계 조작 방어).
-  // 유예 10초 — 마지막 1초에 답한 응답도 안전하게 받음.
-  const { data: examRaw } = await s
-    .from('exams')
-    .select('time_limit_mc, time_limit_st, time_limit_task')
-    .eq('id', session.exam_id)
-    .maybeSingle();
-  const exam = examRaw as unknown as {
-    time_limit_mc: number | null;
-    time_limit_st: number | null;
-    time_limit_task: number | null;
-  } | null;
-  const limitSec =
-    input.sectionKind === 'multiple_choice'
-      ? exam?.time_limit_mc
-      : input.sectionKind === 'short_text'
-        ? exam?.time_limit_st
-        : exam?.time_limit_task;
-  if (limitSec && sect.started_at) {
-    const elapsed = (Date.now() - new Date(sect.started_at).getTime()) / 1000;
-    if (elapsed > limitSec + 10) {
-      return { error: '섹션 시간이 만료되었습니다.' };
-    }
+  // 작업형 응답의 files 필드는 uploadTaskFile / deleteTaskFile이 원자적으로 관리하는 채널.
+  // saveAnswer가 files까지 통째 upsert하면 debounced notes 저장과 파일 업로드가 겹칠 때
+  // 서버 응답 순서에 따라 방금 올린 파일이 유실될 수 있음 → files는 서버 기존값으로 유지.
+  let answerValue: Record<string, unknown> | null = (input.answer ?? null) as Record<string, unknown> | null;
+  if (input.sectionKind === 'task_based' && answerValue) {
+    const { data: existing } = await s
+      .from('exam_responses')
+      .select('answer_value')
+      .eq('session_id', check.sessionId)
+      .eq('question_id', input.questionId)
+      .maybeSingle();
+    const prevValue = (existing?.answer_value ?? {}) as Record<string, unknown>;
+    const prevFiles = Array.isArray(prevValue.files) ? prevValue.files : [];
+    // notes·url 등 클라이언트가 보낸 필드로 덮되, files는 서버 기존값 보존
+    answerValue = { ...answerValue, files: prevFiles };
   }
 
   const { error } = await s.from('exam_responses').upsert(
     {
-      session_id: session.id,
+      session_id: check.sessionId,
       question_id: input.questionId,
-      answer_value: (input.answer ?? null) as unknown as Json,
+      answer_value: answerValue as unknown as Json,
       submitted_at: new Date().toISOString()
     },
     { onConflict: 'session_id,question_id' }
