@@ -11,7 +11,9 @@ export type UploadedFile = {
 };
 
 const MAX_MB = 20;
-const MAX_PARALLEL_UPLOADS = 2;
+// 5개 이하는 전부 동시. Presigned URL 방식이라 파일은 Storage 직접 업로드 → 서버 부하 미미.
+// 50명 × 5 = 250 concurrent는 Vercel Hobby(1000)·Supabase Storage 여유 범위.
+const MAX_PARALLEL_UPLOADS = 5;
 
 export function TaskFileUpload({
   token,
