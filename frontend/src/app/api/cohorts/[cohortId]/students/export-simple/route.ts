@@ -59,19 +59,26 @@ export async function GET(
     .returns<StudentRow[]>();
   if (error) return new NextResponse(error.message, { status: 500 });
 
-  // 현재 selected 인 학생만 (취하·탈락 제외)
+  // 현재 selected 인 학생만 (취하·탈락 제외).
+  // 단, applications가 아예 없는 cohort(자기주도형/특화형처럼 지원 프로세스 없이 학생 직접 등록)는
+  // 필터링을 건너뛰고 전체 학생 반환.
   const applicantIds = (studentRows ?? []).map((s) => s.applicant_id).filter(Boolean);
   let selectedSet = new Set<string>();
+  let hasApplications = false;
   if (applicantIds.length > 0) {
     const { data: apps } = await supabase
       .from('applications')
-      .select('applicant_id')
+      .select('applicant_id, status')
       .eq('cohort_id', cohortId)
-      .eq('status', 'selected')
       .in('applicant_id', applicantIds);
-    selectedSet = new Set((apps ?? []).map((a) => a.applicant_id));
+    hasApplications = (apps ?? []).length > 0;
+    selectedSet = new Set(
+      (apps ?? []).filter((a) => a.status === 'selected').map((a) => a.applicant_id)
+    );
   }
-  const filtered = (studentRows ?? []).filter((s) => selectedSet.has(s.applicant_id));
+  const filtered = hasApplications
+    ? (studentRows ?? []).filter((s) => selectedSet.has(s.applicant_id))
+    : (studentRows ?? []);
 
   function cellValue(s: StudentRow, key: RosterColumnKey): string {
     switch (key) {
