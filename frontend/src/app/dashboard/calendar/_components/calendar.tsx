@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useMemo } from 'react';
 import { Icons } from '@/components/icons';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { detectCohortType } from '@/lib/cohort-type';
 
 type Cohort = {
   id: string;
@@ -612,7 +613,7 @@ export function Calendar({ year, month, cohorts, sessions, rounds, calendarEvent
                 : 'bg-card';
 
           const todayBg = isToday
-            ? 'bg-blue-50/80 ring-2 ring-blue-500 ring-inset dark:bg-blue-950/40 dark:ring-blue-400'
+            ? 'bg-amber-100/80 ring-2 ring-amber-500 ring-inset dark:bg-amber-500/15 dark:ring-amber-400'
             : '';
 
           return (
@@ -621,15 +622,15 @@ export function Calendar({ year, month, cohorts, sessions, rounds, calendarEvent
               className={`relative min-h-[128px] p-1.5 text-xs ${cellTone} ${todayBg} ${isPast && inMonth ? 'text-muted-foreground' : ''}`}
             >
               {isToday && (
-                <span className='absolute -top-px right-1.5 rounded-b-md bg-blue-600 px-1.5 py-0.5 text-[9px] font-bold tracking-wider text-white shadow-sm dark:bg-blue-500'>
+                <span className='absolute -top-px right-1.5 rounded-b-md bg-amber-500 px-1.5 py-0.5 text-[9px] font-bold tracking-wider text-white shadow-sm dark:bg-amber-500'>
                   TODAY
                 </span>
               )}
               <div className='mb-1 flex items-center gap-1.5'>
                 <div
-                  className={`text-[13px] font-bold tabular-nums ${
+                  className={`text-[14px] font-bold tabular-nums ${
                     isToday
-                      ? 'text-blue-700 dark:text-blue-300'
+                      ? 'text-amber-700 dark:text-amber-300'
                       : holiday
                         ? 'text-red-600 dark:text-red-400'
                         : 'text-foreground'
@@ -654,7 +655,12 @@ export function Calendar({ year, month, cohorts, sessions, rounds, calendarEvent
                   if (ce.isStart && ce.isEnd) radius = 'rounded mx-0.5';
                   else if (ce.isStart) radius = 'rounded-l ml-0.5';
                   else if (ce.isEnd) radius = 'rounded-r mr-0.5';
-                  const cls = `flex h-[18px] w-full items-center px-1.5 text-[11px] font-medium leading-none transition-opacity hover:opacity-80 ${KIND_STRIP[e.kind]} ${radius}`;
+                  const cls = `flex h-[18px] w-full items-center gap-1 px-1.5 text-[11px] font-medium leading-none transition-opacity hover:opacity-80 ${KIND_STRIP[e.kind]} ${radius}`;
+
+                  // 수업 kind 이벤트에만 유형 도트 표시 (cohort 이름이 label에 있으므로 판정 가능)
+                  // 시작 셀에서만 표시해 반복 표시 방지.
+                  const typeMeta =
+                    e.kind === 'session' && ce.isStart ? detectCohortType(e.cohortName) : null;
 
                   if (e.roundDetail) {
                     return (
@@ -678,6 +684,12 @@ export function Calendar({ year, month, cohorts, sessions, rounds, calendarEvent
                       title={e.tooltip}
                       className={cls}
                     >
+                      {typeMeta && (
+                        <span
+                          className={`h-1.5 w-1.5 shrink-0 rounded-full ${typeMeta.dot}`}
+                          title={typeMeta.label}
+                        />
+                      )}
                       <span className='flex-1 truncate'>{e.label}</span>
                     </Link>
                   );

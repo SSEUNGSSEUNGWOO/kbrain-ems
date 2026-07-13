@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useMemo, useRef } from 'react';
 import { Icons } from '@/components/icons';
+import { detectCohortType } from '@/lib/cohort-type';
 
 // 타입은 Calendar 컴포넌트와 동일하지만, 이 파일도 독립적으로 읽히도록 재선언.
 type Cohort = {
@@ -597,11 +598,11 @@ export function Timeline({ year, month, cohorts, rounds }: Props) {
                   <div
                     key={iso}
                     style={{ width: `${100 / totalDays}%`, flexShrink: 0 }}
-                    className={`overflow-hidden border-border/40 py-1 text-center text-[9px] leading-tight tabular-nums ${
+                    className={`overflow-hidden border-border/40 py-1 text-center text-[10px] leading-tight tabular-nums ${
                       isMon ? 'border-l' : 'border-l border-border/20'
                     } ${
                       isToday
-                        ? 'bg-blue-600 font-bold text-white'
+                        ? 'bg-amber-500 font-bold text-white'
                         : holiday
                           ? 'text-red-600 dark:text-red-400'
                           : isSun
@@ -630,34 +631,43 @@ export function Timeline({ year, month, cohorts, rounds }: Props) {
                 ? 'bg-muted/50 border-b border-border/60'
                 : 'border-b border-border/40 hover:bg-muted/30';
               const nameCls = row.isRoundHeader
-                ? 'text-[11px] font-bold uppercase tracking-wide text-foreground'
+                ? 'text-[12px] font-bold uppercase tracking-wide text-foreground'
                 : row.isChildOfRound
-                  ? 'block truncate pl-4 text-xs font-medium text-foreground'
-                  : 'block truncate text-xs font-semibold';
+                  ? 'truncate text-[13px] font-medium text-foreground'
+                  : 'truncate text-[13px] font-semibold';
               const minH = row.bars.length === 0
-                ? 32
-                : Math.max(row.isRoundHeader ? 32 : 48, row.bars.length * 22 + 12);
+                ? 36
+                : Math.max(row.isRoundHeader ? 36 : 52, row.bars.length * 24 + 14);
+              const typeMeta = row.isRoundHeader ? null : detectCohortType(row.cohortName);
               return (
                 <div key={row.cohortId} className={`flex ${rowBg}`}>
                   <div
                     style={{ width: NAME_W, flexShrink: 0 }}
                     className='border-r px-3 py-2 text-xs'
                   >
-                    {row.href ? (
-                      <Link
-                        href={row.href}
-                        className={`${nameCls} hover:text-primary hover:underline`}
-                        title={row.cohortName}
-                      >
-                        {row.cohortName}
-                      </Link>
-                    ) : (
-                      <div className={nameCls} title={row.cohortName}>
-                        {row.cohortName}
-                      </div>
-                    )}
+                    <div className={`flex items-center gap-1.5 ${row.isChildOfRound ? 'pl-3' : ''}`}>
+                      {typeMeta && (
+                        <span
+                          className={`h-2 w-2 shrink-0 rounded-full ${typeMeta.dot}`}
+                          title={typeMeta.label}
+                        />
+                      )}
+                      {row.href ? (
+                        <Link
+                          href={row.href}
+                          className={`${nameCls} hover:text-primary hover:underline`}
+                          title={row.cohortName}
+                        >
+                          {row.cohortName}
+                        </Link>
+                      ) : (
+                        <div className={nameCls} title={row.cohortName}>
+                          {row.cohortName}
+                        </div>
+                      )}
+                    </div>
                     {row.subLine && (
-                      <div className='mt-0.5 text-[10px] font-normal text-muted-foreground tabular-nums'>
+                      <div className='mt-1 text-[11px] font-normal text-muted-foreground tabular-nums'>
                         {row.subLine}
                       </div>
                     )}
@@ -681,7 +691,7 @@ export function Timeline({ year, month, cohorts, rounds }: Props) {
                               isMon ? 'border-l border-border/40' : 'border-l border-border/10'
                             } ${
                               isToday
-                                ? 'bg-blue-50/60 dark:bg-blue-950/30'
+                                ? 'bg-amber-100/60 dark:bg-amber-500/15'
                                 : holiday
                                   ? 'bg-red-50/40 dark:bg-red-950/20'
                                   : ''
@@ -691,18 +701,25 @@ export function Timeline({ year, month, cohorts, rounds }: Props) {
                       })}
                     </div>
 
-                    {/* 오늘 세로선 */}
+                    {/* 오늘 세로선 (양 옆 dashed 라인으로 강조) */}
                     {todayIdx >= 0 && (
-                      <div
-                        className='pointer-events-none absolute top-0 bottom-0 z-10 w-0.5 bg-blue-500/80'
-                        style={{ left: `${((todayIdx + 0.5) / totalDays) * 100}%` }}
-                      />
+                      <>
+                        <div
+                          className='pointer-events-none absolute top-0 bottom-0 z-10 w-[2px] bg-amber-500'
+                          style={{ left: `${((todayIdx + 0.5) / totalDays) * 100}%` }}
+                        />
+                      </>
                     )}
 
                     {/* 단계 바 (각 kind마다 세로로 쌓아서 표시) */}
                     <div className='relative flex flex-col gap-1 px-1 py-1.5'>
                       {row.bars.map((bar, i) => {
-                        const barCls = `relative flex h-[18px] items-center overflow-hidden rounded px-1.5 text-[10px] font-semibold leading-none whitespace-nowrap ${BAR_STYLE[bar.kind]}`;
+                        // 3일 이하면 아이콘만 (텍스트 잘리는 것 방지). label 형식: "🎯 접수"
+                        const spanDays = dayDiff(toUTCDate(bar.end), toUTCDate(bar.start)) + 1;
+                        const iconOnly = spanDays <= 2;
+                        const iconPart = bar.label.slice(0, 2); // "🎯 " → 이모지만
+                        const displayLabel = iconOnly ? iconPart.trim() : bar.label;
+                        const barCls = `relative flex h-5 items-center overflow-hidden rounded px-1.5 text-[11px] font-semibold leading-none whitespace-nowrap ${BAR_STYLE[bar.kind]}`;
                         const style = {
                           marginLeft: `${pct(bar.start)}%`,
                           width: `${wPct(bar.start, bar.end)}%`
@@ -715,7 +732,7 @@ export function Timeline({ year, month, cohorts, rounds }: Props) {
                             className={`${barCls} hover:opacity-90`}
                             style={style}
                           >
-                            <span className='truncate'>{bar.label}</span>
+                            <span className='truncate'>{displayLabel}</span>
                           </Link>
                         ) : (
                           <div
@@ -724,7 +741,7 @@ export function Timeline({ year, month, cohorts, rounds }: Props) {
                             className={barCls}
                             style={style}
                           >
-                            <span className='truncate'>{bar.label}</span>
+                            <span className='truncate'>{displayLabel}</span>
                           </div>
                         );
                       })}
