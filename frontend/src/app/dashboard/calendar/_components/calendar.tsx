@@ -35,7 +35,6 @@ type SessionRow = {
   instructors: string[];
   assistants: string[];
   assistant_needed: boolean;
-  assistant_time_range: string;
 };
 
 type Round = {
@@ -417,13 +416,7 @@ export function Calendar({ year, month, cohorts, sessions, rounds, calendarEvent
     for (const s of sessions) {
       const cohortName = cohortNameById.get(s.cohort_id) ?? '';
       const instr = s.instructors.join('·');
-      const assignedSubs = s.assistants.join('·');
-      const assistantLabel = s.assistant_needed
-        ? `보조강사 필요 ${s.assistant_time_range}`
-        : '';
-      // 카드 label: 배정된 보조강사가 있으면 이름 뒤에 표시,
-      //            없고 필요만 표시되면 🎯 마크.
-      const subSuffix = assignedSubs ? ` · 보조 ${assignedSubs}` : '';
+      // 보조강사 미배정 회차만 🎯로 표시 (배정 관리는 /assistants 페이지에서).
       const headPrefix =
         s.assistants.length === 0 && s.assistant_needed ? '🎯 ' : '';
       pushInstance({
@@ -433,13 +426,8 @@ export function Calendar({ year, month, cohorts, sessions, rounds, calendarEvent
         kind: 'session',
         cohortId: s.cohort_id,
         cohortName,
-        label: `${headPrefix}${cohortName}${subSuffix}`,
-        tooltip: [
-          `[수업] ${cohortName}`,
-          s.title ?? '',
-          instr,
-          assignedSubs ? `보조강사 ${assignedSubs}` : assistantLabel
-        ]
+        label: `${headPrefix}${cohortName}`,
+        tooltip: [`[수업] ${cohortName}`, s.title ?? '', instr]
           .filter(Boolean)
           .join(' · '),
         href: `/dashboard/cohorts/${s.cohort_id}/lessons/${s.id}`
@@ -562,6 +550,21 @@ export function Calendar({ year, month, cohorts, sessions, rounds, calendarEvent
           >
             오늘
           </Link>
+          {/* 뷰 토글 */}
+          <div className='ml-2 inline-flex overflow-hidden rounded-md border bg-background text-xs font-semibold'>
+            <Link
+              href={`/dashboard/calendar?ym=${year}-${String(month).padStart(2, '0')}`}
+              className='bg-primary text-primary-foreground px-3 py-1'
+            >
+              월
+            </Link>
+            <Link
+              href={`/dashboard/calendar?ym=${year}-${String(month).padStart(2, '0')}&view=timeline`}
+              className='px-3 py-1 hover:bg-muted'
+            >
+              타임라인
+            </Link>
+          </div>
         </div>
         <div className='flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground'>
           <span className='text-muted-foreground/70 font-medium'>위쪽일수록 우선</span>

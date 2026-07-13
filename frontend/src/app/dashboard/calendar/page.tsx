@@ -2,17 +2,19 @@ import PageContainer from '@/components/layout/page-container';
 import { createAdminClient } from '@/lib/supabase/server';
 import { computeAssistantSchedule } from '@/lib/assistant-schedule';
 import { Calendar } from './_components/calendar';
+import { Timeline } from './_components/timeline';
 
 type Props = {
-  searchParams: Promise<{ ym?: string }>;
+  searchParams: Promise<{ ym?: string; view?: string }>;
 };
 
 export default async function CalendarPage({ searchParams }: Props) {
-  const { ym } = await searchParams;
+  const { ym, view } = await searchParams;
   const today = new Date();
   const [yStr, mStr] = (ym ?? '').split('-');
   const year = Number.parseInt(yStr ?? '', 10) || today.getFullYear();
   const month = Number.parseInt(mStr ?? '', 10) || today.getMonth() + 1; // 1-12
+  const isTimeline = view === 'timeline';
 
   const supabase = createAdminClient();
 
@@ -47,13 +49,51 @@ export default async function CalendarPage({ searchParams }: Props) {
     arr.push(s);
     sessionsByCohort.set(s.cohort_id, arr);
   }
-  const assistantById = new Map<string, { needed: boolean; timeRange: string }>();
+  const assistantById = new Map<string, { needed: boolean }>();
   for (const c of cohorts) {
     const cs = sessionsByCohort.get(c.id) ?? [];
     const map = computeAssistantSchedule(c.delivery_method, cs);
     for (const [id, v] of map) {
-      assistantById.set(id, { needed: v.needed, timeRange: v.timeRange });
+      assistantById.set(id, { needed: v.needed });
     }
+  }
+
+  const cohortSlim = cohorts.map((c) => ({
+    id: c.id,
+    name: c.name,
+    application_start_at: c.application_start_at,
+    application_end_at: c.application_end_at,
+    decided_at: c.decided_at,
+    notified_at: c.notified_at,
+    orientation_date: c.orientation_date,
+    pre_online_start_at: c.pre_online_start_at,
+    pre_online_end_at: c.pre_online_end_at,
+    certification_start_at: c.certification_start_at,
+    certification_end_at: c.certification_end_at,
+    self_study_start_at: c.self_study_start_at,
+    self_study_end_at: c.self_study_end_at,
+    intensive_start_at: c.intensive_start_at,
+    intensive_end_at: c.intensive_end_at,
+    started_at: c.started_at,
+    ended_at: c.ended_at,
+    recruitment_round_id: c.recruitment_round_id
+  }));
+  const roundSlim = rounds.map((r) => ({
+    id: r.id,
+    round_no: r.round_no,
+    label: r.label,
+    application_start_at: r.application_start_at,
+    application_end_at: r.application_end_at,
+    selection_at: r.selection_at,
+    announce_at: r.announce_at
+  }));
+
+  if (isTimeline) {
+    return (
+      <PageContainer pageTitle='캘린더' pageDescription='등록된 모든 일정을 한눈에'>
+        <Timeline year={year} month={month} cohorts={cohortSlim} rounds={roundSlim} />
+      </PageContainer>
+    );
   }
 
   return (
@@ -61,26 +101,7 @@ export default async function CalendarPage({ searchParams }: Props) {
       <Calendar
         year={year}
         month={month}
-        cohorts={cohorts.map((c) => ({
-          id: c.id,
-          name: c.name,
-          application_start_at: c.application_start_at,
-          application_end_at: c.application_end_at,
-          decided_at: c.decided_at,
-          notified_at: c.notified_at,
-          orientation_date: c.orientation_date,
-          pre_online_start_at: c.pre_online_start_at,
-          pre_online_end_at: c.pre_online_end_at,
-          certification_start_at: c.certification_start_at,
-          certification_end_at: c.certification_end_at,
-          self_study_start_at: c.self_study_start_at,
-          self_study_end_at: c.self_study_end_at,
-          intensive_start_at: c.intensive_start_at,
-          intensive_end_at: c.intensive_end_at,
-          started_at: c.started_at,
-          ended_at: c.ended_at,
-          recruitment_round_id: c.recruitment_round_id
-        }))}
+        cohorts={cohortSlim}
         sessions={sessions.map((s) => {
           const a = assistantById.get(s.id);
           const si = (s.session_instructors ?? []) as unknown as {
@@ -101,19 +122,10 @@ export default async function CalendarPage({ searchParams }: Props) {
             title: s.title,
             instructors: mains,
             assistants: subs,
-            assistant_needed: a?.needed ?? false,
-            assistant_time_range: a?.timeRange ?? '—'
+            assistant_needed: a?.needed ?? false
           };
         })}
-        rounds={rounds.map((r) => ({
-          id: r.id,
-          round_no: r.round_no,
-          label: r.label,
-          application_start_at: r.application_start_at,
-          application_end_at: r.application_end_at,
-          selection_at: r.selection_at,
-          announce_at: r.announce_at
-        }))}
+        rounds={roundSlim}
         calendarEvents={calendarEvents.map((e) => ({
           id: e.id,
           title: e.title,
