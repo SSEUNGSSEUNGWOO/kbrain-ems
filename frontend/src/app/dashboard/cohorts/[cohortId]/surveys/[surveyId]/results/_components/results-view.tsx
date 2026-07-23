@@ -31,12 +31,15 @@ type Props = {
   surveyId: string;
   /** 인쇄·공개 페이지용으로 항상 보이는 보고 헤더 (cohort명 · 설문 제목 · 응답률) */
   showReportHeader?: boolean;
+  /** 서술형·사유 응답에 hover 삭제 버튼 노출 여부. 공개 공유 링크에서는 false. */
+  canDelete?: boolean;
 };
 
 export async function ResultsView({
   cohortId,
   surveyId,
-  showReportHeader = false
+  showReportHeader = false,
+  canDelete = true
 }: Props) {
   const supabase = createAdminClient();
 
@@ -478,16 +481,25 @@ export async function ResultsView({
                     <p className='text-xs text-muted-foreground'>응답 없음</p>
                   ) : (
                     <ul className='space-y-2 print:[&_button]:hidden'>
-                      {entries.map((e) => (
-                        <DeletableTextItem
-                          key={`${e.responseId}:${e.questionId}`}
-                          cohortId={cohortId}
-                          surveyId={surveyId}
-                          responseId={e.responseId}
-                          questionId={e.questionId}
-                          text={e.text}
-                        />
-                      ))}
+                      {entries.map((e) =>
+                        canDelete ? (
+                          <DeletableTextItem
+                            key={`${e.responseId}:${e.questionId}`}
+                            cohortId={cohortId}
+                            surveyId={surveyId}
+                            responseId={e.responseId}
+                            questionId={e.questionId}
+                            text={e.text}
+                          />
+                        ) : (
+                          <li
+                            key={`${e.responseId}:${e.questionId}`}
+                            className='whitespace-pre-wrap rounded-md border bg-muted/30 px-3 py-2 text-sm'
+                          >
+                            {e.text}
+                          </li>
+                        )
+                      )}
                     </ul>
                   )}
                 </div>
@@ -525,17 +537,26 @@ export async function ResultsView({
                     </div>
                   </div>
                   <ul className='space-y-2 print:[&_button]:hidden'>
-                    {entries.map((e) => (
-                      <DeletableTextItem
-                        key={`${e.responseId}:${e.questionId}`}
-                        cohortId={cohortId}
-                        surveyId={surveyId}
-                        responseId={e.responseId}
-                        questionId={e.questionId}
-                        text={e.text}
-                        className='border-amber-200/60 bg-amber-50/40 dark:border-amber-900/30 dark:bg-amber-900/10'
-                      />
-                    ))}
+                    {entries.map((e) =>
+                      canDelete ? (
+                        <DeletableTextItem
+                          key={`${e.responseId}:${e.questionId}`}
+                          cohortId={cohortId}
+                          surveyId={surveyId}
+                          responseId={e.responseId}
+                          questionId={e.questionId}
+                          text={e.text}
+                          className='border-amber-200/60 bg-amber-50/40 dark:border-amber-900/30 dark:bg-amber-900/10'
+                        />
+                      ) : (
+                        <li
+                          key={`${e.responseId}:${e.questionId}`}
+                          className='whitespace-pre-wrap rounded-md border border-amber-200/60 bg-amber-50/40 px-3 py-2 text-sm dark:border-amber-900/30 dark:bg-amber-900/10'
+                        >
+                          {e.text}
+                        </li>
+                      )
+                    )}
                   </ul>
                 </div>
               );

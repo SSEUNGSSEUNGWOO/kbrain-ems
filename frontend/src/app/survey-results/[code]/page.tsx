@@ -19,6 +19,11 @@ export default async function PublicSurveyResultsPage({ params }: Props) {
   if (!survey || survey.results_share_code !== code) notFound();
 
   return (
-    <ResultsView cohortId={survey.cohort_id} surveyId={survey.id} showReportHeader />
+    <ResultsView
+      cohortId={survey.cohort_id}
+      surveyId={survey.id}
+      showReportHeader
+      canDelete={false}
+    />
   );
 }
