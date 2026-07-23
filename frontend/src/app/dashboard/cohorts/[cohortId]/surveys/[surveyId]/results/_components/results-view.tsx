@@ -1,6 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/server';
 import { computeFollowUpMap } from '@/lib/survey-display';
 import { notFound } from 'next/navigation';
+import { DeletableTextItem } from './deletable-text-item';
 import { IndividualResponses, type QuestionInfo, type ResponseRow } from './individual-responses';
 import { SectionAverageChart } from './section-average-chart';
 
@@ -108,7 +109,12 @@ export async function ResultsView({
   );
   const recommendStat = emptyStat();
 
-  type TextEntry = { questionId: string; text: string; submittedAt: string | null };
+  type TextEntry = {
+    responseId: string;
+    questionId: string;
+    text: string;
+    submittedAt: string | null;
+  };
   const narrativeTexts = new Map<string, TextEntry[]>();
   const followUpTexts = new Map<string, { linked: string; entries: TextEntry[] }>();
 
@@ -147,7 +153,12 @@ export async function ResultsView({
 
         if (recommendQ && q.id === recommendQ.id) pushScore(recommendStat, v);
       } else if (q.type === 'text' && typeof v === 'string' && v.trim().length > 0) {
-        const entry: TextEntry = { questionId: q.id, text: v.trim(), submittedAt: r.submitted_at };
+        const entry: TextEntry = {
+          responseId: r.id,
+          questionId: q.id,
+          text: v.trim(),
+          submittedAt: r.submitted_at
+        };
         if (q.section_title === '서술형') {
           if (!narrativeTexts.has(q.id)) narrativeTexts.set(q.id, []);
           narrativeTexts.get(q.id)!.push(entry);
@@ -466,14 +477,16 @@ export async function ResultsView({
                   {entries.length === 0 ? (
                     <p className='text-xs text-muted-foreground'>응답 없음</p>
                   ) : (
-                    <ul className='space-y-2'>
-                      {entries.map((e, idx) => (
-                        <li
-                          key={idx}
-                          className='whitespace-pre-wrap rounded-md border bg-muted/30 px-3 py-2 text-sm'
-                        >
-                          {e.text}
-                        </li>
+                    <ul className='space-y-2 print:[&_button]:hidden'>
+                      {entries.map((e) => (
+                        <DeletableTextItem
+                          key={`${e.responseId}:${e.questionId}`}
+                          cohortId={cohortId}
+                          surveyId={surveyId}
+                          responseId={e.responseId}
+                          questionId={e.questionId}
+                          text={e.text}
+                        />
                       ))}
                     </ul>
                   )}
@@ -511,14 +524,17 @@ export async function ResultsView({
                       <span>{q.text}</span>
                     </div>
                   </div>
-                  <ul className='space-y-2'>
-                    {entries.map((e, idx) => (
-                      <li
-                        key={idx}
-                        className='whitespace-pre-wrap rounded-md border border-amber-200/60 bg-amber-50/40 px-3 py-2 text-sm dark:border-amber-900/30 dark:bg-amber-900/10'
-                      >
-                        {e.text}
-                      </li>
+                  <ul className='space-y-2 print:[&_button]:hidden'>
+                    {entries.map((e) => (
+                      <DeletableTextItem
+                        key={`${e.responseId}:${e.questionId}`}
+                        cohortId={cohortId}
+                        surveyId={surveyId}
+                        responseId={e.responseId}
+                        questionId={e.questionId}
+                        text={e.text}
+                        className='border-amber-200/60 bg-amber-50/40 dark:border-amber-900/30 dark:bg-amber-900/10'
+                      />
                     ))}
                   </ul>
                 </div>
