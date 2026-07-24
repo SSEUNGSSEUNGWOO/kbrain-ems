@@ -45,6 +45,7 @@ export default async function PresentationVoteDetailPage({ params }: Props) {
   const host = h.get('x-forwarded-host') ?? h.get('host') ?? 'localhost:3100';
   const proto = h.get('x-forwarded-proto') ?? (host.startsWith('localhost') ? 'http' : 'https');
   const publicUrl = `${proto}://${host}/vote/${vote.share_code}`;
+  const resultUrl = `${publicUrl}/result`;
   const qrDataUrl = await QRCode.toDataURL(publicUrl, { width: 512, margin: 1 });
 
   const label = STATUS_LABEL[vote.status] ?? STATUS_LABEL.draft;
@@ -84,7 +85,7 @@ export default async function PresentationVoteDetailPage({ params }: Props) {
                 candidateCount={initialCandidates.length}
               />
             </div>
-            <QrShare url={publicUrl} qrDataUrl={qrDataUrl} />
+            <QrShare url={publicUrl} resultUrl={resultUrl} qrDataUrl={qrDataUrl} />
           </CardContent>
         </Card>
 
