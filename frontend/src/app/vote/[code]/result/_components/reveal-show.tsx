@@ -95,7 +95,11 @@ const RANK_STYLE: Record<
   }
 };
 
-function RevealScene({ w, rank }: { w: Winner; rank: number }) {
+function selectionRate(votes: number, totalBallots: number): number {
+  return totalBallots > 0 ? Math.round((votes / totalBallots) * 100) : 0;
+}
+
+function RevealScene({ w, rank, totalBallots }: { w: Winner; rank: number; totalBallots: number }) {
   const s = RANK_STYLE[rank];
   return (
     <div className='relative flex min-h-screen w-full items-center overflow-hidden bg-[#090909] px-6 py-16 text-white sm:px-10 lg:px-16'>
@@ -157,6 +161,9 @@ function RevealScene({ w, rank }: { w: Winner; rank: number }) {
               <CountUp to={w.votes} delay={1200} duration={1400} />
             </span>
             <span className='pb-2 text-xl font-bold text-[#d4d4d4]'>표</span>
+            <span className='pb-2 pl-2 text-base font-semibold text-[#a3a3a3] sm:text-lg'>
+              · {selectionRate(w.votes, totalBallots)}% 선택률
+            </span>
           </div>
         </motion.div>
       </div>
@@ -192,11 +199,13 @@ function FinalRankingCard({
   winner,
   rank,
   delay,
+  totalBallots,
   featured = false
 }: {
   winner: Winner;
   rank: number;
   delay: number;
+  totalBallots: number;
   featured?: boolean;
 }) {
   const s = RANK_STYLE[rank];
@@ -244,6 +253,9 @@ function FinalRankingCard({
           >
             {winner.votes}
             <span className='ml-1 text-sm font-bold'>표</span>
+            <span className='ml-2 text-xs font-semibold text-slate-400'>
+              · {selectionRate(winner.votes, totalBallots)}%
+            </span>
           </div>
         </div>
         <div
@@ -295,10 +307,22 @@ function AllScene({
         </motion.div>
 
         <div className='space-y-4 sm:space-y-5'>
-          {first && <FinalRankingCard winner={first} rank={1} delay={0} featured />}
+          {first && (
+            <FinalRankingCard
+              winner={first}
+              rank={1}
+              delay={0}
+              totalBallots={totalBallots}
+              featured
+            />
+          )}
           <div className='grid gap-4 md:grid-cols-2 sm:gap-5'>
-            {second && <FinalRankingCard winner={second} rank={2} delay={0.15} />}
-            {third && <FinalRankingCard winner={third} rank={3} delay={0.3} />}
+            {second && (
+              <FinalRankingCard winner={second} rank={2} delay={0.15} totalBallots={totalBallots} />
+            )}
+            {third && (
+              <FinalRankingCard winner={third} rank={3} delay={0.3} totalBallots={totalBallots} />
+            )}
           </div>
         </div>
       </div>
@@ -336,7 +360,7 @@ export function RevealShow({ title, totalBallots, ranked }: Props) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           >
-            <RevealScene w={third} rank={3} />
+            <RevealScene w={third} rank={3} totalBallots={totalBallots} />
           </motion.div>
         )}
         {stage === 'r2' && second && (
@@ -346,7 +370,7 @@ export function RevealShow({ title, totalBallots, ranked }: Props) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           >
-            <RevealScene w={second} rank={2} />
+            <RevealScene w={second} rank={2} totalBallots={totalBallots} />
           </motion.div>
         )}
         {stage === 'r1' && first && (
@@ -356,7 +380,7 @@ export function RevealShow({ title, totalBallots, ranked }: Props) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           >
-            <RevealScene w={first} rank={1} />
+            <RevealScene w={first} rank={1} totalBallots={totalBallots} />
           </motion.div>
         )}
         {stage === 'all' && (
