@@ -25,9 +25,16 @@ export function QrShare({ url, qrDataUrl }: { url: string; qrDataUrl: string }) 
       <div className='flex flex-col gap-2'>
         <div className='text-muted-foreground text-xs'>공유 URL</div>
         <code className='bg-muted rounded px-2 py-1 text-xs break-all'>{url}</code>
-        <Button variant='outline' size='sm' onClick={copy}>
-          {copied ? '복사됨' : 'URL 복사'}
-        </Button>
+        <div className='flex gap-2'>
+          <Button variant='outline' size='sm' onClick={copy}>
+            {copied ? '복사됨' : 'URL 복사'}
+          </Button>
+          <Button variant='outline' size='sm' asChild>
+            <a href={qrDataUrl} download='presentation-vote-qr.png'>
+              QR 저장
+            </a>
+          </Button>
+        </div>
       </div>
     </div>
   );

@@ -98,7 +98,7 @@ export function VoteForm({ code, title, description, maxSelections, candidates }
 
   return (
     <div className='min-h-screen bg-slate-50 dark:bg-slate-950'>
-      <div className='mx-auto max-w-4xl px-3 py-8 pb-40 sm:px-4 sm:py-10'>
+      <div className='mx-auto max-w-4xl px-3 py-8 pb-56 sm:px-4 sm:py-10 sm:pb-44'>
         <motion.div
           initial={{ y: -10, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
@@ -231,7 +231,7 @@ export function VoteForm({ code, title, description, maxSelections, candidates }
       </div>
 
       <div className='fixed bottom-0 left-0 right-0 z-30 border-t bg-white/95 backdrop-blur-md dark:bg-slate-900/95'>
-        <div className='mx-auto max-w-4xl px-4 py-3'>
+        <div className='mx-auto max-w-4xl px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]'>
           {selectedCandidates.length > 0 && (
             <div className='mb-2 flex min-w-0 items-center gap-2 text-xs'>
               <span className='shrink-0 font-semibold text-indigo-700 dark:text-indigo-300'>
