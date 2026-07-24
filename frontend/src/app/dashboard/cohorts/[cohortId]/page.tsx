@@ -410,6 +410,16 @@ export default async function CohortOverviewPage({
             </Link>
           );
         })}
+        <Link
+          href={`/dashboard/cohorts/${cohortId}/presentations`}
+          className='hover:bg-accent group block rounded-xl border p-4 transition-colors'
+        >
+          <div className='mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-fuchsia-100 dark:bg-fuchsia-900/50'>
+            <Icons.sparkles className='h-4.5 w-4.5 text-fuchsia-600 dark:text-fuchsia-400' />
+          </div>
+          <div className='font-semibold'>발표 투표</div>
+          <div className='text-muted-foreground mt-1 text-xs'>실시간 인기 투표·QR 공유</div>
+        </Link>
       </div>
     </PageContainer>
   );

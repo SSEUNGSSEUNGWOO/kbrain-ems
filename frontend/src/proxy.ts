@@ -8,7 +8,8 @@ const PUBLIC_PATH_PREFIXES = [
   '/diagnosis',
   '/attendance',
   '/pretraining',
-  '/exam'
+  '/exam',
+  '/vote'
 ];
 const PUBLIC_API_PREFIXES = ['/api/auth', '/api/exam'];
 

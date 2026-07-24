@@ -2571,6 +2571,149 @@ export type Database = {
           }
         ];
       };
+
+      presentation_votes: {
+        Row: {
+          id: string;
+          cohort_id: string;
+          title: string;
+          description: string | null;
+          status: 'draft' | 'open' | 'closed';
+          share_code: string;
+          max_selections: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          cohort_id: string;
+          title: string;
+          description?: string | null;
+          status?: 'draft' | 'open' | 'closed';
+          share_code: string;
+          max_selections?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          cohort_id?: string;
+          title?: string;
+          description?: string | null;
+          status?: 'draft' | 'open' | 'closed';
+          share_code?: string;
+          max_selections?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'presentation_votes_cohort_id_fkey';
+            columns: ['cohort_id'];
+            referencedRelation: 'cohorts';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+
+      presentation_candidates: {
+        Row: {
+          id: string;
+          vote_id: string;
+          order_no: number;
+          presenter: string;
+          topic: string | null;
+          cover_image_url: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          vote_id: string;
+          order_no: number;
+          presenter: string;
+          topic?: string | null;
+          cover_image_url?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          vote_id?: string;
+          order_no?: number;
+          presenter?: string;
+          topic?: string | null;
+          cover_image_url?: string | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'presentation_candidates_vote_id_fkey';
+            columns: ['vote_id'];
+            referencedRelation: 'presentation_votes';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+
+      presentation_ballots: {
+        Row: {
+          id: string;
+          vote_id: string;
+          voter_name: string;
+          device_key: string | null;
+          submitted_at: string;
+        };
+        Insert: {
+          id?: string;
+          vote_id: string;
+          voter_name: string;
+          device_key?: string | null;
+          submitted_at?: string;
+        };
+        Update: {
+          id?: string;
+          vote_id?: string;
+          voter_name?: string;
+          device_key?: string | null;
+          submitted_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'presentation_ballots_vote_id_fkey';
+            columns: ['vote_id'];
+            referencedRelation: 'presentation_votes';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+
+      presentation_ballot_items: {
+        Row: {
+          ballot_id: string;
+          candidate_id: string;
+        };
+        Insert: {
+          ballot_id: string;
+          candidate_id: string;
+        };
+        Update: {
+          ballot_id?: string;
+          candidate_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'presentation_ballot_items_ballot_id_fkey';
+            columns: ['ballot_id'];
+            referencedRelation: 'presentation_ballots';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'presentation_ballot_items_candidate_id_fkey';
+            columns: ['candidate_id'];
+            referencedRelation: 'presentation_candidates';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
     };
     Views: {
       [_ in never]: never;
