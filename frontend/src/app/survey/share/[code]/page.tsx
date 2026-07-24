@@ -12,7 +12,7 @@ export default async function SurveyShareEntryPage({ params }: Props) {
 
   const { data: survey } = await supabase
     .from('surveys')
-    .select('id, title, cohort_id, closes_at, share_subtitle, cohorts(name)')
+    .select('id, title, cohort_id, additional_cohort_ids, closes_at, share_subtitle, cohorts(name)')
     .eq('share_code', code)
     .maybeSingle();
 
@@ -30,7 +30,16 @@ export default async function SurveyShareEntryPage({ params }: Props) {
   }
 
   const cohort = survey.cohorts as unknown as { name: string } | null;
-  const cohortName = survey.share_subtitle ?? cohort?.name ?? '';
+  const additionalIds = survey.additional_cohort_ids ?? [];
+  const { data: additionalCohorts } = additionalIds.length
+    ? await supabase.from('cohorts').select('id, name').in('id', additionalIds)
+    : { data: [] };
+  const additionalById = new Map((additionalCohorts ?? []).map((item) => [item.id, item.name]));
+  const linkedNames = [
+    cohort?.name,
+    ...additionalIds.map((id) => additionalById.get(id)).filter((name): name is string => !!name)
+  ].filter((name): name is string => !!name);
+  const cohortName = survey.share_subtitle ?? linkedNames.join(' · ');
 
   return (
     <main className='flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 to-blue-50 px-4 py-12'>
