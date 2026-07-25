@@ -325,14 +325,10 @@ export default async function CohortApplicationsPage({ params, searchParams }: P
   }
   const statusCounts: Record<string, number> = {
     applied: 0,
-    pending: 0,
     selected: 0,
     rejected: 0,
     pre_cancel: 0,
-    cancel_notice: 0,
-    cancel_confirmed: 0,
-    same_day_cancel: 0,
-    withdrawn: 0
+    same_day_cancel: 0
   };
   for (const r of statsRows ?? []) {
     if (r.status in statusCounts) statusCounts[r.status]++;
@@ -384,7 +380,7 @@ export default async function CohortApplicationsPage({ params, searchParams }: P
     total: allRows.length,
     selected: allRows.filter((r) => r.status === 'selected').length,
     rejected: allRows.filter((r) => r.status === 'rejected').length,
-    pending: allRows.filter((r) => r.status === 'applied' || r.status === 'pending').length,
+    pending: allRows.filter((r) => r.status === 'applied').length,
     avgKnowledge:
       knowledgeRows.length > 0
         ? Math.round(

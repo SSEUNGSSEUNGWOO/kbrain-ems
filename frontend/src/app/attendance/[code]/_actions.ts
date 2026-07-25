@@ -72,9 +72,9 @@ export async function checkinByShareCode(
       .eq('applicant_id', student.applicant_id)
       .eq('cohort_id', session.cohort_id)
       .maybeSingle();
-    // 'selected' 외 'same_day_cancel'(당일취소), 'cancel_notice'(취소통보, 미확정) 도 출결 가능.
-    // 'cancel_confirmed'(취소확정)·'rejected' 만 차단.
-    const ALLOWED_FOR_ATTENDANCE = new Set(['selected', 'same_day_cancel', 'cancel_notice']);
+    // 'selected' 와 'same_day_cancel'(당일취소) 만 출결 가능.
+    // 'pre_cancel'(사전취소)·'rejected' 는 차단.
+    const ALLOWED_FOR_ATTENDANCE = new Set(['selected', 'same_day_cancel']);
     if (app && !ALLOWED_FOR_ATTENDANCE.has(app.status)) {
       return {
         ok: false,

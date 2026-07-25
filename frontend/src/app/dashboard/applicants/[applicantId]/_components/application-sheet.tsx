@@ -43,11 +43,11 @@ interface ApplicationSheetProps {
 }
 
 const STATUS_OPTIONS = [
-  { value: 'applied', label: '접수' },
-  { value: 'shortlisted', label: '서류 합격' },
-  { value: 'selected', label: '최종 합격' },
+  { value: 'applied', label: '신청' },
+  { value: 'selected', label: '선발' },
   { value: 'rejected', label: '탈락' },
-  { value: 'withdrew', label: '철회' }
+  { value: 'pre_cancel', label: '사전취소' },
+  { value: 'same_day_cancel', label: '당일취소' }
 ] as const;
 
 const STAGE_OPTIONS = [

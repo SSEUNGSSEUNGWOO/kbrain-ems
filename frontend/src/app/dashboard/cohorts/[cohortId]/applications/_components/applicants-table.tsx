@@ -71,23 +71,17 @@ const C2_CATEGORY: Record<string, { label: string; tone: string }> = {
 
 const STATUS_LABEL: Record<string, string> = {
   applied: '신청',
-  pending: '심사중',
   selected: '선발',
   rejected: '탈락',
-  pre_cancel: '취소예정',
-  cancel_notice: '취소통보',
-  cancel_confirmed: '취소확정',
+  pre_cancel: '사전취소',
   same_day_cancel: '당일취소'
 };
 
 const STATUS_TONE: Record<string, string> = {
   applied: 'bg-slate-100 text-slate-700 border-slate-300',
-  pending: 'bg-amber-50 text-amber-800 border-amber-200',
   selected: 'bg-emerald-50 text-emerald-800 border-emerald-200',
   rejected: 'bg-rose-50 text-rose-800 border-rose-200',
   pre_cancel: 'bg-orange-50 text-orange-800 border-orange-200',
-  cancel_notice: 'bg-amber-50 text-amber-700 border-amber-200',
-  cancel_confirmed: 'bg-slate-50 text-slate-500 border-slate-200',
   same_day_cancel: 'bg-rose-50 text-rose-700 border-rose-200'
 };
 
@@ -106,7 +100,7 @@ type Props = {
 };
 
 const CATEGORY_KEYS = ['central', 'metro_local', 'basic_local', 'public', 'education', 'other'] as const;
-const STATUS_KEYS = ['applied', 'pending', 'selected', 'rejected', 'pre_cancel', 'cancel_notice', 'cancel_confirmed', 'same_day_cancel'] as const;
+const STATUS_KEYS = ['applied', 'selected', 'rejected', 'pre_cancel', 'same_day_cancel'] as const;
 const SORTABLE_COLS = ['status', 'name', 'knowledge_score', 'applied_at'] as const;
 type SortableCol = (typeof SORTABLE_COLS)[number];
 

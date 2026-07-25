@@ -45,21 +45,17 @@ import { StudentSheet } from './student-sheet';
 
 const STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: 'applied', label: '신청' },
-  { value: 'pending', label: '심사중' },
   { value: 'selected', label: '선발' },
   { value: 'rejected', label: '탈락' },
-  { value: 'cancel_notice', label: '취소통보' },
-  { value: 'cancel_confirmed', label: '취소확정' },
+  { value: 'pre_cancel', label: '사전취소' },
   { value: 'same_day_cancel', label: '당일취소' }
 ];
 
 const STATUS_TONE: Record<string, string> = {
   applied: 'text-slate-600',
-  pending: 'text-amber-700',
   selected: 'text-emerald-700',
   rejected: 'text-rose-700',
-  cancel_notice: 'text-amber-700',
-  cancel_confirmed: 'text-slate-500',
+  pre_cancel: 'text-orange-700',
   same_day_cancel: 'text-rose-700'
 };
 

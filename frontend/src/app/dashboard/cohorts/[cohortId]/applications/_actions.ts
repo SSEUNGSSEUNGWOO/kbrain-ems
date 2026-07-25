@@ -11,7 +11,7 @@ import {
 import type { Json } from '@/lib/supabase/types';
 import type { SelectionConfigSnapshot } from './_selection-logic';
 
-const ALLOWED_STATUSES = ['applied', 'pending', 'selected', 'rejected', 'pre_cancel', 'cancel_notice', 'cancel_confirmed', 'same_day_cancel'] as const;
+const ALLOWED_STATUSES = ['applied', 'selected', 'rejected', 'pre_cancel', 'same_day_cancel'] as const;
 type ApplicationStatus = (typeof ALLOWED_STATUSES)[number];
 
 export async function updateApplicationStatus(
@@ -37,9 +37,8 @@ export async function updateApplicationStatus(
   if (error) return { error: error.message };
 
   const STATUS_KO: Record<string, string> = {
-    applied: '신청', pending: '심사중', selected: '선발', rejected: '탈락',
-    pre_cancel: '취소예정',
-    cancel_notice: '취소통보', cancel_confirmed: '취소확정', same_day_cancel: '당일취소'
+    applied: '신청', selected: '선발', rejected: '탈락',
+    pre_cancel: '사전취소', same_day_cancel: '당일취소'
   };
   await logActivity({
     actionType: 'update',
@@ -111,7 +110,7 @@ export async function loadSelectionPool(
         'id, status, knowledge_score, applicant_id, applicants(id, name, phone, email, organizations(name))'
       )
       .eq('cohort_id', cohortId)
-      .in('status', ['applied', 'pending', 'selected', 'rejected'])
+      .in('status', ['applied', 'selected', 'rejected'])
       .returns<AppQ[]>();
     if (appErr) throw new Error(appErr.message);
 
@@ -291,7 +290,7 @@ export async function loadSelectionPool(
           .select('applicant_id, cohort_id, status, cohorts(name)')
           .in('applicant_id', slice)
           .neq('cohort_id', cohortId)
-          .in('status', ['applied', 'pending', 'selected'])
+          .in('status', ['applied', 'selected'])
           .returns<OtherApp[]>();
         for (const oa of otherApps ?? []) {
           const arr = otherByApplicant.get(oa.applicant_id) ?? [];
@@ -386,7 +385,7 @@ export async function resetSelections(
       .from('applications')
       .update({ status: 'applied', decided_at: null, rejected_stage: null })
       .eq('cohort_id', cohortId)
-      .in('status', ['selected', 'rejected', 'pending'])
+      .in('status', ['selected', 'rejected'])
       .select('id');
     if (error) throw new Error(error.message);
     await logActivity({

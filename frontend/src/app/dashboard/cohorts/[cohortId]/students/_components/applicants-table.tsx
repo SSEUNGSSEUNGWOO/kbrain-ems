@@ -34,10 +34,10 @@ type Props = {
 
 const STATUS_LABEL: Record<string, string> = {
   applied: '신청',
-  shortlisted: '검토',
-  selected: '합격',
+  selected: '선발',
   rejected: '탈락',
-  withdrew: '철회'
+  pre_cancel: '사전취소',
+  same_day_cancel: '당일취소'
 };
 
 export function ApplicantsTable({ cohortId, rows, hidePersonal = false }: Props) {

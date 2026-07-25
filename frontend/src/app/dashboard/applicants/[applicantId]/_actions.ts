@@ -77,10 +77,10 @@ type ActionResult = { error?: string };
 
 const VALID_STATUSES = [
   'applied',
-  'shortlisted',
   'selected',
   'rejected',
-  'withdrew'
+  'pre_cancel',
+  'same_day_cancel'
 ] as const;
 
 const VALID_REJECTED_STAGES = ['docs', 'interview', 'final'] as const;
@@ -208,7 +208,11 @@ export async function updateApplicationStatus(
     .maybeSingle();
   if (!current) return { error: '지원 이력을 찾을 수 없습니다.' };
 
-  const decidedFromStatus = status === 'selected' || status === 'rejected' || status === 'withdrew';
+  const decidedFromStatus =
+    status === 'selected' ||
+    status === 'rejected' ||
+    status === 'pre_cancel' ||
+    status === 'same_day_cancel';
   const nextDecidedAt =
     decidedFromStatus && !current.decided_at
       ? new Date().toISOString().slice(0, 10)

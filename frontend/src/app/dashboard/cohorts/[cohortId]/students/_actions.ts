@@ -171,7 +171,7 @@ export async function deleteStudent(
 ): Promise<ActionResult> {
   const supabase = createAdminClient();
 
-  // 삭제 전 applicant_id + 이름 확보 — applications 'withdrew' 처리 / 로그
+  // 삭제 전 applicant_id + 이름 확보 — applications 'pre_cancel' 처리 / 로그
   const { data: stu } = await supabase
     .from('students')
     .select('applicant_id, name')
@@ -194,7 +194,7 @@ export async function deleteStudent(
     summary: `교육생 삭제: ${stu?.name ?? id}`
   });
 
-  // 합격 기록은 보존하되 'withdrew'(철회)로 변경
+  // 합격 기록은 보존하되 'pre_cancel'(사전취소)로 변경
   const { data: apps } = await supabase
     .from('applications')
     .select('id, decided_at')
@@ -207,7 +207,7 @@ export async function deleteStudent(
     const { error: updError } = await supabase
       .from('applications')
       .update({
-        status: 'withdrew',
+        status: 'pre_cancel',
         decided_at: app.decided_at ?? today
       })
       .eq('id', app.id);
@@ -303,7 +303,7 @@ export async function deleteStudents(
 
   const supabase = createAdminClient();
 
-  // 삭제 전 applicant_id 들 확보 — applications 'withdrew' 처리에 필요
+  // 삭제 전 applicant_id 들 확보 — applications 'pre_cancel' 처리에 필요
   const { data: stuRows } = await supabase
     .from('students')
     .select('applicant_id')
@@ -328,7 +328,7 @@ export async function deleteStudents(
     const { error: updError } = await supabase
       .from('applications')
       .update({
-        status: 'withdrew',
+        status: 'pre_cancel',
         decided_at: app.decided_at ?? today
       })
       .eq('id', app.id);

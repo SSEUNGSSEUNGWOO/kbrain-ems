@@ -17,11 +17,11 @@ export type ApplicationSummary = {
 };
 
 const STATUS_OPTIONS: { value: string; label: string }[] = [
-  { value: 'applied', label: '접수' },
-  { value: 'shortlisted', label: '서류 합격' },
-  { value: 'selected', label: '최종 합격' },
+  { value: 'applied', label: '신청' },
+  { value: 'selected', label: '선발' },
   { value: 'rejected', label: '탈락' },
-  { value: 'withdrew', label: '철회' }
+  { value: 'pre_cancel', label: '사전취소' },
+  { value: 'same_day_cancel', label: '당일취소' }
 ];
 
 const STAGE_OPTIONS: { value: string; label: string }[] = [
@@ -32,10 +32,10 @@ const STAGE_OPTIONS: { value: string; label: string }[] = [
 
 const STATUS_TONE: Record<string, string> = {
   applied: 'text-slate-700 dark:text-slate-300',
-  shortlisted: 'text-amber-700 dark:text-amber-300',
   selected: 'text-emerald-700 dark:text-emerald-300',
   rejected: 'text-rose-700 dark:text-rose-300',
-  withdrew: 'text-muted-foreground'
+  pre_cancel: 'text-orange-700 dark:text-orange-300',
+  same_day_cancel: 'text-rose-700 dark:text-rose-300'
 };
 
 export function ApplicationsPopover({
