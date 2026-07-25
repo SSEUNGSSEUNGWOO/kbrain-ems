@@ -20,11 +20,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle
 } from '@/components/ui/alert-dialog';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Icons } from '@/components/icons';
 import { useDebouncedCallback } from '@/hooks/use-debounced-callback';
 import { deleteApplicant, deleteApplicants } from '../_actions';
 import { ApplicantSheet, type Applicant } from './applicant-sheet';
+import { ApplicationsPopover, type ApplicationSummary } from './applications-popover';
 
 type ApplicantRow = Applicant & {
   applicationCount: number;
@@ -33,6 +33,7 @@ type ApplicantRow = Applicant & {
   appliedCohorts: string[];
   selectedCohorts: string[];
   rejectedCohorts: string[];
+  applications: ApplicationSummary[];
 };
 
 export type CategoryCounts = Record<string, number>;
@@ -388,60 +389,61 @@ export function ApplicantTable({
                     )}
                     <td className='px-4 py-3 text-center'>
                       {a.applicationCount > 0 ? (
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className='cursor-default font-medium underline decoration-dotted'>
+                        <ApplicationsPopover
+                          applicantId={a.id}
+                          applicantName={a.name}
+                          applications={a.applications}
+                          trigger={
+                            <button
+                              type='button'
+                              className='hover:text-primary cursor-pointer font-medium underline decoration-dotted transition-colors'
+                            >
                               {a.applicationCount}
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent side='top' className='max-w-72'>
-                            <p className='text-xs leading-relaxed'>
-                              {a.appliedCohorts.join(', ')}
-                            </p>
-                          </TooltipContent>
-                        </Tooltip>
+                            </button>
+                          }
+                        />
                       ) : (
                         <span className='text-muted-foreground'>-</span>
                       )}
                     </td>
                     <td className='px-4 py-3 text-center'>
                       {a.selectedCount > 0 ? (
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Badge
-                              variant='outline'
-                              className={`cursor-default ${STATUS_BADGE_CLASS}`}
-                            >
-                              {a.selectedCount}
-                            </Badge>
-                          </TooltipTrigger>
-                          <TooltipContent side='top' className='max-w-72'>
-                            <p className='text-xs leading-relaxed'>
-                              {a.selectedCohorts.join(', ')}
-                            </p>
-                          </TooltipContent>
-                        </Tooltip>
+                        <ApplicationsPopover
+                          applicantId={a.id}
+                          applicantName={a.name}
+                          applications={a.applications}
+                          trigger={
+                            <button type='button'>
+                              <Badge
+                                variant='outline'
+                                className={`cursor-pointer transition-opacity hover:opacity-80 ${STATUS_BADGE_CLASS}`}
+                              >
+                                {a.selectedCount}
+                              </Badge>
+                            </button>
+                          }
+                        />
                       ) : (
                         <span className='text-muted-foreground'>-</span>
                       )}
                     </td>
                     <td className='px-4 py-3 text-center'>
                       {a.rejectedCount > 0 ? (
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Badge
-                              variant='outline'
-                              className={`cursor-default ${REJECTED_BADGE_CLASS}`}
-                            >
-                              {a.rejectedCount}
-                            </Badge>
-                          </TooltipTrigger>
-                          <TooltipContent side='top' className='max-w-72'>
-                            <p className='text-xs leading-relaxed'>
-                              {a.rejectedCohorts.join(', ')}
-                            </p>
-                          </TooltipContent>
-                        </Tooltip>
+                        <ApplicationsPopover
+                          applicantId={a.id}
+                          applicantName={a.name}
+                          applications={a.applications}
+                          trigger={
+                            <button type='button'>
+                              <Badge
+                                variant='outline'
+                                className={`cursor-pointer transition-opacity hover:opacity-80 ${REJECTED_BADGE_CLASS}`}
+                              >
+                                {a.rejectedCount}
+                              </Badge>
+                            </button>
+                          }
+                        />
                       ) : (
                         <span className='text-muted-foreground'>-</span>
                       )}

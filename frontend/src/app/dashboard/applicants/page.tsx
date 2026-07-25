@@ -45,6 +45,13 @@ type RpcRow = {
   appliedCohorts: string[];
   selectedCohorts: string[];
   rejectedCohorts: string[];
+  applications: {
+    id: string;
+    cohort_id: string;
+    cohort_name: string;
+    status: string;
+    rejected_stage: string | null;
+  }[];
 };
 
 type RpcResult = {
