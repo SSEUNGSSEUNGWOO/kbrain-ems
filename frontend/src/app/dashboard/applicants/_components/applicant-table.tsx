@@ -86,6 +86,7 @@ export function ApplicantTable({
   unselectedOnly,
   sort
 }: Props) {
+  const [pending, startTransition] = useTransition();
   const [{ q, category }, setParams] = useQueryStates(
     {
       q: parseAsString.withDefault(''),
@@ -94,7 +95,7 @@ export function ApplicantTable({
       unselected: parseAsString.withDefault(''),
       sort: parseAsStringEnum<ApplicantSort>([...APPLICANT_SORT_KEYS]).withDefault('name')
     },
-    { shallow: false }
+    { shallow: false, startTransition }
   );
 
   const onToggleUnselected = () => {
@@ -157,7 +158,6 @@ export function ApplicantTable({
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [bulkDeleteError, setBulkDeleteError] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
   const router = useRouter();
   const { isDeveloper } = useAuth();
 
@@ -225,18 +225,25 @@ export function ApplicantTable({
           <Input
             value={inputValue}
             onChange={(e) => onSearchChange(e.target.value)}
-            placeholder={hidePersonal ? '이름 검색' : '이름 또는 연락처 검색'}
+            placeholder={hidePersonal ? '이름 검색' : '이름·연락처·이메일 검색'}
             className='pl-8 pr-8'
           />
-          {inputValue && (
-            <button
-              type='button'
-              onClick={onClearSearch}
-              className='text-muted-foreground hover:text-foreground absolute top-1/2 right-2 -translate-y-1/2'
-              aria-label='검색어 지우기'
-            >
-              <Icons.close className='size-4' />
-            </button>
+          {pending ? (
+            <Icons.spinner
+              className='text-muted-foreground pointer-events-none absolute top-1/2 right-2 size-4 -translate-y-1/2 animate-spin'
+              aria-hidden
+            />
+          ) : (
+            inputValue && (
+              <button
+                type='button'
+                onClick={onClearSearch}
+                className='text-muted-foreground hover:text-foreground absolute top-1/2 right-2 -translate-y-1/2'
+                aria-label='검색어 지우기'
+              >
+                <Icons.close className='size-4' />
+              </button>
+            )
           )}
         </div>
         <Button
@@ -282,7 +289,11 @@ export function ApplicantTable({
       {isEmpty ? (
         <EmptyState hasFilter={hasFilter} />
       ) : (
-        <div className='rounded-md border'>
+        <div
+          className={`rounded-md border transition-opacity ${
+            pending ? 'opacity-60' : ''
+          }`}
+        >
           <table className='w-full text-sm'>
             <thead>
               <tr className='bg-muted/50 border-b'>

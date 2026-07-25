@@ -181,6 +181,60 @@ export async function updateApplication(
   return {};
 }
 
+export async function updateApplicationStatus(
+  id: string,
+  applicantId: string,
+  status: string,
+  rejectedStageRaw: string | null
+): Promise<ActionResult> {
+  if (!VALID_STATUSES.includes(status as (typeof VALID_STATUSES)[number])) {
+    return { error: '잘못된 상태값입니다.' };
+  }
+  const rejectedStage =
+    status === 'rejected' &&
+    rejectedStageRaw &&
+    VALID_REJECTED_STAGES.includes(
+      rejectedStageRaw as (typeof VALID_REJECTED_STAGES)[number]
+    )
+      ? rejectedStageRaw
+      : null;
+
+  const supabase = createAdminClient();
+
+  const { data: current } = await supabase
+    .from('applications')
+    .select('cohort_id, status, decided_at')
+    .eq('id', id)
+    .maybeSingle();
+  if (!current) return { error: '지원 이력을 찾을 수 없습니다.' };
+
+  const decidedFromStatus = status === 'selected' || status === 'rejected' || status === 'withdrew';
+  const nextDecidedAt =
+    decidedFromStatus && !current.decided_at
+      ? new Date().toISOString().slice(0, 10)
+      : current.decided_at;
+
+  const { error } = await supabase
+    .from('applications')
+    .update({
+      status,
+      rejected_stage: rejectedStage,
+      decided_at: nextDecidedAt
+    })
+    .eq('id', id);
+  if (error) return { error: error.message };
+
+  if (status === 'selected') {
+    await syncStudentSelected(supabase, applicantId, current.cohort_id);
+  } else if (current.status === 'selected') {
+    await removeStudentForCohort(supabase, applicantId, current.cohort_id);
+  }
+
+  revalidatePath(`/dashboard/applicants/${applicantId}`);
+  revalidatePath('/dashboard/applicants');
+  return {};
+}
+
 export async function deleteApplication(
   id: string,
   applicantId: string

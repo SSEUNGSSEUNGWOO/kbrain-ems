@@ -2,7 +2,6 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   AlertDialog,
@@ -15,7 +14,8 @@ import {
   AlertDialogTitle
 } from '@/components/ui/alert-dialog';
 import { Icons } from '@/components/icons';
-import { deleteApplication } from '../_actions';
+import { cn } from '@/lib/utils';
+import { deleteApplication, updateApplicationStatus } from '../_actions';
 import {
   ApplicationSheet,
   STAGE_LABELS,
@@ -35,9 +35,11 @@ const STATUS_BADGE_CLASS: Record<string, string> = {
     'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300',
   rejected:
     'border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300',
-  withdrew:
-    'border-border bg-muted text-muted-foreground'
+  withdrew: 'border-border bg-muted text-muted-foreground'
 };
+
+const STATUS_ORDER = ['applied', 'shortlisted', 'selected', 'rejected', 'withdrew'] as const;
+const STAGE_ORDER = ['docs', 'interview', 'final'] as const;
 
 export function ApplicationTable({
   applicantId,
@@ -51,6 +53,8 @@ export function ApplicationTable({
   const [deleteTarget, setDeleteTarget] = useState<ApplicationRow | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [rowError, setRowError] = useState<{ id: string; message: string } | null>(null);
+  const [pendingRowId, setPendingRowId] = useState<string | null>(null);
   const router = useRouter();
 
   const onDelete = () => {
@@ -63,6 +67,29 @@ export function ApplicationTable({
         return;
       }
       setDeleteTarget(null);
+      router.refresh();
+    });
+  };
+
+  const applyStatusChange = (
+    row: ApplicationRow,
+    nextStatus: string,
+    nextStage: string | null
+  ) => {
+    setRowError(null);
+    setPendingRowId(row.id);
+    startTransition(async () => {
+      const result = await updateApplicationStatus(
+        row.id,
+        applicantId,
+        nextStatus,
+        nextStage
+      );
+      setPendingRowId(null);
+      if (result?.error) {
+        setRowError({ id: row.id, message: result.error });
+        return;
+      }
       router.refresh();
     });
   };
@@ -93,59 +120,116 @@ export function ApplicationTable({
             </tr>
           </thead>
           <tbody>
-            {applications.map((a) => (
-              <tr
-                key={a.id}
-                className='group border-b transition-colors last:border-0 hover:bg-muted/30'
-              >
-                <td className='px-4 py-3 font-medium'>{a.cohortName ?? '-'}</td>
-                <td className='px-4 py-3'>
-                  <Badge variant='outline' className={STATUS_BADGE_CLASS[a.status] ?? ''}>
-                    {STATUS_LABELS[a.status] ?? a.status}
-                  </Badge>
-                </td>
-                <td className='text-muted-foreground px-4 py-3'>
-                  {a.status === 'rejected' && a.rejected_stage
-                    ? (STAGE_LABELS[a.rejected_stage] ?? a.rejected_stage)
-                    : '-'}
-                </td>
-                <td className='text-muted-foreground whitespace-nowrap px-4 py-3'>
-                  {a.applied_at ?? '-'}
-                </td>
-                <td className='text-muted-foreground whitespace-nowrap px-4 py-3'>
-                  {a.decided_at ?? '-'}
-                </td>
-                <td className='text-muted-foreground px-4 py-3'>{a.note ?? '-'}</td>
-                <td className='px-4 py-3'>
-                  <div className='flex justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100'>
-                    <ApplicationSheet
-                      applicantId={applicantId}
-                      cohorts={cohorts}
-                      application={a}
-                      trigger={
-                        <Button variant='ghost' size='icon' className='h-7 w-7'>
-                          <Icons.edit className='h-3.5 w-3.5' />
-                        </Button>
-                      }
-                    />
-                    <Button
-                      variant='ghost'
-                      size='icon'
-                      className='text-destructive hover:text-destructive h-7 w-7'
-                      onClick={() => {
-                        setDeleteError(null);
-                        setDeleteTarget(a);
-                      }}
-                    >
-                      <Icons.trash className='h-3.5 w-3.5' />
-                    </Button>
-                  </div>
-                </td>
-              </tr>
-            ))}
+            {applications.map((a) => {
+              const isRowPending = pendingRowId === a.id;
+              const tone = STATUS_BADGE_CLASS[a.status] ?? '';
+              return (
+                <tr
+                  key={a.id}
+                  className={cn(
+                    'group border-b transition-colors last:border-0 hover:bg-muted/30',
+                    isRowPending && 'opacity-60'
+                  )}
+                >
+                  <td className='px-4 py-3 font-medium'>{a.cohortName ?? '-'}</td>
+                  <td className='px-4 py-3'>
+                    <div className='inline-flex items-center gap-1'>
+                      <div className='relative'>
+                        <select
+                          value={a.status}
+                          disabled={pending}
+                          onChange={(e) => {
+                            const next = e.target.value;
+                            const stage = next === 'rejected' ? a.rejected_stage : null;
+                            applyStatusChange(a, next, stage);
+                          }}
+                          className={cn(
+                            'appearance-none rounded-md border px-2 py-0.5 pr-6 text-xs font-medium cursor-pointer focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1 disabled:cursor-not-allowed',
+                            tone
+                          )}
+                          aria-label='결과 변경'
+                        >
+                          {STATUS_ORDER.map((s) => (
+                            <option key={s} value={s}>
+                              {STATUS_LABELS[s] ?? s}
+                            </option>
+                          ))}
+                        </select>
+                        <Icons.chevronDown className='pointer-events-none absolute right-1 top-1/2 h-3 w-3 -translate-y-1/2 opacity-60' />
+                      </div>
+                      {isRowPending && (
+                        <Icons.spinner className='text-muted-foreground h-3.5 w-3.5 animate-spin' />
+                      )}
+                    </div>
+                  </td>
+                  <td className='text-muted-foreground px-4 py-3'>
+                    {a.status === 'rejected' ? (
+                      <div className='relative inline-block'>
+                        <select
+                          value={a.rejected_stage ?? ''}
+                          disabled={pending}
+                          onChange={(e) => {
+                            const stage = e.target.value || null;
+                            applyStatusChange(a, a.status, stage);
+                          }}
+                          className='appearance-none rounded-md border bg-background px-2 py-0.5 pr-6 text-xs cursor-pointer focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1 disabled:cursor-not-allowed'
+                          aria-label='탈락 단계 변경'
+                        >
+                          <option value=''>단계 선택</option>
+                          {STAGE_ORDER.map((s) => (
+                            <option key={s} value={s}>
+                              {STAGE_LABELS[s] ?? s}
+                            </option>
+                          ))}
+                        </select>
+                        <Icons.chevronDown className='pointer-events-none absolute right-1 top-1/2 h-3 w-3 -translate-y-1/2 opacity-60' />
+                      </div>
+                    ) : (
+                      '-'
+                    )}
+                  </td>
+                  <td className='text-muted-foreground whitespace-nowrap px-4 py-3'>
+                    {a.applied_at ?? '-'}
+                  </td>
+                  <td className='text-muted-foreground whitespace-nowrap px-4 py-3'>
+                    {a.decided_at ?? '-'}
+                  </td>
+                  <td className='text-muted-foreground px-4 py-3'>{a.note ?? '-'}</td>
+                  <td className='px-4 py-3'>
+                    <div className='flex justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100'>
+                      <ApplicationSheet
+                        applicantId={applicantId}
+                        cohorts={cohorts}
+                        application={a}
+                        trigger={
+                          <Button variant='ghost' size='icon' className='h-7 w-7'>
+                            <Icons.edit className='h-3.5 w-3.5' />
+                          </Button>
+                        }
+                      />
+                      <Button
+                        variant='ghost'
+                        size='icon'
+                        className='text-destructive hover:text-destructive h-7 w-7'
+                        onClick={() => {
+                          setDeleteError(null);
+                          setDeleteTarget(a);
+                        }}
+                      >
+                        <Icons.trash className='h-3.5 w-3.5' />
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
+
+      {rowError && (
+        <div className='text-destructive mt-2 text-sm'>{rowError.message}</div>
+      )}
 
       <AlertDialog
         open={!!deleteTarget}
