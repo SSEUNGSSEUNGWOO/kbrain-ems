@@ -91,3 +91,147 @@ export async function computeAttendanceCounts(
 
   return { totalSessions, perStudent };
 }
+
+/**
+ * AI 챔피언 수료 판정.
+ * 조건: OT 참석 + 집중교육 기간 내 3일 이상 참석 + 인증평가 참여(certification_results 존재)
+ */
+export type ChampionCompletion = {
+  otAttended: boolean;
+  intensiveDays: number;
+  examParticipated: boolean;
+  isCompleted: boolean;
+};
+
+export type ChampionCompletionResult = {
+  otSessionCount: number;
+  intensiveSessionCount: number;
+  perStudent: Map<string, ChampionCompletion>;
+};
+
+const OT_TITLE_RE = /(OT|오리엔테이션)/i;
+
+export async function computeChampionCompletion(
+  supabase: SupabaseClient<Database>,
+  cohortId: string,
+  studentIds: string[],
+  intensiveStart: string | null,
+  intensiveEnd: string | null
+): Promise<ChampionCompletionResult> {
+  const { data: sessionsRaw } = await supabase
+    .from('sessions')
+    .select('id, title, session_date')
+    .eq('cohort_id', cohortId);
+  const sessions = sessionsRaw ?? [];
+
+  const otSessionIds = new Set(
+    sessions.filter((s) => s.title && OT_TITLE_RE.test(s.title)).map((s) => s.id)
+  );
+  const intensiveSessionIds = new Set(
+    sessions
+      .filter(
+        (s) =>
+          intensiveStart &&
+          intensiveEnd &&
+          s.session_date >= intensiveStart &&
+          s.session_date <= intensiveEnd
+      )
+      .map((s) => s.id)
+  );
+  const relevantSessionIds = [...new Set([...otSessionIds, ...intensiveSessionIds])];
+
+  const perStudent = new Map<string, ChampionCompletion>();
+  if (studentIds.length === 0) {
+    return {
+      otSessionCount: otSessionIds.size,
+      intensiveSessionCount: intensiveSessionIds.size,
+      perStudent
+    };
+  }
+
+  // 학생별 attended session id set 을 뽑기 위해 hybrid 로직 재사용
+  const [checksRes, attRecordsRes, checkRecordsRes, certRes] = await Promise.all([
+    relevantSessionIds.length > 0
+      ? supabase
+          .from('attendance_checks')
+          .select('id, session_id')
+          .in('session_id', relevantSessionIds)
+      : Promise.resolve({ data: [] as { id: string; session_id: string }[] }),
+    relevantSessionIds.length > 0
+      ? supabase
+          .from('attendance_records')
+          .select('student_id, session_id, status')
+          .in('session_id', relevantSessionIds)
+      : Promise.resolve({
+          data: [] as { student_id: string; session_id: string; status: string }[]
+        }),
+    supabase
+      .from('attendance_check_records')
+      .select('check_id, student_id')
+      .in('student_id', studentIds),
+    (
+      supabase.from(
+        'certification_results' as unknown as 'cohorts'
+      ) as unknown as {
+        select: (cols: string) => {
+          eq: (
+            col: string,
+            val: string
+          ) => PromiseLike<{
+            data: { student_id: string | null }[] | null;
+            error: { message: string } | null;
+          }>;
+        };
+      }
+    )
+      .select('student_id')
+      .eq('cohort_id', cohortId)
+  ]);
+
+  const checksBySession = new Map<string, string[]>();
+  for (const c of checksRes.data ?? []) {
+    const arr = checksBySession.get(c.session_id) ?? [];
+    arr.push(c.id);
+    checksBySession.set(c.session_id, arr);
+  }
+  const checkInsByStudent = new Map<string, Set<string>>();
+  for (const r of checkRecordsRes.data ?? []) {
+    const set = checkInsByStudent.get(r.student_id) ?? new Set<string>();
+    set.add(r.check_id);
+    checkInsByStudent.set(r.student_id, set);
+  }
+  const attendanceStatusBy = new Map<string, string>();
+  for (const a of attRecordsRes.data ?? []) {
+    attendanceStatusBy.set(`${a.student_id}__${a.session_id}`, a.status);
+  }
+
+  const participatedSet = new Set<string>();
+  for (const r of certRes.data ?? []) {
+    if (r.student_id) participatedSet.add(r.student_id);
+  }
+
+  const isAttended = (studentId: string, sessionId: string): boolean => {
+    const required = checksBySession.get(sessionId) ?? [];
+    const status = attendanceStatusBy.get(`${studentId}__${sessionId}`);
+    if (required.length > 0) {
+      const checkIns = checkInsByStudent.get(studentId) ?? new Set<string>();
+      return required.every((id) => checkIns.has(id));
+    }
+    return !!status && ATTENDED_STATUSES.has(status);
+  };
+
+  for (const sid of studentIds) {
+    const otAttended = [...otSessionIds].some((id) => isAttended(sid, id));
+    let intensiveDays = 0;
+    for (const id of intensiveSessionIds) if (isAttended(sid, id)) intensiveDays++;
+    const examParticipated = participatedSet.has(sid);
+    const isCompleted = otAttended && intensiveDays >= 3 && examParticipated;
+    perStudent.set(sid, { otAttended, intensiveDays, examParticipated, isCompleted });
+  }
+
+  return {
+    otSessionCount: otSessionIds.size,
+    intensiveSessionCount: intensiveSessionIds.size,
+    perStudent
+  };
+}

@@ -1,139 +1,109 @@
-// 외부 사이트 인증평가 결과 엑셀 → certification_results upsert.
+// 인증평가 채점결과표(엑셀) → certification_results upsert.
+//
+// AI 챔피언 블루 1·2회차 (비대면) 결과 파일 전용으로 매핑 하드코딩.
+// 다른 cohort 결과 파일이 오면 아래 SHEET_TO_COHORT / COLUMN_MAP 을 조정.
 //
 // 사용법:
-//   bun run scripts/import-certification-results.ts <엑셀경로> <cohortId> [--dry-run]
-//
-// 첫 실행 시 헤더를 stdout 으로 찍음 → COLUMN_MAP 을 파일 상단에서 조정 후 재실행 권장.
-//
-// 매칭 순서: phone(정규화) → email → name.
-// 미매칭 row 는 student_id=null 로 저장 (인증 페이지 '미매칭' 섹션에 노출).
+//   bun run scripts/import-certification-results.ts <엑셀경로> [--dry-run]
+//   기본 경로: C:\kbrain\인증평가\채점결과표_AI챔피언블루_사전온라인반영.xlsx
 
 import fs from 'fs';
 import path from 'path';
 import { createClient } from '@supabase/supabase-js';
 import * as XLSX from 'xlsx';
 
-// ---------- 환경변수 로드 ----------
 const envPath = path.resolve(__dirname, '../.env.local');
 for (const line of fs.readFileSync(envPath, 'utf8').split('\n')) {
   const m = line.match(/^([A-Z_]+)=(.*)$/);
   if (m) process.env[m[1]] = m[2].replace(/^"|"$/g, '');
 }
-
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// ---------- 인자 ----------
-const [, , FILE_ARG, COHORT_ID, ...flags] = process.argv;
-const DRY_RUN = flags.includes('--dry-run');
+const DEFAULT_FILE = 'C:\\kbrain\\인증평가\\채점결과표_AI챔피언블루_사전온라인반영.xlsx';
+const positional = process.argv.slice(2).filter((a) => !a.startsWith('--'));
+const FILE = positional[0] || DEFAULT_FILE;
+const DRY_RUN = process.argv.includes('--dry-run');
 
-if (!FILE_ARG || !COHORT_ID) {
-  console.error(
-    '사용법: bun run scripts/import-certification-results.ts <엑셀경로> <cohortId> [--dry-run]'
-  );
-  process.exit(1);
-}
-
-// ---------- 컬럼 매핑 (엑셀 헤더 확인 후 조정) ----------
-// 헤더가 확정되면 이 매핑을 갱신. 값이 배열이면 첫 번째로 매칭되는 헤더 사용.
-const COLUMN_MAP = {
-  name: ['이름', '성명'],
-  phone: ['휴대전화', '연락처', '전화번호', '휴대폰'],
-  email: ['이메일', 'email', 'Email'],
-  passed: ['합격여부', '합격', '결과'],
-  total_score: ['총점', '점수', '최종점수'],
-  grade: ['등급'],
-  exam_no: ['수험번호', '응시번호'],
-  cert_no: ['인증번호', '수료번호', '자격번호'],
-  exam_date: ['응시일', '시험일', '평가일']
-};
-
-// section_scores 는 위 매핑에 없는 나머지 숫자형 컬럼을 자동으로 잡음.
-// 명시적으로 섹션명을 강제하고 싶으면 아래에 열거:
-const SECTION_COLUMNS: string[] = [
-  // 예: '객관식', '서술형', '작업형'
+// ---------- 시트 → cohort 매핑 ----------
+// 시트명이 부분 매칭되면 해당 cohort_id 사용.
+const SHEET_TO_COHORT: { keyword: string; cohortId: string; label: string }[] = [
+  { keyword: '1회차', cohortId: 'b5149035-b7d2-440e-9016-6c2997912b0e', label: 'AI 챔피언 블루 1회차' },
+  { keyword: '2회차', cohortId: '06781a96-9229-42ec-b59c-89ce11378d3e', label: 'AI 챔피언 블루 2회차' }
 ];
 
-// 위 COLUMN_MAP 에서 어떤 컬럼도 안 잡힐 경우 무시할 헤더 (합계·순번 등)
-const IGNORE_COLUMNS: string[] = ['NO', '번호', '순번'];
+// ---------- 엑셀 헤더 매핑 ----------
+// 엑셀 헤더에 \r\n 이 섞여 있어서 매핑 시 정규화.
+const H = {
+  name: '이름',
+  email: '이메일',
+  finalScore: '최종점수',
+  totalRaw: '총점(300)',
+  percent: '백분율(%)',
+  note: '비고'
+};
+
+// 섹션 점수: 정규화된 헤더(→ 라벨) 매핑
+const SECTION_LABELS: { pattern: RegExp; label: string }[] = [
+  { pattern: /콘텐츠/, label: '콘텐츠' },
+  { pattern: /데이터분석/, label: '데이터분석' },
+  { pattern: /자동화/, label: '자동화' },
+  { pattern: /사전평가/, label: '사전평가' },
+  { pattern: /사전온라인/, label: '사전온라인' },
+  { pattern: /수업참여도/, label: '수업참여도' }
+];
+
+const PASS_THRESHOLD = 75;
 
 // ---------- 유틸 ----------
-const normPhone = (s: unknown) => String(s ?? '').replace(/[^\d]/g, '');
+const normHeader = (h: string) => h.replace(/[\r\n]+/g, ' ').trim();
 const normEmail = (s: unknown) => String(s ?? '').trim().toLowerCase();
 const normStr = (s: unknown) => String(s ?? '').trim();
-const toBool = (s: unknown): boolean | null => {
-  const v = normStr(s).toLowerCase();
-  if (['합격', 'pass', 'y', 'yes', 'o', 'true', '1'].includes(v)) return true;
-  if (['불합격', 'fail', 'n', 'no', 'x', 'false', '0'].includes(v)) return false;
-  return null;
-};
 const toNum = (s: unknown): number | null => {
   if (s === null || s === undefined || s === '') return null;
   const n = typeof s === 'number' ? s : Number(String(s).replace(/[^\d.\-]/g, ''));
   return Number.isFinite(n) ? n : null;
 };
-const toDate = (v: unknown): string | null => {
-  if (v === null || v === undefined || v === '') return null;
-  if (typeof v === 'number') {
-    const ms = (v - 25569) * 86400000;
-    return new Date(ms).toISOString().slice(0, 10);
-  }
-  const s = String(v).trim();
-  const m1 = s.match(/^(\d{4})[-./](\d{1,2})[-./](\d{1,2})/);
-  if (m1) return `${m1[1]}-${m1[2].padStart(2, '0')}-${m1[3].padStart(2, '0')}`;
-  return null;
-};
 
-function pick(row: Record<string, unknown>, keys: string[] | string): unknown {
-  const list = Array.isArray(keys) ? keys : [keys];
-  for (const k of list) if (row[k] !== undefined) return row[k];
+function findKey(row: Record<string, unknown>, matcher: string | RegExp): string | undefined {
+  for (const k of Object.keys(row)) {
+    const n = normHeader(k);
+    if (typeof matcher === 'string' ? n === matcher : matcher.test(n)) return k;
+  }
   return undefined;
 }
 
-// ---------- main ----------
-async function main() {
-  const buf = fs.readFileSync(FILE_ARG);
-  const wb = XLSX.read(buf, { type: 'buffer' });
-  const ws = wb.Sheets[wb.SheetNames[0]];
-  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: '' });
+function findVal(row: Record<string, unknown>, matcher: string | RegExp): unknown {
+  const k = findKey(row, matcher);
+  return k !== undefined ? row[k] : undefined;
+}
 
-  if (rows.length === 0) {
-    console.log('빈 시트입니다.');
-    return;
+// ---------- 시트별 처리 ----------
+async function processSheet(
+  sheetName: string,
+  rows: Record<string, unknown>[]
+): Promise<{ inserted: number; updated: number; skipped: number; unmatched: number }> {
+  const target = SHEET_TO_COHORT.find((m) => sheetName.includes(m.keyword));
+  if (!target) {
+    console.log(`  [SKIP] 시트 "${sheetName}" — 매핑되는 cohort 없음`);
+    return { inserted: 0, updated: 0, skipped: rows.length, unmatched: 0 };
   }
 
-  const headers = Object.keys(rows[0]);
-  console.log(`\n엑셀 헤더 (${headers.length}개):`);
-  for (const h of headers) console.log(`  · ${h}`);
-
-  // 매핑 안 된 헤더 = 자동 섹션 후보 (또는 IGNORE)
-  const mappedHeaders = new Set<string>();
-  for (const v of Object.values(COLUMN_MAP)) {
-    for (const h of v as string[]) if (headers.includes(h)) mappedHeaders.add(h);
-  }
-  const autoSectionCols = headers.filter(
-    (h) => !mappedHeaders.has(h) && !IGNORE_COLUMNS.includes(h)
-  );
-  const sectionCols = SECTION_COLUMNS.length > 0 ? SECTION_COLUMNS : autoSectionCols;
-
-  console.log(`\n섹션 컬럼 (${sectionCols.length}개): ${sectionCols.join(', ') || '없음'}`);
+  console.log(`\n  → cohort: ${target.label} (${target.cohortId})`);
 
   // 학생 명단 로드 (매칭용)
   const { data: students, error: stuErr } = await supabase
     .from('students')
-    .select('id, name, phone, email')
-    .eq('cohort_id', COHORT_ID);
+    .select('id, name, email')
+    .eq('cohort_id', target.cohortId);
   if (stuErr) throw new Error(stuErr.message);
-  console.log(`\ncohort 학생 수: ${students?.length ?? 0}명`);
+  console.log(`  cohort 학생 수: ${students?.length ?? 0}명`);
 
-  const byPhone = new Map<string, string>();
   const byEmail = new Map<string, string>();
   const byName = new Map<string, string[]>();
   for (const s of students ?? []) {
-    const p = normPhone(s.phone);
-    if (p) byPhone.set(p, s.id);
     const e = normEmail(s.email);
     if (e) byEmail.set(e, s.id);
     const n = normStr(s.name);
@@ -144,109 +114,98 @@ async function main() {
     }
   }
 
-  // 파싱 + 매칭
   const toUpsert: Record<string, unknown>[] = [];
   let matched = 0;
   let unmatched = 0;
-  for (const r of rows) {
-    const name = normStr(pick(r, COLUMN_MAP.name));
-    if (!name) continue;
 
-    const phone = normPhone(pick(r, COLUMN_MAP.phone)) || null;
-    const email = normEmail(pick(r, COLUMN_MAP.email)) || null;
+  for (const r of rows) {
+    const name = normStr(findVal(r, H.name));
+    if (!name) continue;
+    const email = normEmail(findVal(r, H.email)) || null;
 
     let studentId: string | null = null;
-    if (phone && byPhone.has(phone)) studentId = byPhone.get(phone)!;
-    else if (email && byEmail.has(email)) studentId = byEmail.get(email)!;
+    if (email && byEmail.has(email)) studentId = byEmail.get(email)!;
     else if (byName.get(name)?.length === 1) studentId = byName.get(name)![0];
 
     if (studentId) matched++;
     else unmatched++;
 
-    const section_scores: Record<string, number | string> = {};
-    for (const sec of sectionCols) {
-      const v = r[sec];
-      if (v === null || v === undefined || v === '') continue;
-      const n = toNum(v);
-      section_scores[sec] = n ?? String(v);
+    const section_scores: Record<string, number | null> = {};
+    for (const { pattern, label } of SECTION_LABELS) {
+      const v = findVal(r, pattern);
+      section_scores[label] = toNum(v);
     }
 
+    const finalScore = toNum(findVal(r, H.finalScore));
+    const passed = finalScore === null ? null : finalScore >= PASS_THRESHOLD;
+
     toUpsert.push({
-      cohort_id: COHORT_ID,
+      cohort_id: target.cohortId,
       student_id: studentId,
       name,
-      phone,
+      phone: null,
       email,
-      passed: toBool(pick(r, COLUMN_MAP.passed)),
-      total_score: toNum(pick(r, COLUMN_MAP.total_score)),
-      grade: normStr(pick(r, COLUMN_MAP.grade)) || null,
+      passed,
+      total_score: finalScore,
+      grade: null,
       section_scores,
-      exam_no: normStr(pick(r, COLUMN_MAP.exam_no)) || null,
-      cert_no: normStr(pick(r, COLUMN_MAP.cert_no)) || null,
-      exam_date: toDate(pick(r, COLUMN_MAP.exam_date)),
+      exam_no: null,
+      cert_no: null,
+      exam_date: null,
       raw: r
     });
   }
 
-  console.log(`\n파싱된 row: ${toUpsert.length}건 (매칭 ${matched} / 미매칭 ${unmatched})`);
+  console.log(`  파싱: ${toUpsert.length}건 (매칭 ${matched} / 미매칭 ${unmatched})`);
 
   if (DRY_RUN) {
-    console.log('\n--dry-run 모드: DB 쓰기 스킵.');
-    console.log('\n샘플 3건:');
-    for (const r of toUpsert.slice(0, 3)) console.log(JSON.stringify(r, null, 2));
-    return;
+    console.log('  --dry-run: DB 쓰기 skip. 샘플 1건:');
+    if (toUpsert[0]) console.log(JSON.stringify(toUpsert[0], null, 2));
+    return { inserted: 0, updated: 0, skipped: 0, unmatched };
   }
 
-  // upsert — (cohort_id, cert_no) 있으면 cert_no 기준, 없으면 (cohort_id, student_id) 기준
-  const withCert = toUpsert.filter((r) => r.cert_no);
-  const noCert = toUpsert.filter((r) => !r.cert_no);
+  // partial unique index 는 ON CONFLICT 지원이 애매하므로 cohort 단위로 wipe & insert.
+  // 재실행마다 이 cohort 의 결과는 완전히 새로 씀 — 엑셀이 항상 truth 라는 전제.
+  const { error: delErr } = await supabase
+    .from('certification_results')
+    .delete()
+    .eq('cohort_id', target.cohortId);
+  if (delErr) throw new Error(delErr.message);
 
-  let inserted = 0;
-  let updated = 0;
+  const { data, error } = await supabase
+    .from('certification_results')
+    .insert(toUpsert)
+    .select('id');
+  if (error) throw new Error(error.message);
+  const inserted = data?.length ?? 0;
 
-  if (withCert.length > 0) {
-    const { data, error } = await supabase
-      .from('certification_results')
-      .upsert(withCert, { onConflict: 'cohort_id,cert_no' })
-      .select('id, created_at, updated_at');
-    if (error) throw new Error(error.message);
-    for (const r of data ?? []) {
-      if ((r as { created_at: string; updated_at: string }).created_at ===
-          (r as { created_at: string; updated_at: string }).updated_at) inserted++;
-      else updated++;
-    }
+  console.log(`  완료: 신규 ${inserted}`);
+  return { inserted, updated: 0, skipped: 0, unmatched };
+}
+
+async function main() {
+  console.log(`파일: ${FILE}${DRY_RUN ? '  [--dry-run]' : ''}`);
+  const buf = fs.readFileSync(FILE);
+  const wb = XLSX.read(buf, { type: 'buffer' });
+  console.log(`시트: ${wb.SheetNames.join(', ')}`);
+
+  let totalIns = 0;
+  let totalUpd = 0;
+  let totalUnmatched = 0;
+
+  for (const sn of wb.SheetNames) {
+    console.log(`\n===== 시트: ${sn} =====`);
+    const ws = wb.Sheets[sn];
+    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: '' });
+    const r = await processSheet(sn, rows);
+    totalIns += r.inserted;
+    totalUpd += r.updated;
+    totalUnmatched += r.unmatched;
   }
 
-  if (noCert.length > 0) {
-    // student_id 있는 것만 (cohort_id, student_id) unique key 이용
-    const withStudent = noCert.filter((r) => r.student_id);
-    const noStudent = noCert.filter((r) => !r.student_id);
-
-    if (withStudent.length > 0) {
-        const { data, error } = await supabase
-        .from('certification_results')
-        .upsert(withStudent, { onConflict: 'cohort_id,student_id' })
-        .select('id, created_at, updated_at');
-      if (error) throw new Error(error.message);
-      for (const r of data ?? []) {
-        if ((r as { created_at: string; updated_at: string }).created_at ===
-            (r as { created_at: string; updated_at: string }).updated_at) inserted++;
-        else updated++;
-      }
-    }
-
-    if (noStudent.length > 0) {
-      // student_id 도 cert_no 도 없는 row — insert 만 (중복 검사 없음)
-        const { data, error } = await supabase
-        .from('certification_results')
-        .insert(noStudent)
-        .select('id');
-      if (error) throw new Error(error.message);
-      inserted += data?.length ?? 0;
-    }
-  }
-
-  console.log(`\n완료: 신규 ${inserted} / 업데이트 ${updated}`);
+  console.log(
+    `\n${'='.repeat(60)}\n전체 완료: 신규 ${totalIns} / 업데이트 ${totalUpd} / 미매칭 ${totalUnmatched}`
+  );
 }
 
 main().catch((e) => {
