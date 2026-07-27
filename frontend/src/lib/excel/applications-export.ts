@@ -55,6 +55,8 @@ export type ExportApplication = {
   excludedByOtherCohort?: boolean;
   // 미선발 사유 (buildApplicationsWorkbook에서 자동 채움)
   rejectionReason?: string;
+  // 신청 상태 (selected / same_day_cancel). 당일취소자 포함 export 시 구분용.
+  applicationStatus?: string;
 };
 
 export const REJECTION_REASONS = [
@@ -126,7 +128,8 @@ type ColumnDef = {
     | 'multiCheck'
     | 'prereq'
     | 'notes'
-    | 'rejectionReason';
+    | 'rejectionReason'
+    | 'statusLabel';
   header: string;
   width: number;
 };
@@ -146,6 +149,14 @@ const COMMON_COLUMNS: ColumnDef[] = [
 
 const SELECTED_COLUMNS: ColumnDef[] = [
   ...COMMON_COLUMNS,
+  { key: 'decidedAt', header: '선발일', width: 14 },
+  { key: 'notes', header: '비고', width: 32 }
+];
+
+// 당일취소자 포함 export 시 사용 — 상태 컬럼 추가로 '선발'/'당일취소' 구분
+const SELECTED_WITH_STATUS_COLUMNS: ColumnDef[] = [
+  ...COMMON_COLUMNS,
+  { key: 'statusLabel', header: '상태', width: 10 },
   { key: 'decidedAt', header: '선발일', width: 14 },
   { key: 'notes', header: '비고', width: 32 }
 ];
@@ -202,7 +213,8 @@ export async function buildApplicationsWorkbook({
   selectionConfig,
   excludedCohortNames,
   startedAt,
-  endedAt
+  endedAt,
+  includeCancel
 }: {
   cohortName: string;
   cohortTrack: CohortTrack;
@@ -212,6 +224,8 @@ export async function buildApplicationsWorkbook({
   excludedCohortNames?: string[];
   startedAt?: string | null;
   endedAt?: string | null;
+  /** true면 selected 리스트에 당일취소자가 섞여 있고, 선발 시트에 '상태' 컬럼 추가 */
+  includeCancel?: boolean;
 }): Promise<Buffer> {
   const period = fmtPeriod(startedAt ?? null, endedAt ?? null);
   // 미선발 사유 자동 분류 (selection_config 있을 때만)
@@ -225,7 +239,8 @@ export async function buildApplicationsWorkbook({
   buildSummarySheet(wb, cohortName, selected, rejected, selectionConfig, period, excludedCohortNames ?? []);
   const selSheetName = period ? `선발 (${period})` : '선발';
   const rejSheetName = period ? `미선발 (${period})` : '미선발';
-  buildSheet(wb, selSheetName, cohortName, cohortTrack, selected, SELECTED_COLUMNS, COLOR_HEADER_SELECTED, period);
+  const selCols = includeCancel ? SELECTED_WITH_STATUS_COLUMNS : SELECTED_COLUMNS;
+  buildSheet(wb, selSheetName, cohortName, cohortTrack, selected, selCols, COLOR_HEADER_SELECTED, period);
   buildSheet(wb, rejSheetName, cohortName, cohortTrack, rejected, REJECTED_COLUMNS, COLOR_HEADER_REJECTED, period);
   const buf = await wb.xlsx.writeBuffer();
   return Buffer.from(buf);
@@ -706,6 +721,8 @@ function renderValue(col: ColumnDef, r: ExportApplication, no: number): string |
       return r.decidedAt ?? '—';
     case 'rejectionReason':
       return r.rejectionReason ?? '—';
+    case 'statusLabel':
+      return r.applicationStatus === 'same_day_cancel' ? '당일취소' : '선발';
     case 'notes':
       return buildNotesText(r);
     default:

@@ -15,6 +15,7 @@ export async function GET(
   { params }: { params: Promise<{ cohortId: string }> }
 ) {
   const { cohortId } = await params;
+  const includeCancel = new URL(_req.url).searchParams.get('includeCancel') === '1';
   const supabase = createAdminClient();
 
   const { data: cohortRow, error: cohortError } = await supabase
@@ -63,13 +64,16 @@ export async function GET(
     } | null;
   };
 
+  const statusFilter = includeCancel
+    ? ['selected', 'rejected', 'same_day_cancel']
+    : ['selected', 'rejected'];
   const { data: applications, error: appError } = await supabase
     .from('applications')
     .select(
       'id, status, rejected_stage, decided_at, knowledge_score, knowledge_correct_count, knowledge_total_count, applicant_id, applicants(id, name, phone, email, department, job_role, organizations(name))'
     )
     .eq('cohort_id', cohortId)
-    .in('status', ['selected', 'rejected'])
+    .in('status', statusFilter)
     .returns<AppRow[]>();
   if (appError) return new NextResponse(appError.message, { status: 500 });
 
@@ -303,14 +307,19 @@ export async function GET(
     rejectedStage: r.rejected_stage,
     priorCerts: priorCertsByApplicant.get(r.applicants?.id ?? '') ?? [],
     expertCohortLabels: r.applicants?.id ? (expertLabelsByApplicant.get(r.applicants.id) ?? []) : [],
-    excludedByOtherCohort: r.applicants?.id ? excludedApplicantIds.has(r.applicants.id) : false
+    excludedByOtherCohort: r.applicants?.id ? excludedApplicantIds.has(r.applicants.id) : false,
+    applicationStatus: r.status
   });
 
-  // 종합점수 내림차순 정렬 (NULL은 뒤로)
+  // 종합점수 내림차순 정렬 (NULL은 뒤로). 당일취소자 포함 시 선발자와 함께 정렬.
   const byScoreDesc = (a: ExportApplication, b: ExportApplication) =>
     (b.finalScore ?? -1) - (a.finalScore ?? -1);
 
-  const selected = rows.filter((r) => r.status === 'selected').map(toExport).sort(byScoreDesc);
+  const selectedStatuses = includeCancel ? ['selected', 'same_day_cancel'] : ['selected'];
+  const selected = rows
+    .filter((r) => selectedStatuses.includes(r.status))
+    .map(toExport)
+    .sort(byScoreDesc);
   const rejected = rows.filter((r) => r.status === 'rejected').map(toExport).sort(byScoreDesc);
 
   // cohort 이름에서 트랙 추출 (예: "AI 챔피언 블루 26-1기" → 'blue')
@@ -341,7 +350,8 @@ export async function GET(
     selectionConfig: cohortRow.selection_config as SelectionConfigSummary | null,
     excludedCohortNames,
     startedAt: sessionStart,
-    endedAt: sessionEnd
+    endedAt: sessionEnd,
+    includeCancel
   });
 
   await logActivity({

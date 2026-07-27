@@ -7,6 +7,7 @@ import { isViewer } from '@/lib/auth';
 import Link from 'next/link';
 import { ApplicantsTable, type ApplicationRow } from './_components/applicants-table';
 import { ResetSelectionButton } from './_components/reset-selection-button';
+import { SelectionExportButton } from './_components/selection-export-button';
 import { SelectionSheet } from './_components/selection-sheet';
 import { UploadDialog } from './_components/upload-dialog';
 import { APPLICATIONS_PAGE_SIZE, applicationsSearchParamsCache } from './_search-params';
@@ -411,12 +412,7 @@ export default async function CohortApplicationsPage({ params, searchParams }: P
           사전문항 미리보기
         </Link>
       </Button>
-      <Button variant='outline' size='sm' asChild disabled={!canExport}>
-        <a href={`/api/cohorts/${cohortId}/applications/export`}>
-          <Icons.download className='mr-1.5' />
-          선발결과 엑셀
-        </a>
-      </Button>
+      <SelectionExportButton cohortId={cohortId} disabled={!canExport} />
       <Button
         variant='outline'
         size='sm'
