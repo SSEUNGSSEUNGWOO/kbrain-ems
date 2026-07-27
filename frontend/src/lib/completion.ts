@@ -10,12 +10,12 @@ export type AttendanceCount = {
 };
 
 /**
- * 출결 판정 (hybrid):
- * - 회차에 attendance_checks 가 있으면: 학생이 그 회차의 **모든 체크포인트에 셀프 체크인**해야 출석 인정.
- *   일부만 체크하고 빠진 게 있으면 출석 미인정. (운영자 수동 입력보다 셀프 체크인 데이터를 신뢰)
- * - 회차에 attendance_checks 가 없으면: attendance_records.status 가 출석 인정 상태(present/late/early_leave)면 인정.
+ * 출결 판정 (union):
+ * - attendance_records.status 가 출석 인정 상태(present/late/early_leave)면 인정 — 운영자 수동 입력 존중.
+ * - 또는 회차에 attendance_checks 가 있고 학생이 **모든 체크포인트에 셀프 체크인**했으면 인정.
+ *   (status 'none' 은 미기록 placeholder 이므로 출석으로 치지 않음)
  *
- * absentCount: 명시적으로 absent/excused 로 attendance_records 에 기록된 회차만 결석으로 셈.
+ * absentCount: 명시적으로 absent/excused 로 attendance_records 에 기록됐고 출석 인정도 안 된 회차만 결석으로 셈.
  *   체크포인트가 있고 학생이 체크 안 한 경우는 absent 로 자동 카운트하지 않음 (단순히 attended 미인정).
  */
 export async function computeAttendanceCounts(
@@ -77,14 +77,11 @@ export async function computeAttendanceCounts(
     for (const sessionId of sessionIds) {
       const required = checksBySession.get(sessionId) ?? [];
       const status = attendanceStatusBy.get(`${sid}__${sessionId}`);
-      if (required.length > 0) {
-        const allChecked = required.every((id) => checkIns.has(id));
-        if (allChecked) attended++;
-        else if (status && ABSENT_STATUSES.has(status)) absent++;
-      } else {
-        if (status && ATTENDED_STATUSES.has(status)) attended++;
-        else if (status && ABSENT_STATUSES.has(status)) absent++;
-      }
+      const byStatus = !!status && ATTENDED_STATUSES.has(status);
+      const byChecks =
+        required.length > 0 && required.every((id) => checkIns.has(id));
+      if (byStatus || byChecks) attended++;
+      else if (status && ABSENT_STATUSES.has(status)) absent++;
     }
     perStudent.set(sid, { attended, absent });
   }
@@ -211,13 +208,14 @@ export async function computeChampionCompletion(
   }
 
   const isAttended = (studentId: string, sessionId: string): boolean => {
-    const required = checksBySession.get(sessionId) ?? [];
     const status = attendanceStatusBy.get(`${studentId}__${sessionId}`);
+    if (status && ATTENDED_STATUSES.has(status)) return true;
+    const required = checksBySession.get(sessionId) ?? [];
     if (required.length > 0) {
       const checkIns = checkInsByStudent.get(studentId) ?? new Set<string>();
       return required.every((id) => checkIns.has(id));
     }
-    return !!status && ATTENDED_STATUSES.has(status);
+    return false;
   };
 
   for (const sid of studentIds) {

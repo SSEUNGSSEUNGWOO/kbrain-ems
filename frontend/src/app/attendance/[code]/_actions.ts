@@ -172,10 +172,31 @@ export async function checkinByShareCode(
       });
     }
   } else {
-    console.error('[attendance] role 추론 실패 — attendance_records 미동기화', {
-      checkId: check.id,
-      label: check.label
-    });
+    // role 미상 체크포인트 — 최소한 출석(present)은 기록해 미반영을 막는다.
+    // 운영자가 넣은 실제 상태(absent 등)는 덮어쓰지 않고, 없거나 'none'(미기록)일 때만 채움.
+    const { data: existing } = await supabase
+      .from('attendance_records')
+      .select('status')
+      .eq('session_id', check.session_id)
+      .eq('student_id', student.id)
+      .maybeSingle();
+    if (!existing || existing.status === 'none') {
+      const { error: arErr } = await supabase.from('attendance_records').upsert(
+        {
+          session_id: check.session_id,
+          student_id: student.id,
+          status: 'present'
+        },
+        { onConflict: 'session_id,student_id' }
+      );
+      if (arErr) {
+        console.error('[attendance] fallback upsert 실패', {
+          sessionId: check.session_id,
+          studentId: student.id,
+          error: arErr.message
+        });
+      }
+    }
   }
 
   return {
