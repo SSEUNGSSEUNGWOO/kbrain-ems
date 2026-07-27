@@ -26,6 +26,7 @@ export async function GET(
   const requested = parseRosterColumns(url.searchParams.get('cols'));
   const cols = filterForViewer(requested, hidePersonal);
   const colMeta = new Map(ROSTER_COLUMNS.map((c) => [c.key, c]));
+  const includeCancel = url.searchParams.get('includeCancel') === '1';
 
   const { data: cohort } = await supabase
     .from('cohorts')
@@ -60,10 +61,12 @@ export async function GET(
   if (error) return new NextResponse(error.message, { status: 500 });
 
   // 현재 selected 인 학생만 (취하·탈락 제외).
+  // includeCancel=1 이면 same_day_cancel(당일취소)도 포함.
   // 단, applications가 아예 없는 cohort(자기주도형/특화형처럼 지원 프로세스 없이 학생 직접 등록)는
   // 필터링을 건너뛰고 전체 학생 반환.
   const applicantIds = (studentRows ?? []).map((s) => s.applicant_id).filter(Boolean);
-  let selectedSet = new Set<string>();
+  let visibleSet = new Set<string>();
+  const cancelSet = new Set<string>();
   let hasApplications = false;
   if (applicantIds.length > 0) {
     const { data: apps } = await supabase
@@ -72,12 +75,18 @@ export async function GET(
       .eq('cohort_id', cohortId)
       .in('applicant_id', applicantIds);
     hasApplications = (apps ?? []).length > 0;
-    selectedSet = new Set(
-      (apps ?? []).filter((a) => a.status === 'selected').map((a) => a.applicant_id)
+    const allowedStatuses = includeCancel
+      ? new Set(['selected', 'same_day_cancel'])
+      : new Set(['selected']);
+    visibleSet = new Set(
+      (apps ?? []).filter((a) => allowedStatuses.has(a.status)).map((a) => a.applicant_id)
     );
+    for (const a of apps ?? []) {
+      if (a.status === 'same_day_cancel') cancelSet.add(a.applicant_id);
+    }
   }
   const filtered = hasApplications
-    ? (studentRows ?? []).filter((s) => selectedSet.has(s.applicant_id))
+    ? (studentRows ?? []).filter((s) => visibleSet.has(s.applicant_id))
     : (studentRows ?? []);
 
   function cellValue(s: StudentRow, key: RosterColumnKey): string {
@@ -111,8 +120,13 @@ export async function GET(
   wb.created = new Date();
   const ws = wb.addWorksheet(`${cohort.name} 명단`);
 
-  const headers = ['NO', '교육생 이름', ...cols.map((k) => colMeta.get(k)!.label)];
-  const widths = [6, 14, ...cols.map((k) => colMeta.get(k)!.width)];
+  const headers = [
+    'NO',
+    '교육생 이름',
+    ...cols.map((k) => colMeta.get(k)!.label),
+    ...(includeCancel ? ['상태'] : [])
+  ];
+  const widths = [6, 14, ...cols.map((k) => colMeta.get(k)!.width), ...(includeCancel ? [10] : [])];
 
   const headerRow = ws.addRow(headers);
   headerRow.height = 28;
@@ -142,7 +156,12 @@ export async function GET(
   });
 
   filtered.forEach((s, idx) => {
-    const vals = [idx + 1, s.name, ...cols.map((k) => cellValue(s, k))];
+    const vals = [
+      idx + 1,
+      s.name,
+      ...cols.map((k) => cellValue(s, k)),
+      ...(includeCancel ? [cancelSet.has(s.applicant_id) ? '당일취소' : '선발'] : [])
+    ];
     const row = ws.addRow(vals);
     row.eachCell((cell, col) => {
       cell.font = { name: 'Arial', size: 10 };

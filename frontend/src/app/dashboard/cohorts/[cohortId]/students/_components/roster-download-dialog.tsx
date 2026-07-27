@@ -29,6 +29,7 @@ export function RosterDownloadDialog({ cohortId, hidePersonal }: Props) {
   const [selected, setSelected] = useState<Set<RosterColumnKey>>(
     new Set(ROSTER_DEFAULT_COLUMNS)
   );
+  const [includeCancel, setIncludeCancel] = useState(false);
 
   const toggle = (key: RosterColumnKey) => {
     setSelected((prev) => {
@@ -42,7 +43,10 @@ export function RosterDownloadDialog({ cohortId, hidePersonal }: Props) {
   const onDownload = () => {
     // ROSTER_COLUMNS 순서를 유지한 채 선택된 키만 추출 (서버 순서와 일치)
     const orderedKeys = ROSTER_COLUMNS.map((c) => c.key).filter((k) => selected.has(k));
-    const qs = orderedKeys.length > 0 ? `?cols=${orderedKeys.join(',')}` : '';
+    const params = new URLSearchParams();
+    if (orderedKeys.length > 0) params.set('cols', orderedKeys.join(','));
+    if (includeCancel) params.set('includeCancel', '1');
+    const qs = params.toString() ? `?${params.toString()}` : '';
     window.location.href = `/api/cohorts/${cohortId}/students/export-simple${qs}`;
     setOpen(false);
   };
@@ -93,6 +97,15 @@ export function RosterDownloadDialog({ cohortId, hidePersonal }: Props) {
             );
           })}
         </div>
+
+        <label className='mt-2 flex cursor-pointer items-center gap-2 rounded-md border border-dashed px-3 py-2 text-sm'>
+          <Checkbox
+            checked={includeCancel}
+            onCheckedChange={(v) => setIncludeCancel(v === true)}
+          />
+          <span>당일취소자 포함</span>
+          <span className='ml-auto text-[10px] text-muted-foreground'>상태 컬럼 자동 추가</span>
+        </label>
 
         <DialogFooter className='gap-2 sm:gap-2'>
           <Button type='button' variant='ghost' size='sm' onClick={reset}>
