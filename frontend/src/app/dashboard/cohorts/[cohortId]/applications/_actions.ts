@@ -124,27 +124,45 @@ export async function loadSelectionPool(
       ((cohortMeta as { prereq_course_codes: string[] | null } | null)?.prereq_course_codes ?? []);
     const prereqMax = prereqCodes.length;
 
-    // 2) lms_completions에서 prereq 과목만 fetch (필수 없으면 skip)
+    // 2) lms_completions 조회 — 후보군의 phone/email 로만 좁혀서 in() 매칭.
+    // 전체 43k+ 건 chunked range 방식은 order 미보장으로 페이지네이션 중 row 누락이
+    // 발생해 실제 수료자가 미수료로 잘못 표시되는 이슈가 있었음. in() 은 결과가
+    // 항상 결정적이라 안전 + 훨씬 빠름.
     const phonesByCourse = new Map<string, Set<string>>();
     const emailsByCourse = new Map<string, Set<string>>();
     type LmsRow = { course_code: string; phone: string | null; email: string | null };
     if (prereqMax > 0) {
-      // PostgREST max-rows=1000 우회: range로 chunked fetch
+      const poolPhones = new Set<string>();
+      const poolEmails = new Set<string>();
+      for (const a of apps ?? []) {
+        const p = normPhone(a.applicants?.phone ?? null);
+        if (p) poolPhones.add(p);
+        const e = normEmail(a.applicants?.email ?? null);
+        if (e) poolEmails.add(e);
+      }
       const lmsRowsAll: LmsRow[] = [];
-      const chunk = 1000;
-      for (let from = 0; from < 1_000_000; from += chunk) {
+      const IN_CHUNK = 300;
+      const phones = [...poolPhones];
+      for (let i = 0; i < phones.length; i += IN_CHUNK) {
+        const slice = phones.slice(i, i + IN_CHUNK);
         const res = (await supabase
           // @ts-expect-error supabase types.ts에 lms_completions 미반영
           .from('lms_completions')
           .select('course_code, phone, email')
           .in('course_code', prereqCodes)
-          .range(from, from + chunk - 1)) as unknown as {
-          data: LmsRow[] | null;
-          error: { message: string } | null;
-        };
-        const batch = res.data ?? [];
-        lmsRowsAll.push(...batch);
-        if (batch.length < chunk) break;
+          .in('phone', slice)) as unknown as { data: LmsRow[] | null };
+        if (res.data) lmsRowsAll.push(...res.data);
+      }
+      const emails = [...poolEmails];
+      for (let i = 0; i < emails.length; i += IN_CHUNK) {
+        const slice = emails.slice(i, i + IN_CHUNK);
+        const res = (await supabase
+          // @ts-expect-error supabase types.ts에 lms_completions 미반영
+          .from('lms_completions')
+          .select('course_code, phone, email')
+          .in('course_code', prereqCodes)
+          .in('email', slice)) as unknown as { data: LmsRow[] | null };
+        if (res.data) lmsRowsAll.push(...res.data);
       }
       for (const r of lmsRowsAll) {
         if (!phonesByCourse.has(r.course_code)) {

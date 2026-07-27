@@ -105,26 +105,47 @@ export async function GET(
     1
   );
 
-  // 사전학습 수료 매칭 — cohort에 prereq 과목이 있을 때만 lms_completions 조회
+  // 사전학습 수료 매칭 — export 대상 신청자의 phone/email 로 좁혀 in() 조회.
+  // 전체 43k+ 건 chunked range 방식은 PostgreSQL이 order 없는 페이지네이션의
+  // 순서를 보장하지 않아 특정 row 가 누락돼 실제 수료자가 미수료로 표시되는
+  // 확률적 버그가 있었음. in() 매칭으로 안정화.
+  const normPhone = (s: string | null) => (s ?? '').replace(/[^\d]/g, '');
+  const normEmail = (s: string | null) => (s ?? '').trim().toLowerCase();
   const phonesByCourse = new Map<string, Set<string>>();
   const emailsByCourse = new Map<string, Set<string>>();
   if (prereqMax > 0) {
     type LmsRow = { course_code: string; phone: string | null; email: string | null };
+    const poolPhones = new Set<string>();
+    const poolEmails = new Set<string>();
+    for (const r of rows) {
+      const p = normPhone(r.applicants?.phone ?? null);
+      if (p) poolPhones.add(p);
+      const e = normEmail(r.applicants?.email ?? null);
+      if (e) poolEmails.add(e);
+    }
     const lmsAll: LmsRow[] = [];
-    const chunk = 1000;
-    for (let from = 0; from < 1_000_000; from += chunk) {
+    const IN_CHUNK = 300;
+    const phones = [...poolPhones];
+    for (let i = 0; i < phones.length; i += IN_CHUNK) {
+      const slice = phones.slice(i, i + IN_CHUNK);
       const res = (await supabase
         // @ts-expect-error supabase types.ts에 lms_completions 미반영
         .from('lms_completions')
         .select('course_code, phone, email')
         .in('course_code', prereqCodes)
-        .range(from, from + chunk - 1)) as unknown as {
-        data: LmsRow[] | null;
-        error: { message: string } | null;
-      };
-      const batch = res.data ?? [];
-      lmsAll.push(...batch);
-      if (batch.length < chunk) break;
+        .in('phone', slice)) as unknown as { data: LmsRow[] | null };
+      if (res.data) lmsAll.push(...res.data);
+    }
+    const emails = [...poolEmails];
+    for (let i = 0; i < emails.length; i += IN_CHUNK) {
+      const slice = emails.slice(i, i + IN_CHUNK);
+      const res = (await supabase
+        // @ts-expect-error supabase types.ts에 lms_completions 미반영
+        .from('lms_completions')
+        .select('course_code, phone, email')
+        .in('course_code', prereqCodes)
+        .in('email', slice)) as unknown as { data: LmsRow[] | null };
+      if (res.data) lmsAll.push(...res.data);
     }
     for (const r of lmsAll) {
       if (!phonesByCourse.has(r.course_code)) {
@@ -135,9 +156,6 @@ export async function GET(
       if (r.email) emailsByCourse.get(r.course_code)!.add(r.email.trim().toLowerCase());
     }
   }
-
-  const normPhone = (s: string | null) => (s ?? '').replace(/[^\d]/g, '');
-  const normEmail = (s: string | null) => (s ?? '').trim().toLowerCase();
   const computePrereqDone = (phone: string | null, email: string | null): number => {
     if (prereqMax === 0) return 0;
     const p = normPhone(phone);
