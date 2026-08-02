@@ -31,7 +31,7 @@ const SECTION_LABEL: Record<string, string> = {
   common: '공통',
   pre_learning: '사전학습',
   self_diagnosis: '자가진단',
-  knowledge: '지식평가',
+  knowledge: '역량점수',
   usability: '업무활용성'
 };
 
@@ -150,7 +150,7 @@ function SummaryStats({
           <Stat key={s.key} label={s.label} value={s.count} />
         ))}
         {knowledgeMax > 0 && (
-          <Stat label='지식평가 만점' value={`${knowledgeMax}점`} accent />
+          <Stat label='역량점수 만점' value={`${knowledgeMax}점`} accent />
         )}
       </CardContent>
     </Card>

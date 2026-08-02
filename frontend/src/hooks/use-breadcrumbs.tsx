@@ -13,7 +13,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const SEGMENT_LABELS: Record<string, string> = {
   dashboard: '대시보드',
   cohorts: '교육과정',
-  students: '인원관리',
+  students: '교육생정보',
   attendance: '출결',
   recruitment: '모집',
   selection: '선발',

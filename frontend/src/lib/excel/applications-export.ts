@@ -64,7 +64,7 @@ export const REJECTION_REASONS = [
   '사전학습 미이수',
   '기관별 배정 인원 기준 적용',
   '상위부처 인원 기준 초과',
-  '지식평가 점수 미흡',
+  '역량점수 미흡',
   '업무활용 계획 구체성 미흡'
 ] as const;
 export type RejectionReason = (typeof REJECTION_REASONS)[number];
@@ -115,8 +115,8 @@ function classifyRejection(
   const multiNorm =
     r.multiChoicesMax > 0 ? Math.min((r.multiSelectedCount ?? 0) / r.multiChoicesMax, 1) : 0;
   const pNorm = (planNorm + multiNorm) / 2;
-  if (kNorm === null) return '지식평가 점수 미흡';
-  return kNorm < pNorm ? '지식평가 점수 미흡' : '업무활용 계획 구체성 미흡';
+  if (kNorm === null) return '역량점수 미흡';
+  return kNorm < pNorm ? '역량점수 미흡' : '업무활용 계획 구체성 미흡';
 }
 
 type ColumnDef = {
@@ -141,7 +141,7 @@ const COMMON_COLUMNS: ColumnDef[] = [
   { key: 'organization', header: '소속기관', width: 28 },
   { key: 'department', header: '실·국·과명', width: 30 },
   { key: 'prereq', header: '사전학습', width: 10 },
-  { key: 'knowledge', header: '지식평가', width: 14 },
+  { key: 'knowledge', header: '역량점수', width: 14 },
   { key: 'multiCheck', header: '업무활용성', width: 12 },
   { key: 'planCharCount', header: '활용계획(자)', width: 14 },
   { key: 'finalScore', header: '종합점수', width: 12 }

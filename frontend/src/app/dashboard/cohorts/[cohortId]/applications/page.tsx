@@ -501,9 +501,9 @@ function StatsRow({
         <Stat label='총 신청자' value={stats.total} accent />
         <Stat label='선발' value={stats.selected} tone='text-emerald-600' />
         <Stat label='탈락' value={stats.rejected} tone='text-rose-600' />
-        <Stat label='미결정' value={stats.pending} tone='text-amber-600' />
+        <Stat label='기타' value={stats.pending} tone='text-amber-600' />
         <Stat
-          label='평균 지식점수'
+          label='평균 역량점수'
           value={stats.avgKnowledge !== null ? `${stats.avgKnowledge}점` : '—'}
         />
         <Stat

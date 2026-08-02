@@ -53,7 +53,7 @@ const STAGE_BADGE_CLASS: Record<CohortStage, string> = {
 // 단색 라인 아이콘 — color 는 currentColor 통일. active 시에만 primary tint.
 const DOMAINS = [
   { slug: 'applications', label: '신청·응답', icon: 'forms' as const },
-  { slug: 'students', label: '인원관리', icon: 'teams' as const },
+  { slug: 'students', label: '교육생정보', icon: 'teams' as const },
   { slug: 'lessons', label: '수업관리', icon: 'calendar' as const },
   { slug: 'attendance', label: '출결', icon: 'circleCheck' as const },
   { slug: 'assignments', label: '과제', icon: 'forms' as const },

@@ -233,7 +233,7 @@ function ScoreSummary({
     <Card className='py-4'>
       <CardContent className='grid grid-cols-2 gap-x-8 gap-y-4 px-6 md:grid-cols-4'>
         <div className='flex flex-col gap-1'>
-          <span className='text-muted-foreground text-xs'>지식평가 점수</span>
+          <span className='text-muted-foreground text-xs'>역량점수</span>
           <span className='text-foreground text-2xl leading-tight font-semibold tabular-nums'>
             {knowledgeScore !== null ? knowledgeScore : '—'}
             <span className='text-muted-foreground ml-1 text-base font-normal'>

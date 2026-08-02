@@ -37,7 +37,7 @@ const SECTION_LABEL: Record<string, string> = {
   common: '공통',
   pre_learning: '사전학습',
   self_diagnosis: '자가진단',
-  knowledge: '지식평가',
+  knowledge: '역량점수',
   usability: '업무활용성'
 };
 

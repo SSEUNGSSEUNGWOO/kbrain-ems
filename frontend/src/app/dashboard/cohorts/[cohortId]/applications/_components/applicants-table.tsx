@@ -260,7 +260,7 @@ export function ApplicantsTable({
                   onSort={onSort}
                   align='right'
                 >
-                  지식평가
+                  역량점수
                 </SortableHead>
                 <TableHead className='text-right'>활용 계획</TableHead>
                 <SortableHead col='applied_at' current={sortCol} dir={sortDir} onSort={onSort}>
