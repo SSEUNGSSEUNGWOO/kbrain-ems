@@ -225,21 +225,39 @@ export function AttendanceTable({
   const handleSave = () => {
     setSaveError(null);
     startTransition(async () => {
-      const records = students.filter((s) => statuses[s.id] && statuses[s.id] !== 'none').map((s) => {
-        const status = statuses[s.id];
+      // 변경된 학생만 저장 (diff) — 페이지 로드 후 QR 체크인·다른 운영자 저장으로
+      // 바뀐 다른 학생의 기록을 이 탭의 오래된 스냅샷으로 되돌리지 않기 위함.
+      const records: Parameters<typeof saveAttendance>[2] = [];
+      const deleteIds: string[] = [];
+      for (const s of students) {
+        const init = recordMap[s.id];
+        const status = statuses[s.id] ?? 'none';
+        if (status === 'none') {
+          // 기존 기록을 '-'로 되돌림 → row 삭제
+          if (init) deleteIds.push(s.id);
+          continue;
+        }
         const arrivalTime = arrivalTimes[s.id] || null;
         const departureTime = departureTimes[s.id] || null;
         const credited = calcCreditedHours(status, sessionStartTime, sessionEndTime, breakMinutes, arrivalTimes[s.id], departureTimes[s.id], breakStartTime);
-        return {
+        const changed =
+          !init ||
+          init.status !== status ||
+          (init.note ?? '') !== (notes[s.id] || '') ||
+          (init.credited_hours ?? null) !== credited ||
+          (status === 'late' && (init.arrival_time?.slice(0, 5) || null) !== arrivalTime) ||
+          (status === 'early_leave' && (init.departure_time?.slice(0, 5) || null) !== departureTime);
+        if (!changed) continue;
+        records.push({
           student_id: s.id,
           status,
           note: notes[s.id] || null,
           arrival_time: status === 'late' ? arrivalTime : null,
           departure_time: status === 'early_leave' ? departureTime : null,
           credited_hours: credited
-        };
-      });
-      const result = await saveAttendance(sessionId, cohortId, records);
+        });
+      }
+      const result = await saveAttendance(sessionId, cohortId, records, deleteIds);
       if (result?.error) {
         setSaveError(result.error);
       } else {

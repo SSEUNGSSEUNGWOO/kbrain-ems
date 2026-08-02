@@ -131,15 +131,35 @@ export async function checkinByShareCode(
   if (effectiveRole === 'arrival') {
     const isLate =
       !!check.criterion_at && new Date(checkedAt) > new Date(check.criterion_at);
-    const { error: arErr } = await supabase.from('attendance_records').upsert(
-      {
-        session_id: check.session_id,
-        student_id: student.id,
-        status: isLate ? 'late' : 'present',
-        arrival_time: checkedAt.slice(11, 16)
-      },
-      { onConflict: 'session_id,student_id' }
-    );
+    // 운영자가 이미 기록한 status(결석·공결·조퇴 등)는 덮지 않는다.
+    // 기록이 없거나 'none' 일 때만 status 반영, arrival_time 은 비어 있으면 채움.
+    const { data: existingRec } = await supabase
+      .from('attendance_records')
+      .select('status, arrival_time')
+      .eq('session_id', check.session_id)
+      .eq('student_id', student.id)
+      .maybeSingle();
+    const patch: {
+      session_id: string;
+      student_id: string;
+      status: string;
+      arrival_time?: string;
+    } = {
+      session_id: check.session_id,
+      student_id: student.id,
+      status:
+        !existingRec || existingRec.status === 'none'
+          ? isLate
+            ? 'late'
+            : 'present'
+          : existingRec.status
+    };
+    if (!existingRec?.arrival_time) {
+      patch.arrival_time = checkedAt.slice(11, 16);
+    }
+    const { error: arErr } = await supabase
+      .from('attendance_records')
+      .upsert(patch, { onConflict: 'session_id,student_id' });
     if (arErr) {
       console.error('[attendance] arrival upsert 실패', {
         sessionId: check.session_id,
@@ -148,22 +168,30 @@ export async function checkinByShareCode(
       });
     }
   } else if (effectiveRole === 'departure') {
-    // 마감 체크인 — departure_time 만 갱신. status 는 기존 값 유지 (없으면 present).
+    // 마감 체크인 — status 는 기존 값 유지 (없으면 present).
+    // departure_time 은 비어 있을 때만 기록 — 운영자가 입력한 조퇴 시각을 덮지 않는다.
     const { data: existing } = await supabase
       .from('attendance_records')
-      .select('status')
+      .select('status, departure_time')
       .eq('session_id', check.session_id)
       .eq('student_id', student.id)
       .maybeSingle();
-    const { error: arErr } = await supabase.from('attendance_records').upsert(
-      {
-        session_id: check.session_id,
-        student_id: student.id,
-        status: existing?.status ?? 'present',
-        departure_time: checkedAt.slice(11, 16)
-      },
-      { onConflict: 'session_id,student_id' }
-    );
+    const patch: {
+      session_id: string;
+      student_id: string;
+      status: string;
+      departure_time?: string;
+    } = {
+      session_id: check.session_id,
+      student_id: student.id,
+      status: existing?.status ?? 'present'
+    };
+    if (!existing?.departure_time) {
+      patch.departure_time = checkedAt.slice(11, 16);
+    }
+    const { error: arErr } = await supabase
+      .from('attendance_records')
+      .upsert(patch, { onConflict: 'session_id,student_id' });
     if (arErr) {
       console.error('[attendance] departure upsert 실패', {
         sessionId: check.session_id,

@@ -18,23 +18,48 @@ type ActionResult = { error?: string };
 export async function saveAttendance(
   sessionId: string,
   cohortId: string,
-  records: AttendanceRecord[]
+  records: AttendanceRecord[],
+  deleteStudentIds: string[] = []
 ): Promise<ActionResult> {
-  const rows = records.map((r) => ({
+  const supabase = createAdminClient();
+
+  // 시간 컬럼은 해당 상태일 때만 포함 — 지각/조퇴가 아닌 학생의 QR 도착·퇴장
+  // 시각을 null 로 덮어쓰지 않기 위해 upsert 에서 컬럼 자체를 뺀다.
+  // (PostgREST 일괄 upsert 는 row 간 컬럼이 같아야 하므로 그룹별로 나눠 호출)
+  const base = (r: AttendanceRecord) => ({
     session_id: sessionId,
     student_id: r.student_id,
     status: r.status,
     note: r.note,
-    arrival_time: r.arrival_time,
-    departure_time: r.departure_time,
     credited_hours: r.credited_hours?.toString() ?? null
-  }));
+  });
+  const lateRows = records
+    .filter((r) => r.status === 'late')
+    .map((r) => ({ ...base(r), arrival_time: r.arrival_time }));
+  const earlyLeaveRows = records
+    .filter((r) => r.status === 'early_leave')
+    .map((r) => ({ ...base(r), departure_time: r.departure_time }));
+  const plainRows = records
+    .filter((r) => r.status !== 'late' && r.status !== 'early_leave')
+    .map(base);
 
-  const supabase = createAdminClient();
-  const { error } = await supabase
-    .from('attendance_records')
-    .upsert(rows, { onConflict: 'session_id,student_id' });
-  if (error) return { error: error.message };
+  for (const rows of [plainRows, lateRows, earlyLeaveRows]) {
+    if (rows.length === 0) continue;
+    const { error } = await supabase
+      .from('attendance_records')
+      .upsert(rows, { onConflict: 'session_id,student_id' });
+    if (error) return { error: error.message };
+  }
+
+  // 출결을 '-'(미기록)로 되돌린 학생은 row 삭제 — 안 지우면 새로고침 때 되살아난다.
+  if (deleteStudentIds.length > 0) {
+    const { error } = await supabase
+      .from('attendance_records')
+      .delete()
+      .eq('session_id', sessionId)
+      .in('student_id', deleteStudentIds);
+    if (error) return { error: error.message };
+  }
 
   revalidatePath(`/dashboard/cohorts/${cohortId}/attendance`);
   revalidatePath(`/dashboard/cohorts/${cohortId}/attendance/${sessionId}`);

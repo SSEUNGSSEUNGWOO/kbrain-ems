@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { createClient } from '@/lib/supabase/client';
-import { startDiagnosis } from '../_actions';
+import { saveDiagnosisDraft, startDiagnosis } from '../_actions';
 
 type Question = {
   id: string;
@@ -27,7 +27,13 @@ type Props = {
 };
 
 type SubmitResult =
-  | { ok: true; total_score: number; max_score: number; correct_count: number }
+  | {
+      ok: true;
+      total_score: number;
+      max_score: number;
+      correct_count: number;
+      alreadySubmitted?: boolean;
+    }
   | { ok: false; error: string };
 
 type Step = 'confirm' | 'test' | 'result';
@@ -193,7 +199,8 @@ export function DiagnosisForm({
             ok: true,
             total_score: Number(res.total_score ?? 0),
             max_score: Number(res.max_score ?? questions.length * 5),
-            correct_count: Number(res.correct_count ?? 0)
+            correct_count: Number(res.correct_count ?? 0),
+            alreadySubmitted: res.already_submitted === true
           });
           try {
             localStorage.removeItem(storageKey(token));
@@ -235,6 +242,41 @@ export function DiagnosisForm({
     }, 1000);
     return () => clearInterval(id);
   }, [step, submit]);
+
+  // 답안 중간 저장 (draft) — 최종 제출 실패·시간 초과 강제마감 시에도
+  // 서버에 마지막 draft 가 남아 채점에 반영되도록 2초 debounce 로 동기화.
+  useEffect(() => {
+    if (step !== 'test') return;
+    if (Object.keys(answers).length === 0) return;
+    const id = setTimeout(() => {
+      void saveDiagnosisDraft(token, answers).catch(() => {
+        // 다음 debounce 에서 재시도되므로 무시
+      });
+    }, 2000);
+    return () => clearTimeout(id);
+  }, [answers, step, token]);
+
+  // 탭 복귀 시 서버 시각으로 타이머 재동기화.
+  // 모바일 화면 잠금·백그라운드에서 setInterval 이 멈춰 클라이언트 잔여시간이
+  // 실제보다 많게 보이는 문제 대응 — 서버 기준 만료면 즉시 자동 제출.
+  useEffect(() => {
+    if (step !== 'test') return;
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      void (async () => {
+        const r = await startDiagnosis(token);
+        if (!r.ok) {
+          if (r.error === 'already_submitted') void submit(true);
+          return;
+        }
+        const remain = Math.max(0, testDurationSeconds - r.elapsedSeconds);
+        setTimeLeft(remain);
+        if (remain <= 0) void submit(true);
+      })();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [step, submit, testDurationSeconds, token]);
 
   // === 본인 확인 단계 ===
   if (step === 'confirm') {
@@ -335,12 +377,25 @@ export function DiagnosisForm({
           {studentName} · {diagnosisType === 'pre' ? '사전' : '사후'}
         </div>
         <h2 className='text-xl font-bold text-slate-900'>제출 완료</h2>
-        <p className='mt-2 text-sm text-slate-500'>
-          응답해주셔서 감사합니다.
-        </p>
-        <p className='mt-1 text-xs text-slate-400'>
-          {questions.length}문항 모두 정상 접수되었습니다.
-        </p>
+        {result.alreadySubmitted ? (
+          <>
+            <p className='mt-2 text-sm font-semibold text-amber-600'>
+              제한 시간이 지나 이미 마감 처리된 응답입니다.
+            </p>
+            <p className='mt-1 text-xs text-slate-400'>
+              마감 시점까지 저장된 답안이 접수되었습니다.
+            </p>
+          </>
+        ) : (
+          <>
+            <p className='mt-2 text-sm text-slate-500'>
+              응답해주셔서 감사합니다.
+            </p>
+            <p className='mt-1 text-xs text-slate-400'>
+              {questions.length}문항 모두 정상 접수되었습니다.
+            </p>
+          </>
+        )}
       </div>
     );
   }

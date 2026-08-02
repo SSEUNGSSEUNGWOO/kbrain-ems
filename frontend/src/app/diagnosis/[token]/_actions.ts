@@ -43,3 +43,22 @@ export async function startDiagnosis(
 
   return { ok: true, elapsedSeconds: 0 };
 }
+
+/**
+ * 응시 중 답안 중간 저장(draft). 최종 제출 전까지 답안이 클라이언트에만 있으면
+ * 시간 초과 강제마감 시 통째로 유실되므로, 주기적으로 responses 에 반영해 둔다.
+ * force_close_diagnosis_responses 는 responses 를 채점하므로 draft 까지는 점수에 반영된다.
+ * submitted_at 이 이미 찍힌 응답은 건드리지 않는다.
+ */
+export async function saveDiagnosisDraft(
+  token: string,
+  answers: Record<string, string>
+): Promise<{ ok: boolean }> {
+  const supabase = createAdminClient();
+  const { error } = await supabase
+    .from('diagnosis_responses')
+    .update({ responses: answers })
+    .eq('token', token)
+    .is('submitted_at', null);
+  return { ok: !error };
+}
