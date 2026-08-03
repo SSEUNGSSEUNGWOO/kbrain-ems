@@ -214,8 +214,9 @@ async function renderChampion({
 
         <Card className='py-4'>
           <CardContent className='text-muted-foreground text-xs px-6'>
-            <span className='text-foreground font-medium'>수료 조건</span> · OT 참석 + 집중교육 3일
-            이상 참석 + 인증평가 참여 (세 조건 모두 만족)
+            <span className='text-foreground font-medium'>수료 조건</span> · 집중교육 3일 이상 참석 +
+            인증평가 참여 (두 조건 모두 만족). OT 는 참고 표시이며 판정에서 제외 — OT 만 빠진
+            학생은 수료로 인정한다.
           </CardContent>
         </Card>
 

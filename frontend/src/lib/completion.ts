@@ -101,10 +101,13 @@ export async function computeAttendanceCounts(
       const required = checksBySession.get(sessionId) ?? [];
       const status = attendanceStatusBy.get(`${sid}__${sessionId}`);
       const byStatus = !!status && ATTENDED_STATUSES.has(status);
+      // 운영자가 결석·공결로 명시했으면 체크인이 남아 있어도 출석으로 치지 않는다.
+      // (QR 만 찍고 이탈한 경우가 있어 운영자 판단이 체크인보다 우선)
+      const markedAbsent = !!status && ABSENT_STATUSES.has(status);
       const byChecks =
-        required.length > 0 && required.every((id) => checkIns.has(id));
+        !markedAbsent && required.length > 0 && required.every((id) => checkIns.has(id));
       if (byStatus || byChecks) attended++;
-      else if (status && ABSENT_STATUSES.has(status)) absent++;
+      else if (markedAbsent) absent++;
     }
     perStudent.set(sid, { attended, absent });
   }
@@ -114,7 +117,10 @@ export async function computeAttendanceCounts(
 
 /**
  * AI 챔피언 수료 판정.
- * 조건: OT 참석 + 집중교육 기간 내 3일 이상 참석 + 인증평가 참여(certification_results 존재)
+ * 조건: 집중교육 기간 내 3일 이상 참석 + 인증평가 참여(certification_results 존재)
+ *
+ * OT 는 판정에서 제외한다 — 운영 기준상 OT 만 빠지고 집중교육·인증평가를 채운
+ * 학생은 수료 처리하기 때문. otAttended 값 자체는 화면 표시용으로 계속 반환한다.
  */
 export type ChampionCompletion = {
   otAttended: boolean;
@@ -237,6 +243,8 @@ export async function computeChampionCompletion(
   const isAttended = (studentId: string, sessionId: string): boolean => {
     const status = attendanceStatusBy.get(`${studentId}__${sessionId}`);
     if (status && ATTENDED_STATUSES.has(status)) return true;
+    // 운영자가 결석·공결로 명시했으면 체크인이 남아 있어도 미출석 (운영자 판단 우선)
+    if (status && ABSENT_STATUSES.has(status)) return false;
     const required = checksBySession.get(sessionId) ?? [];
     if (required.length > 0) {
       const checkIns = checkInsByStudent.get(studentId) ?? new Set<string>();
@@ -250,7 +258,7 @@ export async function computeChampionCompletion(
     let intensiveDays = 0;
     for (const id of intensiveSessionIds) if (isAttended(sid, id)) intensiveDays++;
     const examParticipated = participatedSet.has(sid);
-    const isCompleted = otAttended && intensiveDays >= 3 && examParticipated;
+    const isCompleted = intensiveDays >= 3 && examParticipated;
     perStudent.set(sid, { otAttended, intensiveDays, examParticipated, isCompleted });
   }
 
