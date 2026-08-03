@@ -4,6 +4,23 @@ import type { Database } from './supabase/types';
 export const ATTENDED_STATUSES = new Set(['present', 'late', 'early_leave']);
 export const ABSENT_STATUSES = new Set(['absent', 'excused']);
 
+// PostgREST 는 요청당 최대 1000행만 반환한다. 출결·체크인은 (학생 × 회차) 규모라
+// 100명 기수부터 이 한도를 넘어 뒷부분이 조용히 잘린다 — 잘린 학생은 미출석으로
+// 오판되므로 반드시 range() 로 전량 조회할 것.
+const PAGE = 1000;
+async function fetchAllRows<T>(
+  page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>
+): Promise<T[]> {
+  const acc: T[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data } = await page(from, from + PAGE - 1);
+    if (!data || data.length === 0) break;
+    acc.push(...data);
+    if (data.length < PAGE) break;
+  }
+  return acc;
+}
+
 export type AttendanceCount = {
   attended: number;
   absent: number;
@@ -36,19 +53,25 @@ export async function computeAttendanceCounts(
     return { totalSessions, perStudent };
   }
 
-  const [checksRes, attRecordsRes, checkRecordsRes] = await Promise.all([
+  const [checksRes, attRecords, checkRecords] = await Promise.all([
     supabase
       .from('attendance_checks')
       .select('id, session_id')
       .in('session_id', sessionIds),
-    supabase
-      .from('attendance_records')
-      .select('student_id, session_id, status')
-      .in('session_id', sessionIds),
-    supabase
-      .from('attendance_check_records')
-      .select('check_id, student_id')
-      .in('student_id', studentIds)
+    fetchAllRows<{ student_id: string; session_id: string; status: string }>((from, to) =>
+      supabase
+        .from('attendance_records')
+        .select('student_id, session_id, status')
+        .in('session_id', sessionIds)
+        .range(from, to)
+    ),
+    fetchAllRows<{ check_id: string; student_id: string }>((from, to) =>
+      supabase
+        .from('attendance_check_records')
+        .select('check_id, student_id')
+        .in('student_id', studentIds)
+        .range(from, to)
+    )
   ]);
 
   const checksBySession = new Map<string, string[]>();
@@ -59,14 +82,14 @@ export async function computeAttendanceCounts(
   }
 
   const checkInsByStudent = new Map<string, Set<string>>();
-  for (const r of checkRecordsRes.data ?? []) {
+  for (const r of checkRecords) {
     const set = checkInsByStudent.get(r.student_id) ?? new Set<string>();
     set.add(r.check_id);
     checkInsByStudent.set(r.student_id, set);
   }
 
   const attendanceStatusBy = new Map<string, string>();
-  for (const a of attRecordsRes.data ?? []) {
+  for (const a of attRecords) {
     attendanceStatusBy.set(`${a.student_id}__${a.session_id}`, a.status);
   }
 
@@ -147,7 +170,7 @@ export async function computeChampionCompletion(
   }
 
   // 학생별 attended session id set 을 뽑기 위해 hybrid 로직 재사용
-  const [checksRes, attRecordsRes, checkRecordsRes, certRes] = await Promise.all([
+  const [checksRes, attRecords, checkRecords, certRes] = await Promise.all([
     relevantSessionIds.length > 0
       ? supabase
           .from('attendance_checks')
@@ -155,17 +178,21 @@ export async function computeChampionCompletion(
           .in('session_id', relevantSessionIds)
       : Promise.resolve({ data: [] as { id: string; session_id: string }[] }),
     relevantSessionIds.length > 0
-      ? supabase
-          .from('attendance_records')
-          .select('student_id, session_id, status')
-          .in('session_id', relevantSessionIds)
-      : Promise.resolve({
-          data: [] as { student_id: string; session_id: string; status: string }[]
-        }),
-    supabase
-      .from('attendance_check_records')
-      .select('check_id, student_id')
-      .in('student_id', studentIds),
+      ? fetchAllRows<{ student_id: string; session_id: string; status: string }>((from, to) =>
+          supabase
+            .from('attendance_records')
+            .select('student_id, session_id, status')
+            .in('session_id', relevantSessionIds)
+            .range(from, to)
+        )
+      : Promise.resolve([] as { student_id: string; session_id: string; status: string }[]),
+    fetchAllRows<{ check_id: string; student_id: string }>((from, to) =>
+      supabase
+        .from('attendance_check_records')
+        .select('check_id, student_id')
+        .in('student_id', studentIds)
+        .range(from, to)
+    ),
     (
       supabase.from(
         'certification_results' as unknown as 'cohorts'
@@ -192,13 +219,13 @@ export async function computeChampionCompletion(
     checksBySession.set(c.session_id, arr);
   }
   const checkInsByStudent = new Map<string, Set<string>>();
-  for (const r of checkRecordsRes.data ?? []) {
+  for (const r of checkRecords) {
     const set = checkInsByStudent.get(r.student_id) ?? new Set<string>();
     set.add(r.check_id);
     checkInsByStudent.set(r.student_id, set);
   }
   const attendanceStatusBy = new Map<string, string>();
-  for (const a of attRecordsRes.data ?? []) {
+  for (const a of attRecords) {
     attendanceStatusBy.set(`${a.student_id}__${a.session_id}`, a.status);
   }
 
