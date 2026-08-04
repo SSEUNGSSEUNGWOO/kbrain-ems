@@ -1,6 +1,7 @@
 'use server';
 
 import { createAdminClient } from '@/lib/supabase/server';
+import { syncStudentSelected } from '@/lib/student-sync';
 import { redirect } from 'next/navigation';
 
 type Result = { error: string };
@@ -123,10 +124,31 @@ export async function submitApplication(formData: FormData): Promise<Result | vo
 
   // applicant 재사용/생성 (이메일 매칭 우선, 그 다음 전화)
   let applicantId: string;
-  if (byEmail) {
-    applicantId = byEmail.id;
-  } else if (byPhone) {
-    applicantId = byPhone.id;
+  if (byEmail || byPhone) {
+    applicantId = (byEmail ?? byPhone)!.id;
+    // 재신청 — 마스터를 최신 신청서 값으로 갱신.
+    // 식별·소속 정보는 항상, 선택 입력 항목은 값이 있을 때만 (빈 제출로 null 덮기 방지).
+    const { error: updErr } = await supabase
+      .from('applicants')
+      .update({
+        name,
+        email,
+        phone: phoneNormalized,
+        organization_id: organizationId,
+        ...(department ? { department } : {}),
+        ...(jobTitle ? { job_title: jobTitle } : {}),
+        ...(jobRole ? { job_role: jobRole } : {}),
+        ...(birthDate ? { birth_date: birthDate } : {})
+      })
+      .eq('id', applicantId);
+    if (updErr) return { error: `지원자 정보 갱신 실패: ${updErr.message}` };
+    // 식별자(이름·전화·이메일)만 기존 students 에 전파 —
+    // 소속·부서·직무는 "수강 당시 스냅샷" 정책이라 과거 기수 기록을 덮지 않는다.
+    const { error: syncErr } = await supabase
+      .from('students')
+      .update({ name, phone: phoneNormalized, email })
+      .eq('applicant_id', applicantId);
+    if (syncErr) return { error: `교육생 정보 동기화 실패: ${syncErr.message}` };
   } else {
     const { data: created, error: aErr } = await supabase
       .from('applicants')
@@ -195,6 +217,11 @@ export async function submitApplication(formData: FormData): Promise<Result | vo
     // 업로드된 파일 cleanup
     await supabase.storage.from('application-files').remove([filePath]);
     return { error: appErr?.message ?? '신청 저장 실패' };
+  }
+
+  // 즉시선발(experts 이력자)은 students 승격까지 완료 — redirect 는 throw 라 반드시 그 앞에서
+  if (initialStatus === 'selected') {
+    await syncStudentSelected(supabase, applicantId, cohort.id);
   }
 
   redirect(`/apply/${slug}/done?id=${application.id}`);

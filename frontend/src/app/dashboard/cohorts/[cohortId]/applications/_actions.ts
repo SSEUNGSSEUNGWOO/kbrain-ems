@@ -1,6 +1,7 @@
 'use server';
 
 import { createAdminClient } from '@/lib/supabase/server';
+import { syncStudentSelected, removeStudentForCohort } from '@/lib/student-sync';
 import { revalidatePath } from 'next/cache';
 import { logActivity } from '@/lib/activity-log';
 import {
@@ -27,14 +28,22 @@ export async function updateApplicationStatus(
   const decidedAt = newStatus === 'selected' || newStatus === 'rejected' ? today : null;
   const { data: appRow } = await supabase
     .from('applications')
-    .select('applicants(name)')
+    .select('applicant_id, applicants(name)')
     .eq('id', applicationId)
-    .maybeSingle<{ applicants: { name: string } | null }>();
+    .maybeSingle<{ applicant_id: string; applicants: { name: string } | null }>();
+  if (!appRow) return { error: '지원 이력을 찾을 수 없습니다.' };
   const { error } = await supabase
     .from('applications')
     .update({ status: newStatus, decided_at: decidedAt })
     .eq('id', applicationId);
   if (error) return { error: error.message };
+
+  // 5-상태 불변식 유지: selected·same_day_cancel 이면 students 존재, 그 외엔 제거
+  if (newStatus === 'selected' || newStatus === 'same_day_cancel') {
+    await syncStudentSelected(supabase, appRow.applicant_id, cohortId);
+  } else {
+    await removeStudentForCohort(supabase, appRow.applicant_id, cohortId);
+  }
 
   const STATUS_KO: Record<string, string> = {
     applied: '신청', selected: '선발', rejected: '탈락',
@@ -49,6 +58,7 @@ export async function updateApplicationStatus(
   });
 
   revalidatePath(`/dashboard/cohorts/${cohortId}/applications`);
+  revalidatePath(`/dashboard/cohorts/${cohortId}/students`);
   return {};
 }
 
@@ -624,6 +634,13 @@ export async function importApplicationsXls(
           .update(applicantFields)
           .eq('id', applicantId);
         if (error) throw new Error(error.message);
+        // 식별자(이름·전화·이메일)만 기존 students 에 전파.
+        // 소속·부서·직무는 "수강 당시 스냅샷" 정책이라 과거 기수 기록을 덮지 않는다.
+        const { error: syncErr } = await supabase
+          .from('students')
+          .update({ name: row.name, phone: row.phone || null, email: row.email || null })
+          .eq('applicant_id', applicantId);
+        if (syncErr) throw new Error(syncErr.message);
         stats.updatedApplicants++;
       } else {
         const { data, error } = await supabase

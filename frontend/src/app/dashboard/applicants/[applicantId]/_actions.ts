@@ -1,77 +1,8 @@
 'use server';
 
 import { createAdminClient } from '@/lib/supabase/server';
-import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Database } from '@/lib/supabase/types';
+import { syncStudentSelected, removeStudentForCohort } from '@/lib/student-sync';
 import { revalidatePath } from 'next/cache';
-
-async function syncStudentSelected(
-  supabase: SupabaseClient<Database>,
-  applicantId: string,
-  cohortId: string
-): Promise<void> {
-  const { data: applicantRows } = await supabase
-    .from('applicants')
-    .select(
-      'id, name, organization_id, department, job_title, job_role, birth_date, email, phone, notes'
-    )
-    .eq('id', applicantId)
-    .limit(1);
-  const a = applicantRows?.[0];
-  if (!a) return;
-
-  // 이 기수에 이미 student row 있나?
-  const { data: existing } = await supabase
-    .from('students')
-    .select('id')
-    .eq('applicant_id', applicantId)
-    .eq('cohort_id', cohortId)
-    .limit(1);
-
-  const fields = {
-    name: a.name,
-    organization_id: a.organization_id,
-    department: a.department,
-    job_title: a.job_title,
-    job_role: a.job_role,
-    birth_date: a.birth_date,
-    email: a.email,
-    phone: a.phone,
-    notes: a.notes
-  };
-
-  if (existing && existing[0]) {
-    await supabase.from('students').update(fields).eq('id', existing[0].id);
-    return;
-  }
-
-  await supabase.from('students').insert({
-    applicant_id: applicantId,
-    cohort_id: cohortId,
-    ...fields
-  });
-}
-
-async function removeStudentForCohort(
-  supabase: SupabaseClient<Database>,
-  applicantId: string,
-  cohortId: string
-): Promise<void> {
-  // 이 기수의 application 이 더 이상 'selected' 가 아니면 이 기수 student row 제거
-  const { data: stillSelected } = await supabase
-    .from('applications')
-    .select('id')
-    .eq('applicant_id', applicantId)
-    .eq('cohort_id', cohortId)
-    .eq('status', 'selected')
-    .limit(1);
-  if (stillSelected && stillSelected[0]) return;
-  await supabase
-    .from('students')
-    .delete()
-    .eq('applicant_id', applicantId)
-    .eq('cohort_id', cohortId);
-}
 
 type ActionResult = { error?: string };
 
@@ -124,7 +55,7 @@ export async function createApplication(
   });
   if (error) return { error: error.message };
 
-  if (status === 'selected') {
+  if (status === 'selected' || status === 'same_day_cancel') {
     await syncStudentSelected(supabase, applicantId, cohortId);
   }
 
@@ -170,7 +101,7 @@ export async function updateApplication(
     .eq('id', id);
   if (error) return { error: error.message };
 
-  if (status === 'selected') {
+  if (status === 'selected' || status === 'same_day_cancel') {
     await syncStudentSelected(supabase, applicantId, cohortId);
   } else {
     await removeStudentForCohort(supabase, applicantId, cohortId);
@@ -228,9 +159,9 @@ export async function updateApplicationStatus(
     .eq('id', id);
   if (error) return { error: error.message };
 
-  if (status === 'selected') {
+  if (status === 'selected' || status === 'same_day_cancel') {
     await syncStudentSelected(supabase, applicantId, current.cohort_id);
-  } else if (current.status === 'selected') {
+  } else {
     await removeStudentForCohort(supabase, applicantId, current.cohort_id);
   }
 

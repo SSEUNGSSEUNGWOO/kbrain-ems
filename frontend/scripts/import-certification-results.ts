@@ -96,7 +96,7 @@ async function processSheet(
   // 학생 명단 로드 (매칭용)
   const { data: students, error: stuErr } = await supabase
     .from('students')
-    .select('id, name, email')
+    .select('id, name, email, personal_email')
     .eq('cohort_id', target.cohortId);
   if (stuErr) throw new Error(stuErr.message);
   console.log(`  cohort 학생 수: ${students?.length ?? 0}명`);
@@ -104,8 +104,12 @@ async function processSheet(
   const byEmail = new Map<string, string>();
   const byName = new Map<string, string[]>();
   for (const s of students ?? []) {
-    const e = normEmail(s.email);
-    if (e) byEmail.set(e, s.id);
+    // 응시자가 개인 이메일로 가입하는 경우가 있어 공식·개인 이메일 둘 다 등록
+    // (블루 2회차 [비공개] 미매칭 사례 재발 방지)
+    for (const raw of [s.email, s.personal_email]) {
+      const e = normEmail(raw);
+      if (e && !byEmail.has(e)) byEmail.set(e, s.id);
+    }
     const n = normStr(s.name);
     if (n) {
       const arr = byName.get(n) ?? [];
