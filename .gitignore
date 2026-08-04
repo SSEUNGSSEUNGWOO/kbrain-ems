@@ -33,3 +33,12 @@
 /docs/최종/
 /assistant_instructor_schedule.xlsx
 /보조강사_필요회차_*.xlsx
+
+# 개인정보 포함 백업·산출물 (DB 복구용 로컬 보관)
+frontend/scripts/archive/backups/
+__pycache__/
+docs/*.xlsx
+docs/2차선발/
+docs/0529/
+docs/최종/
+docs/*.hwp

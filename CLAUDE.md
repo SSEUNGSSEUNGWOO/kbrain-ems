@@ -142,7 +142,6 @@ const { data, error } = await supabase.from('cohorts').select('*');
 - 알림 발송: `_notifications_dispatch.sql`, `_cohort_dispatch_config.sql`
 - 집계: `_aggregate_rpcs.sql` — 자주 쓰는 집계는 Postgres RPC로 제공됨 (Data fetching 섹션 참고)
 
-(legacy: 루트 `migrations/` 폴더는 Neon 시절 잔재, 사용 안 함)
 
 **환경변수** (`frontend/.env.local`):
 ```
