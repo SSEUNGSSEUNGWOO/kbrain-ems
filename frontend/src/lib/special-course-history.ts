@@ -15,6 +15,7 @@ export type SpecialHistoryStatus =
   | 'insufficient'; // 집중교육 미달 → 시험 응시만으로는 수료 불가
 
 export type SpecialHistory = {
+  cohortId: string;
   cohortName: string;
   /** 뱃지 표기용 축약명 — "블루 2회차", "그린 특화" 등 */
   shortName: string;
@@ -147,6 +148,7 @@ export async function getSpecialCourseHistoryByApplicant(
       const prev = result.get(s.applicant_id);
       if (prev && STATUS_PRIORITY[prev.status] >= STATUS_PRIORITY[status]) continue;
       result.set(s.applicant_id, {
+        cohortId: cohort.id,
         cohortName: cohort.name,
         shortName: shortCohortName(cohort.name),
         status,

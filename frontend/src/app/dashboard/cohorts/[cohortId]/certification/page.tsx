@@ -17,6 +17,7 @@ import {
   type SpecialHistory
 } from '@/lib/special-course-history';
 import { cn } from '@/lib/utils';
+import { SyncRetroButton } from './_components/sync-retro-button';
 
 type Props = {
   params: Promise<{ cohortId: string }>;
@@ -47,6 +48,7 @@ type CertRow = {
   exam_no: string | null;
   cert_no: string | null;
   exam_date: string | null;
+  source_cohort_id: string | null;
 };
 
 export default async function CertificationPage({ params }: Props) {
@@ -85,10 +87,23 @@ export default async function CertificationPage({ params }: Props) {
   };
   const certRes = await certBuilder
     .select(
-      'id, cohort_id, student_id, name, phone, email, passed, total_score, grade, section_scores, exam_no, cert_no, exam_date'
+      'id, cohort_id, student_id, name, phone, email, passed, total_score, grade, section_scores, exam_no, cert_no, exam_date, source_cohort_id'
     )
     .eq('cohort_id', cohortId);
   const certs = certRes.data ?? [];
+
+  // 타 기수(자기주도형)에서 응시해 반영된 결과 표시용 — 출처 기수명
+  const sourceCohortIds = [...new Set(certs.map((c) => c.source_cohort_id).filter(Boolean))];
+  const sourceCohortName = new Map<string, string>();
+  if (sourceCohortIds.length > 0) {
+    const { data: srcCohorts } = await supabase
+      .from('cohorts')
+      .select('id, name')
+      .in('id', sourceCohortIds as string[]);
+    for (const c of srcCohorts ?? []) {
+      sourceCohortName.set(c.id, c.name.replace('AI 챔피언 ', ''));
+    }
+  }
 
   const certByStudent = new Map<string, CertRow>();
   const unmatched: CertRow[] = [];
@@ -203,6 +218,9 @@ export default async function CertificationPage({ params }: Props) {
                 — 같은 트랙 이전 과정에서 인증평가만 남은 미수료자(응시 시 원 과정 수료증 추가
                 발급)와 미인증자(재응시 기회)
               </span>
+              <div className='ml-auto'>
+                <SyncRetroButton cohortId={cohortId} />
+              </div>
             </div>
             <div className='overflow-x-auto rounded-lg border'>
               <Table>
@@ -372,22 +390,31 @@ export default async function CertificationPage({ params }: Props) {
                         <TableCell className='text-center'>
                           {c === null ? (
                             <span className='text-muted-foreground text-xs'>미응시</span>
-                          ) : c.passed === true ? (
-                            <Badge
-                              variant='outline'
-                              className='border-emerald-200 bg-emerald-50 font-normal text-emerald-700'
-                            >
-                              합격
-                            </Badge>
-                          ) : c.passed === false ? (
-                            <Badge
-                              variant='outline'
-                              className='border-rose-200 bg-rose-50 font-normal text-rose-700'
-                            >
-                              불합격
-                            </Badge>
                           ) : (
-                            <span className='text-muted-foreground text-xs'>—</span>
+                            <div className='flex flex-col items-center gap-0.5'>
+                              {c.passed === true ? (
+                                <Badge
+                                  variant='outline'
+                                  className='border-emerald-200 bg-emerald-50 font-normal text-emerald-700'
+                                >
+                                  합격
+                                </Badge>
+                              ) : c.passed === false ? (
+                                <Badge
+                                  variant='outline'
+                                  className='border-rose-200 bg-rose-50 font-normal text-rose-700'
+                                >
+                                  불합격
+                                </Badge>
+                              ) : (
+                                <span className='text-muted-foreground text-xs'>—</span>
+                              )}
+                              {c.source_cohort_id && (
+                                <span className='text-[10px] text-blue-600 whitespace-nowrap'>
+                                  {sourceCohortName.get(c.source_cohort_id) ?? '타 기수'} 응시
+                                </span>
+                              )}
+                            </div>
                           )}
                         </TableCell>
                         <TableCell className='text-muted-foreground text-xs tabular-nums'>
