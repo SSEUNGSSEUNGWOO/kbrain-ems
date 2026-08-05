@@ -54,9 +54,10 @@ export type ApplicationRow = {
    *  null = 자격연계형이 아니거나 답변 없음.
    */
   cert_bucket: 'none' | 'planned' | 'has' | null;
-  /** 자기주도형 cohort 한정: 특화(종합과정) 이력. null = 이력 없음 또는 비대상 cohort. */
+  /** 자기주도형 cohort 한정: 이전 챔피언 과정(회차·특화) 이력. null = 이력 없음 또는 비대상 cohort. */
   special_history: {
     cohortName: string;
+    shortName: string;
     status: 'completed' | 'not_certified' | 'exam_only_left' | 'insufficient';
     attendedDays: number;
     requiredDays: number;
@@ -66,19 +67,19 @@ export type ApplicationRow = {
   can_edit: boolean;
 };
 
-// 특화 이력 뱃지 — exam_only_left 가 선발 시 핵심 관리 대상 (시험만 보면 특화 수료)
+// 과정 이력 뱃지 — exam_only_left 가 선발 시 핵심 관리 대상 (시험만 보면 원 과정 수료)
 const SPECIAL_HISTORY_BADGE: Record<
   NonNullable<ApplicationRow['special_history']>['status'],
   { label: string; tone: string }
 > = {
-  completed: { label: '특화 수료', tone: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-  not_certified: { label: '특화 미인증', tone: 'bg-violet-50 text-violet-700 border-violet-200' },
+  completed: { label: '수료', tone: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  not_certified: { label: '미인증', tone: 'bg-violet-50 text-violet-700 border-violet-200' },
   exam_only_left: {
-    label: '특화 미수료 · 시험만 남음',
+    label: '미수료 · 시험만 남음',
     tone: 'bg-amber-50 text-amber-800 border-amber-300'
   },
   insufficient: {
-    label: '특화 미수료 · 집중 미달',
+    label: '미수료 · 집중 미달',
     tone: 'bg-rose-50 text-rose-700 border-rose-200'
   }
 };
@@ -282,7 +283,7 @@ export function ApplicantsTable({
                 <TableHead>분류</TableHead>
                 <TableHead>소속</TableHead>
                 {hasCertQuestion && <TableHead>자격증</TableHead>}
-                {showSpecialHistory && <TableHead>특화 이력</TableHead>}
+                {showSpecialHistory && <TableHead>과정 이력</TableHead>}
                 {prereqMax > 0 && <TableHead className='text-right'>사전학습</TableHead>}
                 <SortableHead
                   col='knowledge_score'
@@ -377,6 +378,7 @@ export function ApplicantsTable({
                             )}
                             title={`${r.special_history.cohortName} · 집중 ${r.special_history.attendedDays}/${r.special_history.requiredDays}일`}
                           >
+                            {r.special_history.shortName}{' '}
                             {SPECIAL_HISTORY_BADGE[r.special_history.status].label}
                           </Badge>
                         ) : (

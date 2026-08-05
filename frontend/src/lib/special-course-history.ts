@@ -1,8 +1,8 @@
-// 특화(그린/블루 종합과정) 이력 조회 — 자기주도형 선발 화면에서 지원자별로
-// 특화 수료·미수료·미인증 여부를 뱃지로 보여주기 위한 집계.
+// 챔피언 과정(그린/블루 회차·특화 종합과정) 이력 조회 — 자기주도형 선발 화면에서
+// 지원자별로 이전 과정 수료·미수료·미인증 여부를 뱃지로 보여주기 위한 집계.
 // 수료 판정은 completion.ts 규칙과 동일: 집중 3일 이상 출석 + 인증평가 참여.
-// (미수료·시험만 남음 = 집중은 채웠고 인증평가만 안 봄 → 이번 시험 응시 시
-//  특화 수료 요건이 충족되어 수료증 추가 발급 대상)
+// (미수료·시험만 남음 = 집중은 채웠고 인증평가만 안 봄 → 이번 자기주도형 시험
+//  응시 시 원 과정 수료 요건이 충족되어 수료증 추가 발급 대상)
 
 import { createAdminClient } from '@/lib/supabase/server';
 import { ATTENDED_STATUSES, ABSENT_STATUSES } from '@/lib/completion';
@@ -16,25 +16,43 @@ export type SpecialHistoryStatus =
 
 export type SpecialHistory = {
   cohortName: string;
+  /** 뱃지 표기용 축약명 — "블루 2회차", "그린 특화" 등 */
+  shortName: string;
   status: SpecialHistoryStatus;
   attendedDays: number;
   requiredDays: number;
 };
 
-/** 종료된 특화 종합과정 전체를 훑어 applicant_id → 특화 이력 맵을 만든다. */
+// 같은 지원자가 여러 과정 이력을 가질 때 뱃지 하나만 노출 — 조치 필요한 순서
+const STATUS_PRIORITY: Record<SpecialHistoryStatus, number> = {
+  exam_only_left: 3,
+  not_certified: 2,
+  completed: 1,
+  insufficient: 0
+};
+
+function shortCohortName(name: string): string {
+  const track = name.includes('그린') ? '그린' : name.includes('블루') ? '블루' : '';
+  if (name.includes('특화')) return `${track} 특화`.trim();
+  return name.replace('AI 챔피언 ', '').trim();
+}
+
+/** 집중교육이 끝났고 인증평가 기록이 있는 챔피언 기수(자기주도형 제외) 전체를
+ *  훑어 applicant_id → 과정 이력 맵을 만든다. */
 export async function getSpecialCourseHistoryByApplicant(): Promise<Map<string, SpecialHistory>> {
   const supabase = createAdminClient();
   const today = new Date().toISOString().slice(0, 10);
 
-  const { data: specialCohorts } = await supabase
+  const { data: allChampion } = await supabase
     .from('cohorts')
-    .select('id, name, intensive_start_at, intensive_end_at')
-    .ilike('name', '%종합과정%')
+    .select('id, name, delivery_method, intensive_start_at, intensive_end_at')
+    .eq('category', 'champion')
     .not('intensive_end_at', 'is', null)
     .lte('intensive_end_at', today);
+  const specialCohorts = (allChampion ?? []).filter((c) => c.delivery_method !== '자기주도형');
 
   const result = new Map<string, SpecialHistory>();
-  if (!specialCohorts || specialCohorts.length === 0) return result;
+  if (specialCohorts.length === 0) return result;
 
   for (const cohort of specialCohorts) {
     const [{ data: students }, { data: sessions }] = await Promise.all([
@@ -98,6 +116,8 @@ export async function getSpecialCourseHistoryByApplicant(): Promise<Map<string, 
     for (const c of certRes.data ?? []) {
       if (c.student_id) certByStudent.set(c.student_id, c.passed);
     }
+    // 인증평가 기록이 하나도 없는 기수는 평가 전 → 미참여 판정이 불가능하므로 스킵
+    if (certByStudent.size === 0) continue;
 
     const isAttended = (studentId: string, sessionId: string): boolean => {
       const status = attMap.get(`${studentId}__${sessionId}`);
@@ -118,8 +138,11 @@ export async function getSpecialCourseHistoryByApplicant(): Promise<Map<string, 
       if (days >= 3 && tookExam) status = passed === false ? 'not_certified' : 'completed';
       else if (days >= 3) status = 'exam_only_left';
       else status = 'insufficient';
+      const prev = result.get(s.applicant_id);
+      if (prev && STATUS_PRIORITY[prev.status] >= STATUS_PRIORITY[status]) continue;
       result.set(s.applicant_id, {
         cohortName: cohort.name,
+        shortName: shortCohortName(cohort.name),
         status,
         attendedDays: days,
         requiredDays: 3
