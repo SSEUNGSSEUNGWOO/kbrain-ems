@@ -163,14 +163,15 @@ export async function ResultsView({
           text: v.trim(),
           submittedAt: r.submitted_at
         };
-        if (q.section_title === '서술형') {
-          if (!narrativeTexts.has(q.id)) narrativeTexts.set(q.id, []);
-          narrativeTexts.get(q.id)!.push(entry);
-        } else if (followUpMap.has(q.id)) {
+        if (followUpMap.has(q.id)) {
           if (!followUpTexts.has(q.id)) {
             followUpTexts.set(q.id, { linked: followUpMap.get(q.id)!, entries: [] });
           }
           followUpTexts.get(q.id)!.entries.push(entry);
+        } else {
+          // 서술형 섹션 + 척도 섹션 안의 독립 text 문항(Q19 비대면/집합 선호 등) 모두 포함
+          if (!narrativeTexts.has(q.id)) narrativeTexts.set(q.id, []);
+          narrativeTexts.get(q.id)!.push(entry);
         }
       }
     }
