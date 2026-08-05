@@ -12,6 +12,10 @@ import {
 import { createAdminClient } from '@/lib/supabase/server';
 import { isViewer } from '@/lib/auth';
 import { isTestStudent } from '@/lib/students';
+import {
+  getSpecialCourseHistoryByApplicant,
+  type SpecialHistory
+} from '@/lib/special-course-history';
 import { cn } from '@/lib/utils';
 
 type Props = {
@@ -21,6 +25,7 @@ type Props = {
 type StudentRow = {
   id: string;
   name: string;
+  applicant_id: string | null;
   department: string | null;
   job_title: string | null;
   email: string | null;
@@ -51,13 +56,13 @@ export default async function CertificationPage({ params }: Props) {
 
   const { data: cohortRow } = await supabase
     .from('cohorts')
-    .select('id, name')
+    .select('id, name, delivery_method')
     .eq('id', cohortId)
     .maybeSingle();
 
   const studentCols = hidePersonal
-    ? 'id, name, department, job_title, organizations(name)'
-    : 'id, name, department, job_title, email, phone, organizations(name)';
+    ? 'id, name, applicant_id, department, job_title, organizations(name)'
+    : 'id, name, applicant_id, department, job_title, email, phone, organizations(name)';
 
   const { data: studentsRaw } = await supabase
     .from('students')
@@ -70,9 +75,7 @@ export default async function CertificationPage({ params }: Props) {
 
   // supabase types.ts 에 certification_results 미등록 — 마이그레이션 적용 후 regen 필요.
   // 컬럼 타입 추론이 never 로 잡히므로 첫 호출을 cast 로 열어줌.
-  const certBuilder = supabase.from(
-    'certification_results' as unknown as 'cohorts'
-  ) as unknown as {
+  const certBuilder = supabase.from('certification_results' as unknown as 'cohorts') as unknown as {
     select: (cols: string) => {
       eq: (
         col: string,
@@ -106,6 +109,73 @@ export default async function CertificationPage({ params }: Props) {
   const passed = withResult.filter((s) => certByStudent.get(s.id)?.passed === true);
   const failed = withResult.filter((s) => certByStudent.get(s.id)?.passed === false);
 
+  // ── 자기주도형 한정: 이전 과정 수료증·인증 관리 대상 ─────────────────────
+  // 같은 트랙의 이전 챔피언 과정에서 "집중은 채웠는데 인증평가만 안 본" 사람은
+  // 이번 시험에 응시하면 원 과정 수료 요건이 충족돼 수료증을 추가 발급해야 한다.
+  // 미인증(불합격)자는 이번 시험이 재응시 기회.
+  type PendingTarget = {
+    applicantId: string;
+    name: string;
+    organization: string | null;
+    history: SpecialHistory;
+    enrolled: boolean; // 이번 기수 교육생 여부
+    examTaken: boolean; // 이번 기수 인증평가 응시 여부
+    examPassed: boolean | null;
+  };
+  let pendingTargets: PendingTarget[] = [];
+  const isSelfDirected = cohortRow?.delivery_method === '자기주도형';
+  if (isSelfDirected && cohortRow) {
+    const track = cohortRow.name.includes('그린')
+      ? ('그린' as const)
+      : cohortRow.name.includes('블루')
+        ? ('블루' as const)
+        : null;
+    const historyMap = await getSpecialCourseHistoryByApplicant(track);
+    const targets = [...historyMap.entries()].filter(
+      ([, v]) => v.status === 'exam_only_left' || v.status === 'not_certified'
+    );
+    if (targets.length > 0) {
+      const { data: targetApplicants } = await supabase
+        .from('applicants')
+        .select('id, name, organizations(name)')
+        .in(
+          'id',
+          targets.map(([id]) => id)
+        );
+      const applicantInfo = new Map(
+        (targetApplicants ?? []).map((a) => [
+          a.id,
+          {
+            name: a.name,
+            organization:
+              (a as { organizations: { name: string } | null }).organizations?.name ?? null
+          }
+        ])
+      );
+      const studentByApplicant = new Map(
+        students.filter((s) => s.applicant_id).map((s) => [s.applicant_id!, s])
+      );
+      pendingTargets = targets
+        .map(([applicantId, history]) => {
+          const info = applicantInfo.get(applicantId);
+          const student = studentByApplicant.get(applicantId);
+          const cert = student ? (certByStudent.get(student.id) ?? null) : null;
+          return {
+            applicantId,
+            name: info?.name ?? '(알 수 없음)',
+            organization: info?.organization ?? null,
+            history,
+            enrolled: !!student,
+            examTaken: !!cert,
+            examPassed: cert?.passed ?? null
+          };
+        })
+        .toSorted(
+          (a, b) => Number(b.enrolled) - Number(a.enrolled) || a.name.localeCompare(b.name, 'ko')
+        );
+    }
+  }
+
   return (
     <PageContainer pageTitle='인증' pageDescription={cohortRow?.name ?? ''}>
       <div className='flex flex-col gap-6'>
@@ -121,6 +191,125 @@ export default async function CertificationPage({ params }: Props) {
             )}
           </CardContent>
         </Card>
+
+        {pendingTargets.length > 0 && (
+          <section>
+            <div className='mb-3 flex flex-wrap items-center gap-2'>
+              <span className='h-2 w-2 rounded-full bg-amber-500' />
+              <h2 className='text-sm font-medium'>
+                이전 과정 수료증·인증 관리 대상 {pendingTargets.length}명
+              </h2>
+              <span className='text-muted-foreground text-xs'>
+                — 같은 트랙 이전 과정에서 인증평가만 남은 미수료자(응시 시 원 과정 수료증 추가
+                발급)와 미인증자(재응시 기회)
+              </span>
+            </div>
+            <div className='overflow-x-auto rounded-lg border'>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>이름</TableHead>
+                    <TableHead>소속기관</TableHead>
+                    <TableHead>원 과정</TableHead>
+                    <TableHead>사유</TableHead>
+                    <TableHead>이번 기수</TableHead>
+                    <TableHead>조치</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {pendingTargets.map((t) => {
+                    const isExamLeft = t.history.status === 'exam_only_left';
+                    let action: { label: string; tone: string };
+                    if (isExamLeft) {
+                      action = t.examTaken
+                        ? {
+                            label: '원 과정 수료증 발급',
+                            tone: 'border-emerald-300 bg-emerald-50 text-emerald-700 font-medium'
+                          }
+                        : t.enrolled
+                          ? {
+                              label: '시험 응시 대기',
+                              tone: 'border-amber-200 bg-amber-50 text-amber-800'
+                            }
+                          : {
+                              label: '미지원 — 다음 회차 안내',
+                              tone: 'border-slate-200 bg-slate-50 text-slate-600'
+                            };
+                    } else {
+                      action =
+                        t.examPassed === true
+                          ? {
+                              label: '재응시 합격 — 인증 취득',
+                              tone: 'border-emerald-300 bg-emerald-50 text-emerald-700 font-medium'
+                            }
+                          : t.examTaken
+                            ? t.examPassed === false
+                              ? {
+                                  label: '재응시 불합격',
+                                  tone: 'border-rose-200 bg-rose-50 text-rose-700'
+                                }
+                              : {
+                                  label: '재응시 결과 대기',
+                                  tone: 'border-amber-200 bg-amber-50 text-amber-800'
+                                }
+                            : t.enrolled
+                              ? {
+                                  label: '재응시 대기',
+                                  tone: 'border-amber-200 bg-amber-50 text-amber-800'
+                                }
+                              : {
+                                  label: '미지원 — 재응시 안내',
+                                  tone: 'border-slate-200 bg-slate-50 text-slate-600'
+                                };
+                    }
+                    return (
+                      <TableRow key={t.applicantId}>
+                        <TableCell className='font-medium'>{t.name}</TableCell>
+                        <TableCell className='text-muted-foreground'>
+                          {t.organization ?? '—'}
+                        </TableCell>
+                        <TableCell
+                          className='text-sm'
+                          title={`${t.history.cohortName} · 집중 ${t.history.attendedDays}/${t.history.requiredDays}일`}
+                        >
+                          {t.history.shortName}
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant='outline'
+                            className={cn(
+                              'font-normal whitespace-nowrap',
+                              isExamLeft
+                                ? 'border-amber-300 bg-amber-50 text-amber-800'
+                                : 'border-violet-200 bg-violet-50 text-violet-700'
+                            )}
+                          >
+                            {isExamLeft ? '미수료 · 시험만 남음' : '미인증'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className='text-sm'>
+                          {t.enrolled ? (
+                            <span className='text-emerald-700'>선발됨</span>
+                          ) : (
+                            <span className='text-muted-foreground'>미지원</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant='outline'
+                            className={cn('font-normal whitespace-nowrap', action.tone)}
+                          >
+                            {action.label}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          </section>
+        )}
 
         {students.length === 0 ? (
           <Card>
@@ -217,9 +406,7 @@ export default async function CertificationPage({ params }: Props) {
           <section>
             <div className='mb-3 flex items-center gap-2'>
               <span className='h-2 w-2 rounded-full bg-amber-500' />
-              <h2 className='text-sm font-medium'>
-                미매칭 결과 {unmatched.length}건
-              </h2>
+              <h2 className='text-sm font-medium'>미매칭 결과 {unmatched.length}건</h2>
               <span className='text-muted-foreground text-xs'>
                 — 이름·연락처가 학생 명단과 매칭되지 않았습니다.
               </span>
@@ -287,15 +474,7 @@ export default async function CertificationPage({ params }: Props) {
   );
 }
 
-function Stat({
-  label,
-  value,
-  tone
-}: {
-  label: string;
-  value: string | number;
-  tone?: string;
-}) {
+function Stat({ label, value, tone }: { label: string; value: string | number; tone?: string }) {
   return (
     <div className='flex flex-col'>
       <span className='text-muted-foreground text-xs'>{label}</span>
