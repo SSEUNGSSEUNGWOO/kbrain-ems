@@ -57,6 +57,9 @@ export default async function SurveyResultsPage({ params }: Props) {
         pageDescription={`${cohort.name} · ${survey.title}`}
         pageHeaderAction={
           <div className='flex gap-2 no-print'>
+            <Link href={`/dashboard/cohorts/${cohortId}/surveys/${surveyId}/report`}>
+              <Button>결과보고서</Button>
+            </Link>
             <PrintPdfButton />
             <Link href={`/dashboard/cohorts/${cohortId}/surveys/${surveyId}/preview`}>
               <Button variant='outline'>미리보기</Button>

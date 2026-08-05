@@ -1433,6 +1433,7 @@ export type Database = {
           opens_at: string | null;
           closes_at: string | null;
           respondent_total: number | null;
+          report_summary: Record<string, unknown> | null;
           created_at: string;
           updated_at: string;
         };
@@ -1450,6 +1451,7 @@ export type Database = {
           opens_at?: string | null;
           closes_at?: string | null;
           respondent_total?: number | null;
+          report_summary?: Record<string, unknown> | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -1467,6 +1469,7 @@ export type Database = {
           opens_at?: string | null;
           closes_at?: string | null;
           respondent_total?: number | null;
+          report_summary?: Record<string, unknown> | null;
           created_at?: string;
           updated_at?: string;
         };

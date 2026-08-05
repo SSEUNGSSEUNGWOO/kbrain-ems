@@ -33,22 +33,23 @@ type Props = {
   showReportHeader?: boolean;
   /** 서술형·사유 응답에 hover 삭제 버튼 노출 여부. 공개 공유 링크에서는 false. */
   canDelete?: boolean;
+  /** 결과보고서 파트2로 임베드될 때 KPI 카드 숨김 (파트1 점수와 중복) */
+  hideKpi?: boolean;
 };
 
 export async function ResultsView({
   cohortId,
   surveyId,
   showReportHeader = false,
-  canDelete = true
+  canDelete = true,
+  hideKpi = false
 }: Props) {
   const supabase = createAdminClient();
 
   const [surveyRes, questionsRes, responsesRes, cohortRes] = await Promise.all([
     supabase
       .from('surveys')
-      .select(
-        'id, title, share_code, opens_at, respondent_total, cohort_id, additional_cohort_ids'
-      )
+      .select('id, title, share_code, opens_at, respondent_total, cohort_id, additional_cohort_ids')
       .eq('id', surveyId)
       .maybeSingle(),
     supabase
@@ -198,8 +199,7 @@ export async function ResultsView({
   for (const v of byQuestion.values()) finalize(v);
   finalize(recommendStat);
 
-  const responseRate =
-    totalStudents > 0 ? Math.round((submitted.length / totalStudents) * 100) : 0;
+  const responseRate = totalStudents > 0 ? Math.round((submitted.length / totalStudents) * 100) : 0;
 
   const sectionChartData = Array.from(bySectionNo.entries())
     .toSorted((a, b) => a[0] - b[0])
@@ -223,35 +223,35 @@ export async function ResultsView({
 
   const likertQuestions = questions.filter((q) => q.type === 'likert10');
   const sectionGroups = Array.from(
-    likertQuestions.reduce(
-      (acc, q) => {
-        const sec = q.section_no ?? 0;
-        const cur = acc.get(sec) ?? {
-          sectionNo: sec,
-          title: q.section_title ?? `섹션 ${sec}`,
-          instructorId: q.instructor_id,
-          questions: [] as typeof likertQuestions
-        };
-        cur.questions.push(q);
-        acc.set(sec, cur);
-        return acc;
-      },
-      new Map<
-        number,
-        {
-          sectionNo: number;
-          title: string;
-          instructorId: string | null;
-          questions: typeof likertQuestions;
-        }
-      >()
-    ).values()
+    likertQuestions
+      .reduce(
+        (acc, q) => {
+          const sec = q.section_no ?? 0;
+          const cur = acc.get(sec) ?? {
+            sectionNo: sec,
+            title: q.section_title ?? `섹션 ${sec}`,
+            instructorId: q.instructor_id,
+            questions: [] as typeof likertQuestions
+          };
+          cur.questions.push(q);
+          acc.set(sec, cur);
+          return acc;
+        },
+        new Map<
+          number,
+          {
+            sectionNo: number;
+            title: string;
+            instructorId: string | null;
+            questions: typeof likertQuestions;
+          }
+        >()
+      )
+      .values()
   ).toSorted((a, b) => a.sectionNo - b.sectionNo);
 
   // 서술형 = 서술형 섹션 문항 + follow-up 아닌 독립 text 문항 (원본 Q19 등)
-  const narrativeQuestions = questions.filter(
-    (q) => q.type === 'text' && !followUpMap.has(q.id)
-  );
+  const narrativeQuestions = questions.filter((q) => q.type === 'text' && !followUpMap.has(q.id));
 
   const followUpQuestions = questions.filter((q) => followUpMap.has(q.id));
 
@@ -264,7 +264,7 @@ export async function ResultsView({
       text: q.text,
       sectionNo: q.section_no ?? 0,
       sectionTitle: q.section_title ?? `섹션 ${q.section_no ?? 0}`,
-      instructorName: q.instructor_id ? instructorNameById.get(q.instructor_id) ?? null : null,
+      instructorName: q.instructor_id ? (instructorNameById.get(q.instructor_id) ?? null) : null,
       isFollowUp: followUpMap.has(q.id)
     }));
 
@@ -320,21 +320,29 @@ export async function ResultsView({
             </h1>
             <div className='mt-8 grid grid-cols-2 gap-x-8 gap-y-3 text-sm text-slate-700'>
               <div>
-                <div className='text-[11px] font-semibold tracking-wider text-slate-500 uppercase'>교육 기수</div>
+                <div className='text-[11px] font-semibold tracking-wider text-slate-500 uppercase'>
+                  교육 기수
+                </div>
                 <div className='mt-0.5 font-semibold'>{cohortRes.data.name}</div>
               </div>
               <div>
-                <div className='text-[11px] font-semibold tracking-wider text-slate-500 uppercase'>응답 현황</div>
+                <div className='text-[11px] font-semibold tracking-wider text-slate-500 uppercase'>
+                  응답 현황
+                </div>
                 <div className='mt-0.5 font-semibold'>
                   {submitted.length}명 응답 · 응답률 {responseRate}%
                 </div>
               </div>
               <div>
-                <div className='text-[11px] font-semibold tracking-wider text-slate-500 uppercase'>척도</div>
+                <div className='text-[11px] font-semibold tracking-wider text-slate-500 uppercase'>
+                  척도
+                </div>
                 <div className='mt-0.5 font-semibold'>10점 척도</div>
               </div>
               <div>
-                <div className='text-[11px] font-semibold tracking-wider text-slate-500 uppercase'>출력일</div>
+                <div className='text-[11px] font-semibold tracking-wider text-slate-500 uppercase'>
+                  출력일
+                </div>
                 <div className='mt-0.5 font-semibold'>{printedAt}</div>
               </div>
             </div>
@@ -358,7 +366,7 @@ export async function ResultsView({
       )}
 
       {/* KPI */}
-      <div className='grid grid-cols-2 gap-3 sm:grid-cols-4'>
+      <div className={hideKpi ? 'hidden' : 'grid grid-cols-2 gap-3 sm:grid-cols-4'}>
         <Kpi
           label='전체 평균'
           value={overall.avg !== null ? overall.avg.toFixed(2) : '-'}
@@ -407,7 +415,7 @@ export async function ResultsView({
               const sectionAvg = sectionStat?.avg ?? null;
               const sectionColor = scoreColor(sectionAvg);
               const instructorName = group.instructorId
-                ? instructorNameById.get(group.instructorId) ?? null
+                ? (instructorNameById.get(group.instructorId) ?? null)
                 : null;
               return (
                 <div key={group.sectionNo}>
@@ -561,9 +569,9 @@ export async function ResultsView({
                 </div>
               );
             })}
-            {followUpQuestions.every((q) => (followUpTexts.get(q.id)?.entries.length ?? 0) === 0) && (
-              <p className='text-xs text-muted-foreground'>해당하는 사유 응답이 없습니다.</p>
-            )}
+            {followUpQuestions.every(
+              (q) => (followUpTexts.get(q.id)?.entries.length ?? 0) === 0
+            ) && <p className='text-xs text-muted-foreground'>해당하는 사유 응답이 없습니다.</p>}
           </div>
         </section>
       )}
@@ -593,7 +601,8 @@ function Kpi({
 }) {
   const accentClass: Record<typeof accent, string> = {
     blue: 'border-blue-200 bg-blue-50/40 dark:border-blue-900/30 dark:bg-blue-900/10',
-    emerald: 'border-emerald-200 bg-emerald-50/40 dark:border-emerald-900/30 dark:bg-emerald-900/10',
+    emerald:
+      'border-emerald-200 bg-emerald-50/40 dark:border-emerald-900/30 dark:bg-emerald-900/10',
     violet: 'border-violet-200 bg-violet-50/40 dark:border-violet-900/30 dark:bg-violet-900/10',
     slate: 'border-slate-200 bg-slate-50/40 dark:border-slate-800 dark:bg-slate-900/30'
   };
@@ -657,8 +666,13 @@ function QuestionStatBlock({
             const pct = (c / total) * 100;
             const isZero = c === 0;
             return (
-              <div key={score} className={`flex items-center gap-2 text-[11px] ${isZero ? 'opacity-40' : ''}`}>
-                <span className='w-5 shrink-0 text-right tabular-nums text-muted-foreground'>{score}</span>
+              <div
+                key={score}
+                className={`flex items-center gap-2 text-[11px] ${isZero ? 'opacity-40' : ''}`}
+              >
+                <span className='w-5 shrink-0 text-right tabular-nums text-muted-foreground'>
+                  {score}
+                </span>
                 <div className='relative h-2 flex-1 overflow-hidden rounded-full bg-muted'>
                   <div
                     className={`absolute inset-y-0 left-0 ${color.bar}`}
@@ -707,8 +721,13 @@ function InstructorBlock({
             const pct = (count / total) * 100;
             const isZero = count === 0;
             return (
-              <div key={score} className={`flex items-center gap-2 text-[11px] ${isZero ? 'opacity-40' : ''}`}>
-                <span className='w-5 shrink-0 text-right tabular-nums text-muted-foreground'>{score}</span>
+              <div
+                key={score}
+                className={`flex items-center gap-2 text-[11px] ${isZero ? 'opacity-40' : ''}`}
+              >
+                <span className='w-5 shrink-0 text-right tabular-nums text-muted-foreground'>
+                  {score}
+                </span>
                 <div className='relative h-2 flex-1 overflow-hidden rounded-full bg-muted'>
                   <div
                     className={`absolute inset-y-0 left-0 ${color.bar}`}
