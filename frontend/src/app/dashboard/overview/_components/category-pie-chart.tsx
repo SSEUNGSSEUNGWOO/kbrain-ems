@@ -8,16 +8,7 @@ type CategoryData = {
   color: string;
 };
 
-const COLORS: Record<string, string> = {
-  '중앙부처': '#3b82f6',
-  '기초지자체': '#10b981',
-  '광역지자체': '#06b6d4',
-  '공공기관': '#f59e0b',
-  '교육행정기관': '#8b5cf6',
-  '미분류': '#94a3b8'
-};
-
-export function CategoryPieChart({ data }: { data: CategoryData[] }) {
+export function CategoryPieChart({ data, unit = '명' }: { data: CategoryData[]; unit?: string }) {
   const total = data.reduce((sum, d) => sum + d.value, 0);
 
   if (total === 0) {
@@ -43,12 +34,14 @@ export function CategoryPieChart({ data }: { data: CategoryData[] }) {
               dataKey='value'
               strokeWidth={0}
             >
-              {data.filter((d) => d.value > 0).map((entry) => (
-                <Cell key={entry.name} fill={entry.color} />
-              ))}
+              {data
+                .filter((d) => d.value > 0)
+                .map((entry) => (
+                  <Cell key={entry.name} fill={entry.color} />
+                ))}
             </Pie>
             <Tooltip
-              formatter={(value: number, name: string) => [`${value}명`, name]}
+              formatter={(value: number, name: string) => [`${value}${unit}`, name]}
               contentStyle={{
                 borderRadius: '8px',
                 border: '1px solid var(--border)',
@@ -61,14 +54,24 @@ export function CategoryPieChart({ data }: { data: CategoryData[] }) {
         </ResponsiveContainer>
       </div>
       <div className='grid gap-2'>
-        {data.filter((d) => d.value > 0).map((d) => (
-          <div key={d.name} className='flex items-center gap-2 text-sm'>
-            <span className='h-3 w-3 shrink-0 rounded-full' style={{ backgroundColor: d.color }} />
-            <span className='text-muted-foreground'>{d.name}</span>
-            <span className='font-medium'>{d.value}명</span>
-            <span className='text-muted-foreground text-xs'>({Math.round((d.value / total) * 100)}%)</span>
-          </div>
-        ))}
+        {data
+          .filter((d) => d.value > 0)
+          .map((d) => (
+            <div key={d.name} className='flex items-center gap-2 text-sm'>
+              <span
+                className='h-3 w-3 shrink-0 rounded-full'
+                style={{ backgroundColor: d.color }}
+              />
+              <span className='text-muted-foreground'>{d.name}</span>
+              <span className='font-medium'>
+                {d.value}
+                {unit}
+              </span>
+              <span className='text-muted-foreground text-xs'>
+                ({Math.round((d.value / total) * 100)}%)
+              </span>
+            </div>
+          ))}
       </div>
     </div>
   );
