@@ -12,6 +12,12 @@ import { STUDENT_KEEP_STATUSES } from '@/lib/student-sync';
 import { AFFILIATION_LABELS, UNCLASSIFIED_LABEL } from '@/lib/affiliation';
 import { isTestStudent } from '@/lib/students';
 
+export type AffiliationStatRow = {
+  label: string;
+  applied: number;
+  selected: number;
+};
+
 export type CohortHistoryRow = {
   cohortId: string;
   name: string;
@@ -24,12 +30,7 @@ export type CohortHistoryRow = {
   examTaken: number | null; // 인증평가 데이터 없는 기수는 null → '—'
   completed: number | null; // 수료 판정 없는 유형(자기주도형·special·experts)은 null
   certPassed: number | null; // 채점된 행이 0건이면 null → '—'
-};
-
-export type AffiliationStatRow = {
-  label: string;
-  applied: number;
-  selected: number;
+  affiliations: AffiliationStatRow[]; // 이 기수의 소속구분별 지원·선발 (행 펼침 상세)
 };
 
 export type OrganizationStatRow = {
@@ -52,6 +53,26 @@ export type BusinessStats = {
   organizations: OrganizationStatRow[];
   generatedAt: string;
 };
+
+// 소속구분 고정 순서 + 목록 외 라벨 + 미분류 마지막
+function orderAffiliations(
+  map: Map<string, { applied: number; selected: number }> | undefined
+): AffiliationStatRow[] {
+  if (!map) return [];
+  const rows: AffiliationStatRow[] = [];
+  for (const label of AFFILIATION_LABELS) {
+    const v = map.get(label);
+    if (v) rows.push({ label, ...v });
+  }
+  for (const [label, v] of map) {
+    if ((AFFILIATION_LABELS as readonly string[]).includes(label) || label === UNCLASSIFIED_LABEL)
+      continue;
+    rows.push({ label, ...v });
+  }
+  const unclassified = map.get(UNCLASSIFIED_LABEL);
+  if (unclassified) rows.push({ label: UNCLASSIFIED_LABEL, ...unclassified });
+  return rows;
+}
 
 const PAGE = 1000;
 type PageResult<T> = PromiseLike<{ data: T[] | null; error: { message: string } | null }>;
@@ -214,6 +235,10 @@ export async function computeBusinessStats(): Promise<BusinessStats> {
   const KEEP = new Set<string>(STUDENT_KEEP_STATUSES);
   const perCohort = new Map<string, { applied: number; selected: number }>();
   const perAffiliation = new Map<string, { applied: number; selected: number }>();
+  const perCohortAffiliation = new Map<
+    string,
+    Map<string, { applied: number; selected: number }>
+  >();
   const perOrg = new Map<
     string,
     { applied: number; selected: number; lastSelectedAt: string | null }
@@ -242,6 +267,15 @@ export async function computeBusinessStats(): Promise<BusinessStats> {
     aff.applied++;
     if (isSelected) aff.selected++;
     perAffiliation.set(label, aff);
+
+    const coAffMap =
+      perCohortAffiliation.get(app.cohort_id) ??
+      new Map<string, { applied: number; selected: number }>();
+    const coAff = coAffMap.get(label) ?? { applied: 0, selected: 0 };
+    coAff.applied++;
+    if (isSelected) coAff.selected++;
+    coAffMap.set(label, coAff);
+    perCohortAffiliation.set(app.cohort_id, coAffMap);
 
     const orgKey = applicant.organization_id ?? ORG_NONE;
     const org = perOrg.get(orgKey) ?? { applied: 0, selected: 0, lastSelectedAt: null };
@@ -302,7 +336,8 @@ export async function computeBusinessStats(): Promise<BusinessStats> {
       selected: counts.selected,
       examTaken,
       completed,
-      certPassed
+      certPassed,
+      affiliations: orderAffiliations(perCohortAffiliation.get(c.id))
     };
   });
   // 교육 시작일 오름차순 (미정은 뒤, created_at 순)
@@ -313,19 +348,7 @@ export async function computeBusinessStats(): Promise<BusinessStats> {
     return 0;
   });
 
-  // ── 소속구분: 고정 순서 + 목록 외 라벨 + 미분류 마지막 ──
-  const affiliations: AffiliationStatRow[] = [];
-  for (const label of AFFILIATION_LABELS) {
-    const v = perAffiliation.get(label);
-    if (v) affiliations.push({ label, ...v });
-  }
-  for (const [label, v] of perAffiliation) {
-    if ((AFFILIATION_LABELS as readonly string[]).includes(label) || label === UNCLASSIFIED_LABEL)
-      continue;
-    affiliations.push({ label, ...v });
-  }
-  const unclassified = perAffiliation.get(UNCLASSIFIED_LABEL);
-  if (unclassified) affiliations.push({ label: UNCLASSIFIED_LABEL, ...unclassified });
+  const affiliations = orderAffiliations(perAffiliation);
 
   // ── 기관별: 지원 많은 순 ──
   const organizationRows: OrganizationStatRow[] = [...perOrg.entries()]

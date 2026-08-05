@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import PageContainer from '@/components/layout/page-container';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -13,6 +12,7 @@ import { Icons } from '@/components/icons';
 import { getBusinessStats, type CohortHistoryRow } from '@/lib/business-stats';
 import { AFFILIATION_COLORS, UNCLASSIFIED_LABEL } from '@/lib/affiliation';
 import { CategoryPieChart } from './_components/category-pie-chart';
+import { CohortHistoryTable } from './_components/cohort-history-table';
 import { OrganizationStatsTable } from './_components/organization-stats-table';
 
 export const metadata = { title: 'Dashboard: 통계' };
@@ -23,91 +23,6 @@ const CATEGORIES: { key: string; label: string; tone: string }[] = [
   { key: 'special', label: '3. 특화교육', tone: 'border-amber-300 text-amber-700' },
   { key: 'experts', label: '4. 전문인재', tone: 'border-violet-300 text-violet-700' }
 ];
-
-function formatPeriod(start: string | null, end: string | null): string {
-  if (!start && !end) return '일정 미정';
-  const s = start ? start.slice(2).replace(/-/g, '.') : '미정';
-  const e = end ? end.slice(2).replace(/-/g, '.') : '미정';
-  return s === e ? s : `${s} ~ ${e}`;
-}
-
-function num(v: number | null): string {
-  return v === null ? '—' : String(v);
-}
-
-function competitionRate(applied: number, capacity: number | null): string {
-  if (!capacity || applied === 0) return '—';
-  const ratio = applied / capacity;
-  return `${(Math.round(ratio * 10) / 10).toFixed(1)}:1`;
-}
-
-function CohortSection({
-  label,
-  tone,
-  rows
-}: {
-  label: string;
-  tone: string;
-  rows: CohortHistoryRow[];
-}) {
-  if (rows.length === 0) return null;
-  return (
-    <section>
-      <div className='mb-2 flex items-center gap-2'>
-        <span
-          className={`bg-card inline-flex items-center rounded-md border px-2.5 py-1 text-xs font-bold ${tone}`}
-        >
-          {label}
-        </span>
-        <span className='text-muted-foreground text-xs'>{rows.length}개 기수</span>
-      </div>
-      <div className='overflow-x-auto rounded-lg border'>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>과정명</TableHead>
-              <TableHead className='whitespace-nowrap'>교육일</TableHead>
-              <TableHead className='text-right'>정원</TableHead>
-              <TableHead className='text-right'>신청</TableHead>
-              <TableHead className='text-right whitespace-nowrap'>경쟁률</TableHead>
-              <TableHead className='text-right'>선발</TableHead>
-              <TableHead className='text-right'>응시</TableHead>
-              <TableHead className='text-right'>수료</TableHead>
-              <TableHead className='text-right'>합격</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.map((r) => (
-              <TableRow key={r.cohortId}>
-                <TableCell className='font-medium'>
-                  <Link href={`/dashboard/cohorts/${r.cohortId}`} className='hover:underline'>
-                    {r.name}
-                  </Link>
-                </TableCell>
-                <TableCell className='text-muted-foreground text-sm whitespace-nowrap tabular-nums'>
-                  {formatPeriod(r.startedAt, r.endedAt)}
-                </TableCell>
-                <TableCell className='text-muted-foreground text-right tabular-nums'>
-                  {num(r.capacity)}
-                </TableCell>
-                <TableCell className='text-right tabular-nums'>{r.applied}</TableCell>
-                <TableCell className='text-muted-foreground text-right tabular-nums'>
-                  {competitionRate(r.applied, r.capacity)}
-                </TableCell>
-                <TableCell className='text-right tabular-nums'>{r.selected}</TableCell>
-                <TableCell className='text-right tabular-nums'>{num(r.examTaken)}</TableCell>
-                <TableCell className='text-right tabular-nums'>{num(r.completed)}</TableCell>
-                <TableCell className='text-muted-foreground text-right tabular-nums'>
-                  {num(r.certPassed)}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
-    </section>
-  );
-}
 
 export default async function OverviewPage() {
   const stats = await getBusinessStats();
@@ -198,17 +113,22 @@ export default async function OverviewPage() {
         <div className='space-y-6'>
           <h2 className='text-base font-semibold'>과정별 진행 이력</h2>
           {CATEGORIES.map((cat) => (
-            <CohortSection
+            <CohortHistoryTable
               key={cat.key}
               label={cat.label}
               tone={cat.tone}
               rows={byCategory.get(cat.key) ?? []}
             />
           ))}
-          <CohortSection label='기타' tone='border-slate-300 text-slate-600' rows={uncategorized} />
+          <CohortHistoryTable
+            label='기타'
+            tone='border-slate-300 text-slate-600'
+            rows={uncategorized}
+          />
           <p className='text-muted-foreground text-xs'>
-            경쟁률 = 신청 ÷ 정원 · 선발 = 선발 + 당일취소 (사전취소 제외) · 응시 = 인증평가 참여
-            · 합격 = 인증평가 합격 (— 는 해당 없음 또는 미채점) · 테스트 인원 제외
+            행을 클릭하면 소속구분별 상세가 펼쳐집니다 · 경쟁률 = 신청 ÷ 정원 · 선발 = 선발 +
+            당일취소 (사전취소 제외) · 응시 = 인증평가 참여 · 합격 = 인증평가 합격 (— 는 해당 없음
+            또는 미채점) · 테스트 인원 제외
           </p>
         </div>
 
