@@ -18,6 +18,7 @@ export type CohortHistoryRow = {
   category: string | null; // champion | general | special | experts | null
   startedAt: string | null;
   endedAt: string | null;
+  capacity: number | null; // max_capacity 미설정 기수는 null → '—'
   applied: number;
   selected: number;
   examTaken: number | null; // 인증평가 데이터 없는 기수는 null → '—'
@@ -75,6 +76,7 @@ type CohortRow = {
   ended_at: string | null;
   intensive_start_at: string | null;
   intensive_end_at: string | null;
+  max_capacity: number | null;
   min_attendance: number | null;
   created_at: string;
 };
@@ -112,7 +114,7 @@ export async function computeBusinessStats(): Promise<BusinessStats> {
       supabase
         .from('cohorts')
         .select(
-          'id, name, category, delivery_method, started_at, ended_at, intensive_start_at, intensive_end_at, min_attendance, created_at'
+          'id, name, category, delivery_method, started_at, ended_at, intensive_start_at, intensive_end_at, max_capacity, min_attendance, created_at'
         )
         .range(f, t)
     ),
@@ -295,6 +297,7 @@ export async function computeBusinessStats(): Promise<BusinessStats> {
       category: c.category,
       startedAt: c.started_at,
       endedAt: c.ended_at,
+      capacity: c.max_capacity,
       applied: counts.applied,
       selected: counts.selected,
       examTaken,

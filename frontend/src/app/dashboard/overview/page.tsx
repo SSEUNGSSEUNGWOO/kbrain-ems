@@ -35,6 +35,12 @@ function num(v: number | null): string {
   return v === null ? '—' : String(v);
 }
 
+function competitionRate(applied: number, capacity: number | null): string {
+  if (!capacity || applied === 0) return '—';
+  const ratio = applied / capacity;
+  return `${(Math.round(ratio * 10) / 10).toFixed(1)}:1`;
+}
+
 function CohortSection({
   label,
   tone,
@@ -61,7 +67,9 @@ function CohortSection({
             <TableRow>
               <TableHead>과정명</TableHead>
               <TableHead className='whitespace-nowrap'>교육일</TableHead>
+              <TableHead className='text-right'>정원</TableHead>
               <TableHead className='text-right'>신청</TableHead>
+              <TableHead className='text-right whitespace-nowrap'>경쟁률</TableHead>
               <TableHead className='text-right'>선발</TableHead>
               <TableHead className='text-right'>응시</TableHead>
               <TableHead className='text-right'>수료</TableHead>
@@ -79,7 +87,13 @@ function CohortSection({
                 <TableCell className='text-muted-foreground text-sm whitespace-nowrap tabular-nums'>
                   {formatPeriod(r.startedAt, r.endedAt)}
                 </TableCell>
+                <TableCell className='text-muted-foreground text-right tabular-nums'>
+                  {num(r.capacity)}
+                </TableCell>
                 <TableCell className='text-right tabular-nums'>{r.applied}</TableCell>
+                <TableCell className='text-muted-foreground text-right tabular-nums'>
+                  {competitionRate(r.applied, r.capacity)}
+                </TableCell>
                 <TableCell className='text-right tabular-nums'>{r.selected}</TableCell>
                 <TableCell className='text-right tabular-nums'>{num(r.examTaken)}</TableCell>
                 <TableCell className='text-right tabular-nums'>{num(r.completed)}</TableCell>
@@ -193,8 +207,8 @@ export default async function OverviewPage() {
           ))}
           <CohortSection label='기타' tone='border-slate-300 text-slate-600' rows={uncategorized} />
           <p className='text-muted-foreground text-xs'>
-            선발 = 선발 + 당일취소 · 응시 = 인증평가 참여 · 합격 = 인증평가 합격 (— 는 해당 없음
-            또는 미채점) · 테스트 인원 제외
+            경쟁률 = 신청 ÷ 정원 · 선발 = 선발 + 당일취소 (사전취소 제외) · 응시 = 인증평가 참여
+            · 합격 = 인증평가 합격 (— 는 해당 없음 또는 미채점) · 테스트 인원 제외
           </p>
         </div>
 
