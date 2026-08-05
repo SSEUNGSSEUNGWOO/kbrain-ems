@@ -314,12 +314,18 @@ export default async function CohortApplicationsPage({ params, searchParams }: P
     return done;
   };
 
-  // 자기주도형 cohort 한정: 특화(종합과정) 이력 뱃지 — 미수료자가 이번 인증시험을
-  // 보면 특화 수료증 추가 발급 대상이 되므로 선발 화면에서 바로 보이게 한다.
+  // 자기주도형 cohort 한정: 이전 챔피언 과정 이력 뱃지 — 미수료자가 이번 인증시험을
+  // 보면 원 과정 수료증 추가 발급 대상이 되므로 선발 화면에서 바로 보이게 한다.
+  // 그린 수료는 그린 시험, 블루 수료는 블루 시험으로만 충족 → 같은 트랙만 조회.
   const isSelfDirected = cohort?.delivery_method === '자기주도형';
   let specialHistoryMap: Map<string, SpecialHistory> | null = null;
   if (isSelfDirected) {
-    specialHistoryMap = await getSpecialCourseHistoryByApplicant();
+    const track = cohort?.name.includes('그린')
+      ? ('그린' as const)
+      : cohort?.name.includes('블루')
+        ? ('블루' as const)
+        : null;
+    specialHistoryMap = await getSpecialCourseHistoryByApplicant(track);
   }
 
   // facet counts (필터 적용 전 코호트 전체 기준) — c2 응답 우선, 없으면 applicants.category

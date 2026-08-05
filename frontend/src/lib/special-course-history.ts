@@ -37,9 +37,13 @@ function shortCohortName(name: string): string {
   return name.replace('AI 챔피언 ', '').trim();
 }
 
-/** 집중교육이 끝났고 인증평가 기록이 있는 챔피언 기수(자기주도형 제외) 전체를
- *  훑어 applicant_id → 과정 이력 맵을 만든다. */
-export async function getSpecialCourseHistoryByApplicant(): Promise<Map<string, SpecialHistory>> {
+/** 집중교육이 끝났고 인증평가 기록이 있는 챔피언 기수(자기주도형 제외)를 훑어
+ *  applicant_id → 과정 이력 맵을 만든다.
+ *  track('그린'|'블루')을 주면 같은 트랙 과정만 — 그린 미수료는 그린 시험으로만
+ *  수료되므로 자기주도형 선발 화면에서는 반드시 같은 트랙만 봐야 한다. */
+export async function getSpecialCourseHistoryByApplicant(
+  track?: '그린' | '블루' | null
+): Promise<Map<string, SpecialHistory>> {
   const supabase = createAdminClient();
   const today = new Date().toISOString().slice(0, 10);
 
@@ -49,7 +53,9 @@ export async function getSpecialCourseHistoryByApplicant(): Promise<Map<string, 
     .eq('category', 'champion')
     .not('intensive_end_at', 'is', null)
     .lte('intensive_end_at', today);
-  const specialCohorts = (allChampion ?? []).filter((c) => c.delivery_method !== '자기주도형');
+  const specialCohorts = (allChampion ?? []).filter(
+    (c) => c.delivery_method !== '자기주도형' && (!track || c.name.includes(track))
+  );
 
   const result = new Map<string, SpecialHistory>();
   if (specialCohorts.length === 0) return result;
