@@ -54,9 +54,33 @@ export type ApplicationRow = {
    *  null = 자격연계형이 아니거나 답변 없음.
    */
   cert_bucket: 'none' | 'planned' | 'has' | null;
+  /** 자기주도형 cohort 한정: 특화(종합과정) 이력. null = 이력 없음 또는 비대상 cohort. */
+  special_history: {
+    cohortName: string;
+    status: 'completed' | 'not_certified' | 'exam_only_left' | 'insufficient';
+    attendedDays: number;
+    requiredDays: number;
+  } | null;
   applied_at: string | null;
   applicant_edit: ApplicantEdit | null;
   can_edit: boolean;
+};
+
+// 특화 이력 뱃지 — exam_only_left 가 선발 시 핵심 관리 대상 (시험만 보면 특화 수료)
+const SPECIAL_HISTORY_BADGE: Record<
+  NonNullable<ApplicationRow['special_history']>['status'],
+  { label: string; tone: string }
+> = {
+  completed: { label: '특화 수료', tone: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  not_certified: { label: '특화 미인증', tone: 'bg-violet-50 text-violet-700 border-violet-200' },
+  exam_only_left: {
+    label: '특화 미수료 · 시험만 남음',
+    tone: 'bg-amber-50 text-amber-800 border-amber-300'
+  },
+  insufficient: {
+    label: '특화 미수료 · 집중 미달',
+    tone: 'bg-rose-50 text-rose-700 border-rose-200'
+  }
 };
 
 // 설문항목 2 (C2) 응답 → 분류 라벨·톤
@@ -85,7 +109,6 @@ const STATUS_TONE: Record<string, string> = {
   same_day_cancel: 'bg-rose-50 text-rose-700 border-rose-200'
 };
 
-
 type Props = {
   rows: ApplicationRow[];
   cohortId: string;
@@ -97,9 +120,17 @@ type Props = {
   statusCounts: Record<string, number>;
   prereqMax: number; // 0이면 사전학습 컬럼 숨김
   hasCertQuestion: boolean; // 자격연계형 cohort 일 때만 true → 자격증 컬럼 노출
+  showSpecialHistory?: boolean; // 자기주도형 cohort 일 때만 true → 특화 이력 컬럼 노출
 };
 
-const CATEGORY_KEYS = ['central', 'metro_local', 'basic_local', 'public', 'education', 'other'] as const;
+const CATEGORY_KEYS = [
+  'central',
+  'metro_local',
+  'basic_local',
+  'public',
+  'education',
+  'other'
+] as const;
 const STATUS_KEYS = ['applied', 'selected', 'rejected', 'pre_cancel', 'same_day_cancel'] as const;
 const SORTABLE_COLS = ['status', 'name', 'knowledge_score', 'applied_at'] as const;
 type SortableCol = (typeof SORTABLE_COLS)[number];
@@ -114,7 +145,8 @@ export function ApplicantsTable({
   categoryCounts,
   statusCounts,
   prereqMax,
-  hasCertQuestion
+  hasCertQuestion,
+  showSpecialHistory = false
 }: Props) {
   const [{ q, category, status, sort }, setParams] = useQueryStates(
     {
@@ -250,9 +282,8 @@ export function ApplicantsTable({
                 <TableHead>분류</TableHead>
                 <TableHead>소속</TableHead>
                 {hasCertQuestion && <TableHead>자격증</TableHead>}
-                {prereqMax > 0 && (
-                  <TableHead className='text-right'>사전학습</TableHead>
-                )}
+                {showSpecialHistory && <TableHead>특화 이력</TableHead>}
+                {prereqMax > 0 && <TableHead className='text-right'>사전학습</TableHead>}
                 <SortableHead
                   col='knowledge_score'
                   current={sortCol}
@@ -283,11 +314,7 @@ export function ApplicantsTable({
                 return (
                   <TableRow key={r.id} className='group hover:bg-muted/50'>
                     <TableCell>
-                      <StatusSelect
-                        applicationId={r.id}
-                        cohortId={cohortId}
-                        status={r.status}
-                      />
+                      <StatusSelect applicationId={r.id} cohortId={cohortId} status={r.status} />
                     </TableCell>
                     <TableCell>
                       <Link
@@ -302,9 +329,7 @@ export function ApplicantsTable({
                         {catLabel}
                       </Badge>
                     </TableCell>
-                    <TableCell className='text-muted-foreground'>
-                      {r.organization ?? '—'}
-                    </TableCell>
+                    <TableCell className='text-muted-foreground'>{r.organization ?? '—'}</TableCell>
                     {hasCertQuestion && (
                       <TableCell className='max-w-[220px]'>
                         {r.cert_bucket ? (
@@ -336,6 +361,24 @@ export function ApplicantsTable({
                               </span>
                             )}
                           </div>
+                        ) : (
+                          <span className='text-muted-foreground text-xs'>—</span>
+                        )}
+                      </TableCell>
+                    )}
+                    {showSpecialHistory && (
+                      <TableCell>
+                        {r.special_history ? (
+                          <Badge
+                            variant='outline'
+                            className={cn(
+                              'font-normal whitespace-nowrap',
+                              SPECIAL_HISTORY_BADGE[r.special_history.status].tone
+                            )}
+                            title={`${r.special_history.cohortName} · 집중 ${r.special_history.attendedDays}/${r.special_history.requiredDays}일`}
+                          >
+                            {SPECIAL_HISTORY_BADGE[r.special_history.status].label}
+                          </Badge>
                         ) : (
                           <span className='text-muted-foreground text-xs'>—</span>
                         )}
@@ -601,4 +644,3 @@ function StatusSelect({
     </Select>
   );
 }
-

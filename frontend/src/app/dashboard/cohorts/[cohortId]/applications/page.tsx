@@ -4,6 +4,10 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Icons } from '@/components/icons';
 import { createAdminClient } from '@/lib/supabase/server';
 import { isViewer } from '@/lib/auth';
+import {
+  getSpecialCourseHistoryByApplicant,
+  type SpecialHistory
+} from '@/lib/special-course-history';
 import Link from 'next/link';
 import { ApplicantsTable, type ApplicationRow } from './_components/applicants-table';
 import { ResetSelectionButton } from './_components/reset-selection-button';
@@ -81,7 +85,7 @@ export default async function CohortApplicationsPage({ params, searchParams }: P
   const [{ data: cohort }, { data: questions }, { data: statsRows }] = await Promise.all([
     supabase
       .from('cohorts')
-      .select('id, name, max_capacity, prereq_course_codes')
+      .select('id, name, max_capacity, prereq_course_codes, delivery_method')
       .eq('id', cohortId)
       .maybeSingle(),
     supabase
@@ -189,10 +193,9 @@ export default async function CohortApplicationsPage({ params, searchParams }: P
     if (hidePersonal) {
       rowsQuery = rowsQuery.ilike('applicants.name', `%${search}%`);
     } else {
-      rowsQuery = rowsQuery.or(
-        `name.ilike.%${search}%,phone.ilike.%${search}%`,
-        { foreignTable: 'applicants' }
-      );
+      rowsQuery = rowsQuery.or(`name.ilike.%${search}%,phone.ilike.%${search}%`, {
+        foreignTable: 'applicants'
+      });
     }
   }
   if (statusFilter) rowsQuery = rowsQuery.eq('status', statusFilter);
@@ -311,6 +314,14 @@ export default async function CohortApplicationsPage({ params, searchParams }: P
     return done;
   };
 
+  // 자기주도형 cohort 한정: 특화(종합과정) 이력 뱃지 — 미수료자가 이번 인증시험을
+  // 보면 특화 수료증 추가 발급 대상이 되므로 선발 화면에서 바로 보이게 한다.
+  const isSelfDirected = cohort?.delivery_method === '자기주도형';
+  let specialHistoryMap: Map<string, SpecialHistory> | null = null;
+  if (isSelfDirected) {
+    specialHistoryMap = await getSpecialCourseHistoryByApplicant();
+  }
+
   // facet counts (필터 적용 전 코호트 전체 기준) — c2 응답 우선, 없으면 applicants.category
   const categoryCounts: Record<string, number> = {
     central: 0,
@@ -351,6 +362,7 @@ export default async function CohortApplicationsPage({ params, searchParams }: P
     prereq_done_count: computePrereqDone(a.applicants?.phone ?? null, a.applicants?.email ?? null),
     cert_text: certQuestion ? (certTextMap.get(a.id) ?? null) : null,
     cert_bucket: certQuestion ? (certBucketMap.get(a.id) ?? 'none') : null,
+    special_history: (a.applicants?.id ? specialHistoryMap?.get(a.applicants.id) : null) ?? null,
     applied_at: a.applied_at,
     applicant_edit: a.applicants
       ? {
@@ -474,6 +486,7 @@ export default async function CohortApplicationsPage({ params, searchParams }: P
             statusCounts={statusCounts}
             prereqMax={prereqMax}
             hasCertQuestion={!!certQuestion}
+            showSpecialHistory={isSelfDirected}
           />
         )}
       </div>
