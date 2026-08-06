@@ -11,6 +11,7 @@ import { ATTENDED_STATUSES, ABSENT_STATUSES } from '@/lib/completion';
 import { STUDENT_KEEP_STATUSES } from '@/lib/student-sync';
 import { AFFILIATION_LABELS, UNCLASSIFIED_LABEL } from '@/lib/affiliation';
 import { isTestStudent } from '@/lib/students';
+import { computeCohortStage, type CohortStage } from '@/lib/cohort-stage';
 
 export type AffiliationStatRow = {
   label: string;
@@ -24,6 +25,8 @@ export type CohortHistoryRow = {
   category: string | null; // champion | general | special | experts | null
   startedAt: string | null;
   endedAt: string | null;
+  /** 모집·진행·종료 등 현재 단계 (사이드바·대시보드 공통 규칙) */
+  stage: CohortStage;
   capacity: number | null; // max_capacity 미설정 기수는 null → '—'
   applied: number;
   selected: number;
@@ -97,6 +100,8 @@ type CohortRow = {
   ended_at: string | null;
   intensive_start_at: string | null;
   intensive_end_at: string | null;
+  application_start_at: string | null;
+  application_end_at: string | null;
   max_capacity: number | null;
   min_attendance: number | null;
   created_at: string;
@@ -135,7 +140,7 @@ export async function computeBusinessStats(): Promise<BusinessStats> {
       supabase
         .from('cohorts')
         .select(
-          'id, name, category, delivery_method, started_at, ended_at, intensive_start_at, intensive_end_at, max_capacity, min_attendance, created_at'
+          'id, name, category, delivery_method, started_at, ended_at, intensive_start_at, intensive_end_at, application_start_at, application_end_at, max_capacity, min_attendance, created_at'
         )
         .range(f, t)
     ),
@@ -331,6 +336,7 @@ export async function computeBusinessStats(): Promise<BusinessStats> {
       category: c.category,
       startedAt: c.started_at,
       endedAt: c.ended_at,
+      stage: computeCohortStage(c),
       capacity: c.max_capacity,
       applied: counts.applied,
       selected: counts.selected,

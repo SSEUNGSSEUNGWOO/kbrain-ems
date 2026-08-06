@@ -434,6 +434,22 @@ export default function AppSidebar() {
               </SidebarMenuItem>
             )}
 
+            {/* 사업 진척률·KPI — 글로벌 */}
+            {!isAssistant && (
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  tooltip='사업 진척률·KPI'
+                  isActive={pathname.startsWith('/dashboard/kpi-dashboard')}
+                >
+                  <Link href='/dashboard/kpi-dashboard'>
+                    <Icons.trendingUp />
+                    <span>사업 진척률·KPI</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )}
+
             {/* 자료 다운로드 — 글로벌 */}
             {!isAssistant && (
               <SidebarMenuItem>
