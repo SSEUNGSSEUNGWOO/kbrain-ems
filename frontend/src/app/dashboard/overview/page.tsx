@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import PageContainer from '@/components/layout/page-container';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -90,12 +91,10 @@ export default async function OverviewPage() {
       pageDescription={`사업 전체 지원·선발·수료 통계 · ${generated} 집계`}
       pageHeaderAction={
         <Button variant='outline' size='sm' asChild>
-          {/* 페이지가 아니라 파일 다운로드 라우트 — next/link 대상 아님 */}
-          {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
-          <a href='/api/reports/selection-status' download>
+          <Link href='/dashboard/downloads'>
             <Icons.download className='mr-1.5' />
-            지원자·선발 현황 (xlsx)
-          </a>
+            자료 다운로드
+          </Link>
         </Button>
       }
     >

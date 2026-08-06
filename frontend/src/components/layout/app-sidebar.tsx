@@ -139,9 +139,7 @@ export default function AppSidebar() {
               className='h-7 w-7'
               priority
             />
-            <span className='text-xl font-bold tracking-[-0.03em] text-white'>
-              Korus
-            </span>
+            <span className='text-xl font-bold tracking-[-0.03em] text-white'>Korus</span>
             <span className='text-lg font-light text-white/30'>|</span>
             <Image
               src='/brand/k-brain-mark.png'
@@ -151,9 +149,7 @@ export default function AppSidebar() {
               className='h-[18px] w-auto opacity-90 brightness-0 invert'
               priority
             />
-            <span className='text-[17px] font-semibold tracking-tight text-white'>
-              K-Brain
-            </span>
+            <span className='text-[17px] font-semibold tracking-tight text-white'>K-Brain</span>
           </div>
           <Image
             src='/brand/korus-symbol-white.svg'
@@ -171,7 +167,6 @@ export default function AppSidebar() {
             메뉴
           </SidebarGroupLabel>
           <SidebarMenu>
-
             {/* 대시보드 */}
             {!isAssistant && (
               <SidebarMenuItem>
@@ -242,11 +237,7 @@ export default function AppSidebar() {
             )}
 
             {/* 기수 목록 — 펼치면 기수 트리 표시 */}
-            <Collapsible
-              asChild
-              defaultOpen={isInsideCohorts}
-              className='group/collapsible'
-            >
+            <Collapsible asChild defaultOpen={isInsideCohorts} className='group/collapsible'>
               <SidebarMenuItem>
                 <div className='flex w-full items-center'>
                   <SidebarMenuButton
@@ -269,7 +260,9 @@ export default function AppSidebar() {
                   <SidebarMenuSub className='mr-0 pr-0'>
                     {cohorts.length === 0 && (
                       <SidebarMenuSubItem>
-                        <span className='text-muted-foreground px-2 py-1 text-xs'>등록된 기수 없음</span>
+                        <span className='text-muted-foreground px-2 py-1 text-xs'>
+                          등록된 기수 없음
+                        </span>
                       </SidebarMenuSubItem>
                     )}
                     {CATEGORIES.map((cat) => {
@@ -278,10 +271,7 @@ export default function AppSidebar() {
                       const isActiveCat = activeCohortCategory === cat.key;
                       return (
                         <SidebarMenuSubItem key={cat.key}>
-                          <Collapsible
-                            defaultOpen={isActiveCat}
-                            className='group/cat w-full'
-                          >
+                          <Collapsible defaultOpen={isActiveCat} className='group/cat w-full'>
                             <CollapsibleTrigger className='hover:bg-sidebar-accent flex w-full items-center justify-between rounded px-2 py-1.5 text-sm font-semibold text-sidebar-foreground'>
                               <span>{cat.label}</span>
                               <Icons.chevronRight className='h-3 w-3 transition-transform duration-200 group-data-[state=open]/cat:rotate-90' />
@@ -301,7 +291,10 @@ export default function AppSidebar() {
                                           className='flex-1 min-w-0'
                                           isActive={pathname === `/dashboard/cohorts/${cohort.id}`}
                                         >
-                                          <Link href={`/dashboard/cohorts/${cohort.id}`} className='flex min-w-0 items-center gap-1.5'>
+                                          <Link
+                                            href={`/dashboard/cohorts/${cohort.id}`}
+                                            className='flex min-w-0 items-center gap-1.5'
+                                          >
                                             <span
                                               className={`shrink-0 rounded-sm px-1.5 py-0.5 text-[10px] font-bold leading-tight ${STAGE_BADGE_CLASS[cohort.stage]}`}
                                             >
@@ -317,9 +310,11 @@ export default function AppSidebar() {
 
                                       <CollapsibleContent className='overflow-hidden collapsible-anim'>
                                         <SidebarMenuSub className='mr-0 pr-0'>
-                                          {DOMAINS.filter((d) =>
-                                            STAGE_DOMAINS[cohort.stage].includes(d.slug) &&
-                                            (!isAssistant || ASSISTANT_DOMAIN_SLUGS.includes(d.slug))
+                                          {DOMAINS.filter(
+                                            (d) =>
+                                              STAGE_DOMAINS[cohort.stage].includes(d.slug) &&
+                                              (!isAssistant ||
+                                                ASSISTANT_DOMAIN_SLUGS.includes(d.slug))
                                           ).map((d) => {
                                             const DomainIcon = Icons[d.icon];
                                             return (
@@ -330,7 +325,9 @@ export default function AppSidebar() {
                                                     `/dashboard/cohorts/${cohort.id}/${d.slug}`
                                                   )}
                                                 >
-                                                  <Link href={`/dashboard/cohorts/${cohort.id}/${d.slug}`}>
+                                                  <Link
+                                                    href={`/dashboard/cohorts/${cohort.id}/${d.slug}`}
+                                                  >
                                                     <DomainIcon className='h-3.5 w-3.5 shrink-0' />
                                                     <span>{d.label}</span>
                                                   </Link>
@@ -360,9 +357,18 @@ export default function AppSidebar() {
                             <SidebarMenuSub className='mr-0 pr-0'>
                               {cohortsByCategory.uncategorized.map((cohort) => (
                                 <SidebarMenuSubItem key={cohort.id}>
-                                  <SidebarMenuSubButton asChild className='min-w-0' isActive={pathname === `/dashboard/cohorts/${cohort.id}`}>
-                                    <Link href={`/dashboard/cohorts/${cohort.id}`} className='flex min-w-0 items-center gap-1.5'>
-                                      <span className={`shrink-0 rounded-sm px-1.5 py-0.5 text-[10px] font-bold leading-tight ${STAGE_BADGE_CLASS[cohort.stage]}`}>
+                                  <SidebarMenuSubButton
+                                    asChild
+                                    className='min-w-0'
+                                    isActive={pathname === `/dashboard/cohorts/${cohort.id}`}
+                                  >
+                                    <Link
+                                      href={`/dashboard/cohorts/${cohort.id}`}
+                                      className='flex min-w-0 items-center gap-1.5'
+                                    >
+                                      <span
+                                        className={`shrink-0 rounded-sm px-1.5 py-0.5 text-[10px] font-bold leading-tight ${STAGE_BADGE_CLASS[cohort.stage]}`}
+                                      >
                                         {STAGE_LABEL[cohort.stage]}
                                       </span>
                                       <span className='truncate'>{cohort.name}</span>
@@ -428,13 +434,32 @@ export default function AppSidebar() {
               </SidebarMenuItem>
             )}
 
+            {/* 자료 다운로드 — 글로벌 */}
+            {!isAssistant && (
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  tooltip='자료 다운로드'
+                  isActive={pathname.startsWith('/dashboard/downloads')}
+                >
+                  <Link href='/dashboard/downloads'>
+                    <Icons.download />
+                    <span>자료 다운로드</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )}
+
             {/* 강사풀 — 글로벌 */}
             {!isAssistant && (
               <SidebarMenuItem>
                 <SidebarMenuButton
                   asChild
                   tooltip='강사풀'
-                  isActive={pathname === '/dashboard/instructors' || pathname.startsWith('/dashboard/instructors/')}
+                  isActive={
+                    pathname === '/dashboard/instructors' ||
+                    pathname.startsWith('/dashboard/instructors/')
+                  }
                 >
                   <Link href='/dashboard/instructors'>
                     <Icons.user2 />
@@ -491,7 +516,6 @@ export default function AppSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
             )}
-
           </SidebarMenu>
         </SidebarGroup>
       </SidebarContent>
