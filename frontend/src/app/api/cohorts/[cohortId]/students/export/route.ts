@@ -9,10 +9,7 @@ import {
   type ExportAnswer
 } from '@/lib/excel/students-export';
 
-export async function GET(
-  _req: Request,
-  { params }: { params: Promise<{ cohortId: string }> }
-) {
+export async function GET(_req: Request, { params }: { params: Promise<{ cohortId: string }> }) {
   const { cohortId } = await params;
   const supabase = createAdminClient();
   const hidePersonal = await isViewer();
@@ -34,13 +31,13 @@ export async function GET(
     email: string | null;
     phone: string | null;
     organizations: { name: string } | null;
-    applicants: { category: string | null } | null;
+    applicants: { category: string | null; email: string | null; phone: string | null } | null;
   };
 
   const { data: studentRows, error: studentError } = await supabase
     .from('students')
     .select(
-      'applicant_id, name, department, job_title, job_role, email, phone, organizations(name), applicants(category)'
+      'applicant_id, name, department, job_title, job_role, email, phone, organizations(name), applicants(category, email, phone)'
     )
     .eq('cohort_id', cohortId)
     .not('name', 'ilike', '테스트%')
@@ -101,8 +98,9 @@ export async function GET(
     department: s.department,
     jobTitle: s.job_title,
     jobRole: s.job_role,
-    email: hidePersonal ? null : s.email,
-    phone: hidePersonal ? null : s.phone,
+    // 교육생 행이 비어 있으면 지원자 마스터 값으로 대체 (선발 후 연락처를 채운 경우 대비)
+    email: hidePersonal ? null : (s.email ?? s.applicants?.email ?? null),
+    phone: hidePersonal ? null : (s.phone ?? s.applicants?.phone ?? null),
     applicationId: appIdByApplicant.get(s.applicant_id) ?? null
   }));
 
@@ -127,8 +125,7 @@ export async function GET(
 
   return new NextResponse(new Uint8Array(buf), {
     headers: {
-      'Content-Type':
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'Content-Disposition': `attachment; filename*=UTF-8''${encoded}`,
       'Cache-Control': 'no-store'
     }

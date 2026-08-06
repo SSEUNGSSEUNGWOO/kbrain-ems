@@ -3,10 +3,7 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { isViewer } from '@/lib/auth';
 import { isTestStudent } from '@/lib/students';
 import { logActivity } from '@/lib/activity-log';
-import {
-  buildNoticeRosterWorkbook,
-  type NoticeRosterRow
-} from '@/lib/excel/notice-roster-export';
+import { buildNoticeRosterWorkbook, type NoticeRosterRow } from '@/lib/excel/notice-roster-export';
 
 // 분류 매핑 — applications/page.tsx 와 동일. 신청서 C2 응답(①~⑥) → 한글 라벨.
 const CATEGORY_LABEL_BY_C2: Record<string, string> = {
@@ -18,10 +15,7 @@ const CATEGORY_LABEL_BY_C2: Record<string, string> = {
   '⑥': '기타'
 };
 
-export async function GET(
-  _req: Request,
-  { params }: { params: Promise<{ cohortId: string }> }
-) {
+export async function GET(_req: Request, { params }: { params: Promise<{ cohortId: string }> }) {
   const { cohortId } = await params;
   const supabase = createAdminClient();
   const hidePersonal = await isViewer();
@@ -85,8 +79,9 @@ export async function GET(
     if (!r.applicants || isTestStudent(r.applicants.name)) return null;
     const a = r.applicants;
     const c2 = c2ChoiceByApp.get(r.id);
-    const categoryLabel =
-      (c2 && CATEGORY_LABEL_BY_C2[c2]) ?? a.category ?? '미분류';
+    // 지원자 마스터 값 우선 — C2 ④번은 "공공기관 / 지방공공기관" 통합 선택지라
+    // 세분된 '지방공공기관'이 C2 라벨로 덮이면 안 된다.
+    const categoryLabel = a.category ?? (c2 && CATEGORY_LABEL_BY_C2[c2]) ?? '미분류';
     return {
       name: a.name,
       categoryLabel,
@@ -127,8 +122,7 @@ export async function GET(
 
   return new NextResponse(new Uint8Array(buf), {
     headers: {
-      'Content-Type':
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'Content-Disposition': `attachment; filename*=UTF-8''${encoded}`,
       'Cache-Control': 'no-store'
     }

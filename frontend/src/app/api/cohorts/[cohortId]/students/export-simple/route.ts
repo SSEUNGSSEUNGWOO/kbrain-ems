@@ -3,10 +3,7 @@ import ExcelJS from 'exceljs';
 import { createAdminClient } from '@/lib/supabase/server';
 import { isViewer } from '@/lib/auth';
 import { logActivity } from '@/lib/activity-log';
-import {
-  categoryFromLabel,
-  ORGANIZATION_CATEGORY_LABEL
-} from '@/lib/organization-category';
+import { categoryFromLabel, ORGANIZATION_CATEGORY_LABEL } from '@/lib/organization-category';
 import {
   ROSTER_COLUMNS,
   filterForViewer,
@@ -14,10 +11,7 @@ import {
   type RosterColumnKey
 } from '@/lib/roster-columns';
 
-export async function GET(
-  req: Request,
-  { params }: { params: Promise<{ cohortId: string }> }
-) {
+export async function GET(req: Request, { params }: { params: Promise<{ cohortId: string }> }) {
   const { cohortId } = await params;
   const supabase = createAdminClient();
   const hidePersonal = await isViewer();
@@ -46,13 +40,18 @@ export async function GET(
     job_role: string | null;
     notes: string | null;
     organizations: { name: string } | null;
-    applicants: { category: string | null } | null;
+    applicants: {
+      category: string | null;
+      phone: string | null;
+      email: string | null;
+      personal_email: string | null;
+    } | null;
   };
 
   const { data: studentRows, error } = await supabase
     .from('students')
     .select(
-      'applicant_id, name, phone, email, personal_email, department, job_title, job_role, notes, organizations(name), applicants(category)'
+      'applicant_id, name, phone, email, personal_email, department, job_title, job_role, notes, organizations(name), applicants(category, phone, email, personal_email)'
     )
     .eq('cohort_id', cohortId)
     .not('name', 'ilike', '테스트%')
@@ -104,11 +103,13 @@ export async function GET(
       case 'job_role':
         return s.job_role ?? '';
       case 'phone':
-        return s.phone ?? '';
+        // 교육생 행이 비어 있으면 지원자 마스터 값으로 대체 —
+        // 선발 이후에 연락처를 채운 경우 교육생 행에는 반영되지 않아 빈칸이 나온다.
+        return s.phone ?? s.applicants?.phone ?? '';
       case 'email':
-        return s.email ?? '';
+        return s.email ?? s.applicants?.email ?? '';
       case 'personal_email':
-        return s.personal_email ?? '';
+        return s.personal_email ?? s.applicants?.personal_email ?? '';
       case 'notes':
         return s.notes ?? '';
     }
@@ -195,8 +196,7 @@ export async function GET(
 
   return new NextResponse(new Uint8Array(buf), {
     headers: {
-      'Content-Type':
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'Content-Disposition': `attachment; filename*=UTF-8''${encoded}`,
       'Cache-Control': 'no-store'
     }

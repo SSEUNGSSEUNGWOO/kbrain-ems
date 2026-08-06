@@ -7,13 +7,13 @@ import {
   type ExportApplication,
   type SelectionConfigSummary
 } from '@/lib/excel/applications-export';
-import { DEFAULT_WEIGHTS, PLAN_CHARS_FULL } from '@/app/dashboard/cohorts/[cohortId]/applications/_selection-logic';
+import {
+  DEFAULT_WEIGHTS,
+  PLAN_CHARS_FULL
+} from '@/app/dashboard/cohorts/[cohortId]/applications/_selection-logic';
 import type { PriorCertSummary } from '@/lib/excel/applications-export';
 
-export async function GET(
-  _req: Request,
-  { params }: { params: Promise<{ cohortId: string }> }
-) {
+export async function GET(_req: Request, { params }: { params: Promise<{ cohortId: string }> }) {
   const { cohortId } = await params;
   const includeCancel = new URL(_req.url).searchParams.get('includeCancel') === '1';
   const supabase = createAdminClient();
@@ -60,6 +60,7 @@ export async function GET(
       email: string | null;
       department: string | null;
       job_role: string | null;
+      category: string | null;
       organizations: { name: string } | null;
     } | null;
   };
@@ -70,7 +71,7 @@ export async function GET(
   const { data: applications, error: appError } = await supabase
     .from('applications')
     .select(
-      'id, status, rejected_stage, decided_at, knowledge_score, knowledge_correct_count, knowledge_total_count, applicant_id, applicants(id, name, phone, email, department, job_role, organizations(name))'
+      'id, status, rejected_stage, decided_at, knowledge_score, knowledge_correct_count, knowledge_total_count, applicant_id, applicants(id, name, phone, email, department, job_role, category, organizations(name))'
     )
     .eq('cohort_id', cohortId)
     .in('status', statusFilter)
@@ -294,6 +295,7 @@ export async function GET(
     department: r.applicants?.department ?? null,
     jobRole: r.applicants?.job_role ?? null,
     c2Choice: c2ChoiceMap.get(r.id) ?? null,
+    applicantCategory: r.applicants?.category ?? null,
     knowledgeScore: r.knowledge_score,
     knowledgeCorrect: r.knowledge_correct_count,
     knowledgeTotal: r.knowledge_total_count,
@@ -306,7 +308,9 @@ export async function GET(
     decidedAt: r.decided_at,
     rejectedStage: r.rejected_stage,
     priorCerts: priorCertsByApplicant.get(r.applicants?.id ?? '') ?? [],
-    expertCohortLabels: r.applicants?.id ? (expertLabelsByApplicant.get(r.applicants.id) ?? []) : [],
+    expertCohortLabels: r.applicants?.id
+      ? (expertLabelsByApplicant.get(r.applicants.id) ?? [])
+      : [],
     excludedByOtherCohort: r.applicants?.id ? excludedApplicantIds.has(r.applicants.id) : false,
     applicationStatus: r.status
   });
@@ -320,7 +324,10 @@ export async function GET(
     .filter((r) => selectedStatuses.includes(r.status))
     .map(toExport)
     .sort(byScoreDesc);
-  const rejected = rows.filter((r) => r.status === 'rejected').map(toExport).sort(byScoreDesc);
+  const rejected = rows
+    .filter((r) => r.status === 'rejected')
+    .map(toExport)
+    .sort(byScoreDesc);
 
   // cohort 이름에서 트랙 추출 (예: "AI 챔피언 블루 26-1기" → 'blue')
   const cohortTrack: CohortTrack = (() => {
@@ -367,8 +374,7 @@ export async function GET(
 
   return new NextResponse(new Uint8Array(buf), {
     headers: {
-      'Content-Type':
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'Content-Disposition': `attachment; filename*=UTF-8''${encoded}`,
       'Cache-Control': 'no-store'
     }

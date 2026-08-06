@@ -59,18 +59,17 @@ const REJECTED_BADGE_CLASS =
 
 // C2 응답 한글 라벨 → 색상 톤
 const CATEGORY_CLASS: Record<string, string> = {
-  중앙부처:
-    'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-300',
+  중앙부처: 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-300',
   광역지자체:
     'border-cyan-200 bg-cyan-50 text-cyan-700 dark:border-cyan-900 dark:bg-cyan-950/40 dark:text-cyan-300',
   기초지자체:
     'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300',
-  공공기관:
-    'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300',
+  공공기관: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300',
+  지방공공기관:
+    'border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-900 dark:bg-orange-950/40 dark:text-orange-300',
   교육행정기관:
     'border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-900 dark:bg-violet-950/40 dark:text-violet-300',
-  기타:
-    'border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-900 dark:bg-slate-950/40 dark:text-slate-300',
+  기타: 'border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-900 dark:bg-slate-950/40 dark:text-slate-300',
   미분류: 'border-border bg-muted text-muted-foreground'
 };
 
@@ -290,11 +289,7 @@ export function ApplicantTable({
       {isEmpty ? (
         <EmptyState hasFilter={hasFilter} />
       ) : (
-        <div
-          className={`rounded-md border transition-opacity ${
-            pending ? 'opacity-60' : ''
-          }`}
-        >
+        <div className={`rounded-md border transition-opacity ${pending ? 'opacity-60' : ''}`}>
           <table className='w-full text-sm'>
             <thead>
               <tr className='bg-muted/50 border-b'>

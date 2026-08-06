@@ -11,13 +11,17 @@ import {
 } from './_search-params';
 
 const sanitizeSearch = (s: string) =>
-  s.replace(/[%,()\\]/g, ' ').replace(/\s+/g, ' ').trim();
+  s
+    .replace(/[%,()\\]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 
 const CATEGORY_KEYS = [
   '중앙부처',
   '광역지자체',
   '기초지자체',
   '공공기관',
+  '지방공공기관',
   '교육행정기관',
   '기타'
 ] as const;

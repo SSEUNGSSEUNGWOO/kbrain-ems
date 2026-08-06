@@ -4,15 +4,17 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { syncStudentSelected, removeStudentForCohort } from '@/lib/student-sync';
 import { revalidatePath } from 'next/cache';
 import { logActivity } from '@/lib/activity-log';
-import {
-  type AppQuestion,
-  type ParsedRow,
-  mapAnswerValue
-} from '@/lib/applications-xls-parser';
+import { type AppQuestion, type ParsedRow, mapAnswerValue } from '@/lib/applications-xls-parser';
 import type { Json } from '@/lib/supabase/types';
 import type { SelectionConfigSnapshot } from './_selection-logic';
 
-const ALLOWED_STATUSES = ['applied', 'selected', 'rejected', 'pre_cancel', 'same_day_cancel'] as const;
+const ALLOWED_STATUSES = [
+  'applied',
+  'selected',
+  'rejected',
+  'pre_cancel',
+  'same_day_cancel'
+] as const;
 type ApplicationStatus = (typeof ALLOWED_STATUSES)[number];
 
 export async function updateApplicationStatus(
@@ -46,8 +48,11 @@ export async function updateApplicationStatus(
   }
 
   const STATUS_KO: Record<string, string> = {
-    applied: '신청', selected: '선발', rejected: '탈락',
-    pre_cancel: '사전취소', same_day_cancel: '당일취소'
+    applied: '신청',
+    selected: '선발',
+    rejected: '탈락',
+    pre_cancel: '사전취소',
+    same_day_cancel: '당일취소'
   };
   await logActivity({
     actionType: 'update',
@@ -131,7 +136,7 @@ export async function loadSelectionPool(
       .eq('id', cohortId)
       .maybeSingle();
     const prereqCodes: string[] =
-      ((cohortMeta as { prereq_course_codes: string[] | null } | null)?.prereq_course_codes ?? []);
+      (cohortMeta as { prereq_course_codes: string[] | null } | null)?.prereq_course_codes ?? [];
     const prereqMax = prereqCodes.length;
 
     // 2) lms_completions 조회 — 후보군의 phone/email 로만 좁혀서 in() 매칭.
@@ -249,8 +254,8 @@ export async function loadSelectionPool(
       return true;
     };
     if (appIds.length > 0 && (c2 || finalQ || multiQ || certQ)) {
-      const targetIds = [c2?.id, finalQ?.id, multiQ?.id, certQ?.id].filter(
-        (x): x is string => Boolean(x)
+      const targetIds = [c2?.id, finalQ?.id, multiQ?.id, certQ?.id].filter((x): x is string =>
+        Boolean(x)
       );
       const chunk = 1000;
       for (let offset = 0; offset < 1_000_000; offset += chunk) {
@@ -358,13 +363,16 @@ export async function loadSelectionPool(
       email: string | null
     ): { force_select: boolean; force_reason: string | null } => {
       if (!forceConfig) return { force_select: false, force_reason: null };
-      if (forceApplicantIds.has(applicantId)) return { force_select: true, force_reason: '전문인재' };
+      if (forceApplicantIds.has(applicantId))
+        return { force_select: true, force_reason: '전문인재' };
       const p = normPhone(phone);
       if (p && forcePhones.has(p)) return { force_select: true, force_reason: '전문인재' };
       const em = normEmail(email);
       if (em && forceEmails.has(em)) return { force_select: true, force_reason: '전문인재' };
-      if (name && forceStudentNames.has(name)) return { force_select: true, force_reason: '전문인재' };
-      if (name && forceIndividualNames.has(name)) return { force_select: true, force_reason: '개별지정' };
+      if (name && forceStudentNames.has(name))
+        return { force_select: true, force_reason: '전문인재' };
+      if (name && forceIndividualNames.has(name))
+        return { force_select: true, force_reason: '개별지정' };
       return { force_select: false, force_reason: null };
     };
 
@@ -374,7 +382,12 @@ export async function loadSelectionPool(
       const multiCount = multiCountMap.get(a.id) ?? 0;
       const applicantId = a.applicants?.id ?? '';
       const name = a.applicants?.name ?? '(이름 없음)';
-      const force = computeForce(applicantId, name, a.applicants?.phone ?? null, a.applicants?.email ?? null);
+      const force = computeForce(
+        applicantId,
+        name,
+        a.applicants?.phone ?? null,
+        a.applicants?.email ?? null
+      );
       return {
         application_id: a.id,
         applicant_id: applicantId,
@@ -386,7 +399,10 @@ export async function loadSelectionPool(
         plan_text: planText,
         multi_selected_count: multiCount,
         multi_choices_max: multiChoicesMax,
-        prereq_done_count: computePrereqDone(a.applicants?.phone ?? null, a.applicants?.email ?? null),
+        prereq_done_count: computePrereqDone(
+          a.applicants?.phone ?? null,
+          a.applicants?.email ?? null
+        ),
         prereq_max: prereqMax,
         has_cert: certQ ? (certHasMap.get(a.id) ?? false) : null,
         current_status: a.status,
@@ -571,24 +587,30 @@ export async function importApplicationsXls(
       }
       const orgId = await getOrCreateOrg(row.organizationName);
 
+      // supabase types.ts 에 applicants.category 미반영 — 조회 결과만 캐스팅해서 사용
+      type ApplicantLookup = { data: { id: string; category: string | null }[] | null };
+
       let applicantId: string | null = null;
+      let existingCategory: string | null = null;
       if (row.phone) {
-        const { data } = await supabase
+        const { data } = (await supabase
           .from('applicants')
-          .select('id')
+          .select('id, category')
           .eq('name', row.name)
           .eq('phone', row.phone)
-          .limit(1);
+          .limit(1)) as unknown as ApplicantLookup;
         applicantId = data?.[0]?.id ?? null;
+        existingCategory = data?.[0]?.category ?? null;
       }
       if (!applicantId && row.email) {
-        const { data } = await supabase
+        const { data } = (await supabase
           .from('applicants')
-          .select('id')
+          .select('id, category')
           .eq('name', row.name)
           .eq('email', row.email)
-          .limit(1);
+          .limit(1)) as unknown as ApplicantLookup;
         applicantId = data?.[0]?.id ?? null;
+        existingCategory = data?.[0]?.category ?? null;
       }
 
       const department = c3Idx >= 0 ? row.rawValues[c3Idx] || null : null;
@@ -617,6 +639,13 @@ export async function importApplicationsXls(
         }
       }
 
+      // 신청서 C2 ④번은 "공공기관 / 지방공공기관" 통합 선택지라 항상 '공공기관'으로
+      // 내려온다. 이미 '지방공공기관'으로 세분된 지원자를 재업로드로 되돌리지 않는다.
+      const effectiveCategory =
+        existingCategory === '지방공공기관' && category === '공공기관'
+          ? existingCategory
+          : category;
+
       const applicantFields = {
         name: row.name,
         phone: row.phone || null,
@@ -624,7 +653,7 @@ export async function importApplicationsXls(
         organization_id: orgId,
         department,
         job_role: jobRole,
-        category
+        category: effectiveCategory
       };
 
       if (applicantId) {

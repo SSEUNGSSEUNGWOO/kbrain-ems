@@ -37,6 +37,8 @@ export type ExportApplication = {
   department: string | null;
   jobRole: string | null;
   c2Choice: string | null;
+  /** applicants.category — C2 보다 세분된 값(지방공공기관 등)이 들어 있다 */
+  applicantCategory?: string | null;
   knowledgeScore: number | null;
   knowledgeCorrect: number | null;
   knowledgeTotal: number | null;
@@ -100,9 +102,7 @@ function classifyRejection(
   if (config.parentOrgCap && config.parentOrgCap > 0 && r.organization) {
     const parent = parentOrgKey(r.organization);
     if (parent) {
-      const sameParentSelected = selected.filter(
-        (x) => parentOrgKey(x.organization) === parent
-      );
+      const sameParentSelected = selected.filter((x) => parentOrgKey(x.organization) === parent);
       if (sameParentSelected.length >= config.parentOrgCap) {
         return '상위부처 인원 기준 초과';
       }
@@ -236,12 +236,38 @@ export async function buildApplicationsWorkbook({
   }
 
   const wb = new ExcelJS.Workbook();
-  buildSummarySheet(wb, cohortName, selected, rejected, selectionConfig, period, excludedCohortNames ?? []);
+  buildSummarySheet(
+    wb,
+    cohortName,
+    selected,
+    rejected,
+    selectionConfig,
+    period,
+    excludedCohortNames ?? []
+  );
   const selSheetName = period ? `선발 (${period})` : '선발';
   const rejSheetName = period ? `미선발 (${period})` : '미선발';
   const selCols = includeCancel ? SELECTED_WITH_STATUS_COLUMNS : SELECTED_COLUMNS;
-  buildSheet(wb, selSheetName, cohortName, cohortTrack, selected, selCols, COLOR_HEADER_SELECTED, period);
-  buildSheet(wb, rejSheetName, cohortName, cohortTrack, rejected, REJECTED_COLUMNS, COLOR_HEADER_REJECTED, period);
+  buildSheet(
+    wb,
+    selSheetName,
+    cohortName,
+    cohortTrack,
+    selected,
+    selCols,
+    COLOR_HEADER_SELECTED,
+    period
+  );
+  buildSheet(
+    wb,
+    rejSheetName,
+    cohortName,
+    cohortTrack,
+    rejected,
+    REJECTED_COLUMNS,
+    COLOR_HEADER_REJECTED,
+    period
+  );
   const buf = await wb.xlsx.writeBuffer();
   return Buffer.from(buf);
 }
@@ -315,12 +341,7 @@ function buildSummarySheet(
         (r) => r.c2Choice && group.choices.includes(r.c2Choice)
       ).length;
       const pct = Math.round((accepted / applied) * 1000) / 10;
-      row = addSummaryRow(
-        ws,
-        row,
-        group.label,
-        `지원 ${applied}명 → 선발 ${accepted}명 (${pct}%)`
-      );
+      row = addSummaryRow(ws, row, group.label, `지원 ${applied}명 → 선발 ${accepted}명 (${pct}%)`);
     }
   }
 
@@ -345,25 +366,16 @@ function buildSummarySheet(
       '부처별 비율',
       `중앙 ${c.quotaRatio.central} : 지자체 ${c.quotaRatio.local} : 공공·교육 ${c.quotaRatio.public_edu}`
     );
-    row = addSummaryRow(
-      ws,
-      row,
-      '기관당 최대',
-      c.maxPerOrg > 0 ? `${c.maxPerOrg}명` : '무제한'
-    );
-    row = addSummaryRow(
-      ws,
-      row,
-      '사전학습 미수료 제외',
-      c.excludeNoPrereq ? '예' : '아니오'
-    );
+    row = addSummaryRow(ws, row, '기관당 최대', c.maxPerOrg > 0 ? `${c.maxPerOrg}명` : '무제한');
+    row = addSummaryRow(ws, row, '사전학습 미수료 제외', c.excludeNoPrereq ? '예' : '아니오');
     if (c.parentOrgCap && c.parentOrgCap > 0) {
       row = addSummaryRow(ws, row, '상위부처당 최대', `${c.parentOrgCap}명`);
     }
     if (c.excludedCohortIds && c.excludedCohortIds.length > 0) {
-      const namesLabel = excludedCohortNames.length > 0
-        ? excludedCohortNames.join(', ')
-        : `${c.excludedCohortIds.length}개 (이름 조회 실패)`;
+      const namesLabel =
+        excludedCohortNames.length > 0
+          ? excludedCohortNames.join(', ')
+          : `${c.excludedCohortIds.length}개 (이름 조회 실패)`;
       row = addSummaryRow(
         ws,
         row,
@@ -443,9 +455,7 @@ function buildSummarySheet(
   }
   const overTwo = [...orgStats.entries()]
     .filter(([, v]) => v.applied >= 2)
-    .toSorted(
-      (a, b) => b[1].applied - a[1].applied || a[0].localeCompare(b[0], 'ko')
-    );
+    .toSorted((a, b) => b[1].applied - a[1].applied || a[0].localeCompare(b[0], 'ko'));
   if (overTwo.length === 0) {
     row = addSummaryRow(ws, row, '—', '2명 이상 지원 기관 없음');
   } else {
@@ -481,12 +491,7 @@ function addSummarySectionHeader(
   return row + 1;
 }
 
-function addSummaryRow(
-  ws: ExcelJS.Worksheet,
-  row: number,
-  label: string,
-  value: string
-): number {
+function addSummaryRow(ws: ExcelJS.Worksheet, row: number, label: string, value: string): number {
   const labelCell = ws.getCell(row, 2);
   labelCell.value = label;
   labelCell.font = { name: FONT_NAME, size: 11, color: { argb: COLOR_BLACK } };
@@ -548,7 +553,11 @@ function buildSheet(
   ws.mergeCells(titleRange);
   const titleCell = ws.getCell(2, 2);
   // 시트 제목: 「cohort명」 (교육기간) 선발/미선발 명단
-  const baseName = sheetName.startsWith('선발') ? '선발' : sheetName.startsWith('미선발') ? '미선발' : sheetName;
+  const baseName = sheetName.startsWith('선발')
+    ? '선발'
+    : sheetName.startsWith('미선발')
+      ? '미선발'
+      : sheetName;
   titleCell.value = period
     ? `「${cohortName}」 (교육기간 ${period}) ${baseName} 명단`
     : `「${cohortName}」 ${baseName} 명단`;
@@ -692,7 +701,9 @@ function renderValue(col: ColumnDef, r: ExportApplication, no: number): string |
     case 'name':
       return r.name;
     case 'category':
-      return r.c2Choice ? (CATEGORY_LABEL[r.c2Choice] ?? '—') : '—';
+      // 지원자 마스터 값 우선 — C2 ④번은 "공공기관 / 지방공공기관" 통합 선택지라
+      // 세분된 '지방공공기관'이 C2 라벨로 덮이면 안 된다.
+      return r.applicantCategory ?? (r.c2Choice ? (CATEGORY_LABEL[r.c2Choice] ?? '—') : '—');
     case 'organization':
       return r.organization ?? '—';
     case 'department':

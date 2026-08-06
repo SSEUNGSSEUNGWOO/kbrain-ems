@@ -94,6 +94,14 @@ const C2_CATEGORY: Record<string, { label: string; tone: string }> = {
   '⑥': { label: '기타', tone: 'bg-slate-50 text-slate-600 border-slate-200' }
 };
 
+// C2 6지선다에는 없지만 지원자 마스터에 존재하는 분류 (fallback 표시용)
+const EXTRA_CATEGORY: Record<string, { label: string; tone: string }> = {
+  지방공공기관: {
+    label: '지방공공기관',
+    tone: 'bg-orange-50 text-orange-700 border-orange-200'
+  }
+};
+
 const STATUS_LABEL: Record<string, string> = {
   applied: '신청',
   selected: '선발',
@@ -129,6 +137,7 @@ const CATEGORY_KEYS = [
   'metro_local',
   'basic_local',
   'public',
+  'local_public',
   'education',
   'other'
 ] as const;
@@ -307,7 +316,8 @@ export function ApplicantsTable({
                 // applicants.category 한글 라벨에 직접 입력한 값을 fallback 으로 사용.
                 const c2 = r.c2_choice ? C2_CATEGORY[r.c2_choice] : null;
                 const fallback = r.applicant_category
-                  ? Object.values(C2_CATEGORY).find((v) => v.label === r.applicant_category)
+                  ? (Object.values(C2_CATEGORY).find((v) => v.label === r.applicant_category) ??
+                    EXTRA_CATEGORY[r.applicant_category])
                   : null;
                 const catLabel = c2?.label ?? fallback?.label ?? '미분류';
                 const catTone =
@@ -491,6 +501,7 @@ const CATEGORY_LABEL: Record<(typeof CATEGORY_KEYS)[number], string> = {
   metro_local: '광역지자체',
   basic_local: '기초지자체',
   public: '공공기관',
+  local_public: '지방공공기관',
   education: '교육행정기관',
   other: '기타'
 };
@@ -499,6 +510,7 @@ const CATEGORY_TONE_BY_KEY: Record<(typeof CATEGORY_KEYS)[number], string> = {
   metro_local: 'bg-cyan-50 text-cyan-700 border-cyan-200',
   basic_local: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   public: 'bg-amber-50 text-amber-700 border-amber-200',
+  local_public: 'bg-orange-50 text-orange-700 border-orange-200',
   education: 'bg-violet-50 text-violet-700 border-violet-200',
   other: 'bg-slate-50 text-slate-600 border-slate-200'
 };
