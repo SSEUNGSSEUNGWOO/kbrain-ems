@@ -36,6 +36,7 @@ export function UploadDialog({ cohortId, questions, trigger }: Props) {
   const [result, setResult] = useState<Awaited<ReturnType<typeof importApplicationsXls>> | null>(
     null
   );
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [pending, startTransition] = useTransition();
 
   const reset = () => {
@@ -46,6 +47,7 @@ export function UploadDialog({ cohortId, questions, trigger }: Props) {
     setParsedRows([]);
     setMultiMapping({});
     setResult(null);
+    setProgress(null);
   };
 
   const onFile = async (file: File) => {
@@ -73,11 +75,39 @@ export function UploadDialog({ cohortId, questions, trigger }: Props) {
   const onConfirm = () => {
     if (!preview) return;
     setStage('running');
+    setProgress({ done: 0, total: parsedRows.length });
     startTransition(async () => {
-      const res = await importApplicationsXls(cohortId, parsedRows, multiMapping);
-      setResult(res);
+      // 행 단위로 DB 왕복이 많아 한 번에 다 보내면 서버리스 제한(300s)에 걸려
+      // 조용히 잘린다. 나눠 보내고 통계를 합산한다.
+      const CHUNK = 60;
+      const totals = {
+        newApplicants: 0,
+        updatedApplicants: 0,
+        newOrganizations: 0,
+        newApplications: 0,
+        updatedApplications: 0,
+        answersWritten: 0,
+        skippedNoName: 0
+      };
+      for (let i = 0; i < parsedRows.length; i += CHUNK) {
+        const slice = parsedRows.slice(i, i + CHUNK);
+        const isLast = i + CHUNK >= parsedRows.length;
+        const res = await importApplicationsXls(cohortId, slice, multiMapping, isLast);
+        if (res.error) {
+          setResult({ error: `${i + 1}~${i + slice.length}행 처리 중 오류: ${res.error}` });
+          setStage('done');
+          return;
+        }
+        if (res.stats) {
+          for (const k of Object.keys(totals) as (keyof typeof totals)[]) {
+            totals[k] += res.stats[k] ?? 0;
+          }
+        }
+        setProgress({ done: Math.min(i + CHUNK, parsedRows.length), total: parsedRows.length });
+      }
+      setResult({ stats: totals });
       setStage('done');
-      if (!res.error) router.refresh();
+      router.refresh();
     });
   };
 
@@ -98,9 +128,7 @@ export function UploadDialog({ cohortId, questions, trigger }: Props) {
           </DialogDescription>
         </DialogHeader>
 
-        {stage === 'select' && (
-          <SelectStage onFile={onFile} fileName={fileName} error={error} />
-        )}
+        {stage === 'select' && <SelectStage onFile={onFile} fileName={fileName} error={error} />}
 
         {stage === 'preview' && preview && (
           <PreviewStage
@@ -111,7 +139,7 @@ export function UploadDialog({ cohortId, questions, trigger }: Props) {
           />
         )}
 
-        {stage === 'running' && <RunningStage />}
+        {stage === 'running' && <RunningStage progress={progress} />}
 
         {stage === 'done' && result && <DoneStage result={result} />}
 
@@ -172,9 +200,7 @@ function SelectStage({
           }}
         />
       </label>
-      {fileName && (
-        <div className='text-muted-foreground truncate text-xs'>선택: {fileName}</div>
-      )}
+      {fileName && <div className='text-muted-foreground truncate text-xs'>선택: {fileName}</div>}
       {error && <div className='text-destructive text-sm'>{error}</div>}
     </div>
   );
@@ -279,11 +305,23 @@ function PreviewStage({
   );
 }
 
-function RunningStage() {
+function RunningStage({ progress }: { progress: { done: number; total: number } | null }) {
+  const pct =
+    progress && progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : 0;
   return (
-    <div className='flex flex-col items-center gap-2 py-10'>
+    <div className='flex flex-col items-center gap-3 py-10'>
       <Icons.spinner className='text-primary size-6 animate-spin' />
-      <div className='text-sm'>import 진행 중...</div>
+      <div className='text-sm'>
+        import 진행 중{progress ? ` — ${progress.done} / ${progress.total}행` : '...'}
+      </div>
+      {progress && progress.total > 0 && (
+        <div className='bg-muted h-2 w-64 overflow-hidden rounded-full'>
+          <div className='bg-primary h-full transition-all' style={{ width: `${pct}%` }} />
+        </div>
+      )}
+      <p className='text-muted-foreground text-xs'>
+        행이 많으면 나눠서 처리합니다. 창을 닫지 마세요.
+      </p>
     </div>
   );
 }
@@ -318,15 +356,7 @@ function DoneStage({ result }: { result: Awaited<ReturnType<typeof importApplica
   );
 }
 
-function Stat({
-  label,
-  value,
-  tone
-}: {
-  label: string;
-  value: number;
-  tone?: string;
-}) {
+function Stat({ label, value, tone }: { label: string; value: number; tone?: string }) {
   return (
     <div className='border-input flex flex-col gap-0.5 rounded-md border px-3 py-2'>
       <span className='text-muted-foreground text-xs'>{label}</span>

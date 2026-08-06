@@ -517,10 +517,18 @@ async function loadQuestions(cohortId: string): Promise<AppQuestion[]> {
   return (data ?? []) as unknown as AppQuestion[];
 }
 
+/**
+ * 응답 엑셀 import. 한 행마다 DB 왕복이 여러 번이라 수백 행을 한 번에 처리하면
+ * 서버리스 실행시간 제한(Vercel 300s)에 걸려 조용히 잘린다 — 실제로 484행짜리
+ * 업로드가 222행에서 끊긴 적이 있음.
+ * 그래서 클라이언트가 행을 나눠서 여러 번 호출하고, 마지막 호출에만 finalize
+ * (활동 로그·캐시 무효화)를 켠다.
+ */
 export async function importApplicationsXls(
   cohortId: string,
   preRows: ParsedRow[],
-  multiMappingByQno: Record<string, Record<string, string>>
+  multiMappingByQno: Record<string, Record<string, string>>,
+  finalize = true
 ): Promise<ImportResult> {
   try {
     const supabase = createAdminClient();
@@ -734,15 +742,17 @@ export async function importApplicationsXls(
       }
     }
 
-    await logActivity({
-      actionType: 'upload',
-      resourceType: 'application',
-      cohortId,
-      summary: `응답 엑셀 업로드: 신규 지원자 ${stats.newApplicants}명·갱신 ${stats.updatedApplicants}명·응답 ${stats.answersWritten}개`
-    });
-
-    revalidatePath(`/dashboard/cohorts/${cohortId}/applications`);
-    revalidatePath('/dashboard/applicants');
+    // 청크 분할 호출이라 로그·캐시 무효화는 마지막 청크에서만
+    if (finalize) {
+      await logActivity({
+        actionType: 'upload',
+        resourceType: 'application',
+        cohortId,
+        summary: `응답 엑셀 업로드: 신규 지원자 ${stats.newApplicants}명·갱신 ${stats.updatedApplicants}명·응답 ${stats.answersWritten}개`
+      });
+      revalidatePath(`/dashboard/cohorts/${cohortId}/applications`);
+      revalidatePath('/dashboard/applicants');
+    }
 
     return { stats };
   } catch (e) {
