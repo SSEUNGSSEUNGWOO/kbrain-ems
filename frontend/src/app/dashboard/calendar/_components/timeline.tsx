@@ -172,47 +172,48 @@ type Row = {
 const NAME_W = 220;
 
 export function Timeline({ year, month, cohorts, rounds }: Props) {
-  const { winStart, winEnd, days, weekStarts, monthLabel, prevYm, nextYm, thisYm, today } = useMemo(() => {
-    // 창: 해당 월 1일에서 요일에 상관없이 -7일 ~ 말일 +7일. 총 일수 계산.
-    const firstOfMonth = new Date(Date.UTC(year, month - 1, 1));
-    const start = new Date(firstOfMonth);
-    start.setUTCDate(start.getUTCDate() - 7);
-    const lastOfMonth = new Date(Date.UTC(year, month, 0));
-    const end = new Date(lastOfMonth);
-    end.setUTCDate(end.getUTCDate() + 7);
+  const { winStart, winEnd, days, weekStarts, monthLabel, prevYm, nextYm, thisYm, today } =
+    useMemo(() => {
+      // 창: 해당 월 1일에서 요일에 상관없이 -7일 ~ 말일 +7일. 총 일수 계산.
+      const firstOfMonth = new Date(Date.UTC(year, month - 1, 1));
+      const start = new Date(firstOfMonth);
+      start.setUTCDate(start.getUTCDate() - 7);
+      const lastOfMonth = new Date(Date.UTC(year, month, 0));
+      const end = new Date(lastOfMonth);
+      end.setUTCDate(end.getUTCDate() + 7);
 
-    const totalDays = dayDiff(end, start) + 1;
-    const daysArr: Date[] = [];
-    for (let i = 0; i < totalDays; i++) {
-      const d = new Date(start);
-      d.setUTCDate(d.getUTCDate() + i);
-      daysArr.push(d);
-    }
+      const totalDays = dayDiff(end, start) + 1;
+      const daysArr: Date[] = [];
+      for (let i = 0; i < totalDays; i++) {
+        const d = new Date(start);
+        d.setUTCDate(d.getUTCDate() + i);
+        daysArr.push(d);
+      }
 
-    // 주 시작 인덱스 (월요일마다 새 주)
-    const wStarts: number[] = [];
-    for (let i = 0; i < daysArr.length; i++) {
-      const dow = daysArr[i].getUTCDay();
-      if (i === 0 || dow === 1) wStarts.push(i);
-    }
+      // 주 시작 인덱스 (월요일마다 새 주)
+      const wStarts: number[] = [];
+      for (let i = 0; i < daysArr.length; i++) {
+        const dow = daysArr[i].getUTCDay();
+        if (i === 0 || dow === 1) wStarts.push(i);
+      }
 
-    // 이전/다음 월 파라미터
-    const prev = month === 1 ? { y: year - 1, m: 12 } : { y: year, m: month - 1 };
-    const next = month === 12 ? { y: year + 1, m: 1 } : { y: year, m: month + 1 };
-    const now = new Date();
+      // 이전/다음 월 파라미터
+      const prev = month === 1 ? { y: year - 1, m: 12 } : { y: year, m: month - 1 };
+      const next = month === 12 ? { y: year + 1, m: 1 } : { y: year, m: month + 1 };
+      const now = new Date();
 
-    return {
-      winStart: ymd(start),
-      winEnd: ymd(end),
-      days: daysArr,
-      weekStarts: wStarts,
-      monthLabel: `${year}년 ${String(month).padStart(2, '0')}월`,
-      prevYm: `${prev.y}-${String(prev.m).padStart(2, '0')}`,
-      nextYm: `${next.y}-${String(next.m).padStart(2, '0')}`,
-      thisYm: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`,
-      today: ymd(new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate())))
-    };
-  }, [year, month]);
+      return {
+        winStart: ymd(start),
+        winEnd: ymd(end),
+        days: daysArr,
+        weekStarts: wStarts,
+        monthLabel: `${year}년 ${String(month).padStart(2, '0')}월`,
+        prevYm: `${prev.y}-${String(prev.m).padStart(2, '0')}`,
+        nextYm: `${next.y}-${String(next.m).padStart(2, '0')}`,
+        thisYm: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`,
+        today: ymd(new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate())))
+      };
+    }, [year, month]);
 
   const rows = useMemo<Row[]>(() => {
     const roundById = new Map(rounds.map((r) => [r.id, r]));
@@ -223,7 +224,11 @@ export function Timeline({ year, month, cohorts, rounds }: Props) {
       const bars: Bar[] = [];
 
       if (includeApplication) {
-        if (c.application_start_at && c.application_end_at && overlaps(c.application_start_at, c.application_end_at, winStart, winEnd)) {
+        if (
+          c.application_start_at &&
+          c.application_end_at &&
+          overlaps(c.application_start_at, c.application_end_at, winStart, winEnd)
+        ) {
           bars.push({
             kind: 'recruit',
             start: c.application_start_at,
@@ -243,7 +248,10 @@ export function Timeline({ year, month, cohorts, rounds }: Props) {
         }
       }
 
-      if (c.orientation_date && overlaps(c.orientation_date, c.orientation_date, winStart, winEnd)) {
+      if (
+        c.orientation_date &&
+        overlaps(c.orientation_date, c.orientation_date, winStart, winEnd)
+      ) {
         bars.push({
           kind: 'orientation',
           start: c.orientation_date,
@@ -328,7 +336,8 @@ export function Timeline({ year, month, cohorts, rounds }: Props) {
       const round = roundById.get(rid)!;
       // 라운드 자체 접수 기간 OR 하위 cohort의 이벤트 하나라도 창 안에 있는지
       const roundInWindow =
-        (round.application_start_at && round.application_end_at &&
+        (round.application_start_at &&
+          round.application_end_at &&
           overlaps(round.application_start_at, round.application_end_at, winStart, winEnd)) ||
         (round.announce_at && overlaps(round.announce_at, round.announce_at, winStart, winEnd));
       const hasChildInWindow = cs.some((c) => buildCohortBars(c, false).length > 0);
@@ -348,8 +357,11 @@ export function Timeline({ year, month, cohorts, rounds }: Props) {
 
       // 라운드 헤더 row — 접수·통보 바만
       const headerBars: Bar[] = [];
-      if (round.application_start_at && round.application_end_at &&
-        overlaps(round.application_start_at, round.application_end_at, winStart, winEnd)) {
+      if (
+        round.application_start_at &&
+        round.application_end_at &&
+        overlaps(round.application_start_at, round.application_end_at, winStart, winEnd)
+      ) {
         headerBars.push({
           kind: 'recruit',
           start: round.application_start_at,
@@ -372,7 +384,9 @@ export function Timeline({ year, month, cohorts, rounds }: Props) {
       // 창 밖이라 바가 안 보일 때도 정보를 잃지 않도록 텍스트로 상시 노출.
       const subParts: string[] = [];
       if (round.application_start_at && round.application_end_at) {
-        subParts.push(`접수 ${fmtMd(round.application_start_at)}~${fmtMd(round.application_end_at)}`);
+        subParts.push(
+          `접수 ${fmtMd(round.application_start_at)}~${fmtMd(round.application_end_at)}`
+        );
       }
       if (round.announce_at) {
         subParts.push(`통보 ${fmtMd(round.announce_at)}`);
@@ -419,7 +433,8 @@ export function Timeline({ year, month, cohorts, rounds }: Props) {
       });
     }
     unroundedRows.sort((a, b) => {
-      if (a.earliestStart !== b.earliestStart) return a.earliestStart.localeCompare(b.earliestStart);
+      if (a.earliestStart !== b.earliestStart)
+        return a.earliestStart.localeCompare(b.earliestStart);
       return a.cohortName.localeCompare(b.cohortName, 'ko');
     });
     out.push(...unroundedRows);
@@ -429,7 +444,8 @@ export function Timeline({ year, month, cohorts, rounds }: Props) {
 
   const totalDays = days.length;
   const winStartDate = toUTCDate(winStart);
-  const todayIdx = today >= winStart && today <= winEnd ? dayDiff(toUTCDate(today), winStartDate) : -1;
+  const todayIdx =
+    today >= winStart && today <= winEnd ? dayDiff(toUTCDate(today), winStartDate) : -1;
 
   function pct(iso: string): number {
     const idx = dayDiff(toUTCDate(iso), winStartDate);
@@ -580,11 +596,7 @@ export function Timeline({ year, month, cohorts, rounds }: Props) {
 
           {/* 요일+날짜 헤더 */}
           <div className='flex border-b bg-muted/20'>
-            <div
-              style={{ width: NAME_W, flexShrink: 0 }}
-              className='border-r'
-              aria-hidden='true'
-            />
+            <div style={{ width: NAME_W, flexShrink: 0 }} className='border-r' aria-hidden='true' />
             <div className='flex flex-1'>
               {days.map((d) => {
                 const dow = d.getUTCDay();
@@ -635,9 +647,10 @@ export function Timeline({ year, month, cohorts, rounds }: Props) {
                 : row.isChildOfRound
                   ? 'truncate text-[13px] font-medium text-foreground'
                   : 'truncate text-[13px] font-semibold';
-              const minH = row.bars.length === 0
-                ? 36
-                : Math.max(row.isRoundHeader ? 36 : 52, row.bars.length * 24 + 14);
+              const minH =
+                row.bars.length === 0
+                  ? 36
+                  : Math.max(row.isRoundHeader ? 36 : 52, row.bars.length * 24 + 14);
               const typeMeta = row.isRoundHeader ? null : detectCohortType(row.cohortName);
               return (
                 <div key={row.cohortId} className={`flex ${rowBg}`}>
@@ -645,7 +658,9 @@ export function Timeline({ year, month, cohorts, rounds }: Props) {
                     style={{ width: NAME_W, flexShrink: 0 }}
                     className='border-r px-3 py-2 text-xs'
                   >
-                    <div className={`flex items-center gap-1.5 ${row.isChildOfRound ? 'pl-3' : ''}`}>
+                    <div
+                      className={`flex items-center gap-1.5 ${row.isChildOfRound ? 'pl-3' : ''}`}
+                    >
                       {typeMeta && (
                         <span
                           className={`h-2 w-2 shrink-0 rounded-full ${typeMeta.dot}`}
@@ -672,10 +687,7 @@ export function Timeline({ year, month, cohorts, rounds }: Props) {
                       </div>
                     )}
                   </div>
-                  <div
-                    className='relative flex-1'
-                    style={{ minHeight: `${minH}px` }}
-                  >
+                  <div className='relative flex-1' style={{ minHeight: `${minH}px` }}>
                     {/* 배경 격자 (일별 세로선) */}
                     <div className='pointer-events-none absolute inset-0 flex'>
                       {days.map((d, i) => {
@@ -735,12 +747,7 @@ export function Timeline({ year, month, cohorts, rounds }: Props) {
                             <span className='truncate'>{displayLabel}</span>
                           </Link>
                         ) : (
-                          <div
-                            key={i}
-                            title={bar.tooltip}
-                            className={barCls}
-                            style={style}
-                          >
+                          <div key={i} title={bar.tooltip} className={barCls} style={style}>
                             <span className='truncate'>{displayLabel}</span>
                           </div>
                         );

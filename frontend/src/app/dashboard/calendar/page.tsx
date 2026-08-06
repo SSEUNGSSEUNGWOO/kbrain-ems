@@ -2,6 +2,7 @@ import PageContainer from '@/components/layout/page-container';
 import { createAdminClient } from '@/lib/supabase/server';
 import { computeAssistantSchedule } from '@/lib/assistant-schedule';
 import { Calendar } from './_components/calendar';
+import { CalendarEventManager } from './_components/event-manager';
 import { Timeline } from './_components/timeline';
 
 type Props = {
@@ -26,15 +27,20 @@ export default async function CalendarPage({ searchParams }: Props) {
       ),
     supabase
       .from('sessions')
-      .select('id, cohort_id, session_date, session_end_date, title, session_instructors(role, instructors(name, kind))'),
+      .select(
+        'id, cohort_id, session_date, session_end_date, title, session_instructors(role, instructors(name, kind))'
+      ),
     supabase
       .from('recruitment_rounds')
-      .select('id, round_no, label, application_start_at, application_end_at, selection_at, announce_at')
+      .select(
+        'id, round_no, label, application_start_at, application_end_at, selection_at, announce_at'
+      )
       .order('round_no'),
     supabase
       .from('calendar_events')
       .select('id, title, event_date, event_time, category, capacity, notes')
       .order('event_date')
+      .order('title')
   ]);
 
   const cohorts = cohortsRes.data ?? [];
@@ -88,16 +94,26 @@ export default async function CalendarPage({ searchParams }: Props) {
     announce_at: r.announce_at
   }));
 
+  const eventManager = <CalendarEventManager events={calendarEvents} />;
+
   if (isTimeline) {
     return (
-      <PageContainer pageTitle='캘린더' pageDescription='등록된 모든 일정을 한눈에'>
+      <PageContainer
+        pageTitle='캘린더'
+        pageDescription='등록된 모든 일정을 한눈에'
+        pageHeaderAction={eventManager}
+      >
         <Timeline year={year} month={month} cohorts={cohortSlim} rounds={roundSlim} />
       </PageContainer>
     );
   }
 
   return (
-    <PageContainer pageTitle='캘린더' pageDescription='등록된 모든 일정을 한눈에'>
+    <PageContainer
+      pageTitle='캘린더'
+      pageDescription='등록된 모든 일정을 한눈에'
+      pageHeaderAction={eventManager}
+    >
       <Calendar
         year={year}
         month={month}

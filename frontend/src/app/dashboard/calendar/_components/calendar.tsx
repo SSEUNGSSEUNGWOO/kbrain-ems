@@ -66,8 +66,16 @@ type Props = {
   calendarEvents?: CalendarEvent[];
 };
 
-type EventKind = 'recruit' | 'decided' | 'notified' | 'preonline' | 'orientation' | 'session' | 'intensive' | 'selfstudy' | 'certification';
-
+type EventKind =
+  | 'recruit'
+  | 'decided'
+  | 'notified'
+  | 'preonline'
+  | 'orientation'
+  | 'session'
+  | 'intensive'
+  | 'selfstudy'
+  | 'certification';
 
 // 정렬 룰: "오늘 할 일 우선" — 수업 → 집중교육 → 인증평가 → OT → 사전온라인 → 셀프스터디 → 통보 → 선발 → 모집 순으로 위에 표시.
 // 범례·lane 정렬·KIND_* 룩업 정의 순서를 일치시켜 운영자가 룰을 시각적으로 인식할 수 있게.
@@ -83,15 +91,24 @@ const KIND_DOT: Record<EventKind, string> = {
   recruit: 'bg-orange-500'
 };
 const KIND_STRIP: Record<EventKind, string> = {
-  session: 'bg-blue-100 text-blue-900 border-l-2 border-blue-500 dark:bg-blue-950/50 dark:text-blue-100',
-  intensive: 'bg-emerald-100 text-emerald-900 border-l-2 border-emerald-500 dark:bg-emerald-950/50 dark:text-emerald-100',
-  certification: 'bg-rose-100 text-rose-900 border-l-2 border-rose-500 dark:bg-rose-950/50 dark:text-rose-100',
-  orientation: 'bg-violet-100 text-violet-900 border-l-2 border-violet-500 dark:bg-violet-950/50 dark:text-violet-100',
-  preonline: 'bg-teal-100 text-teal-900 border-l-2 border-teal-500 dark:bg-teal-950/50 dark:text-teal-100',
-  selfstudy: 'bg-slate-100 text-slate-900 border-l-2 border-slate-500 dark:bg-slate-900/50 dark:text-slate-100',
-  notified: 'bg-fuchsia-100 text-fuchsia-900 border-l-2 border-fuchsia-500 dark:bg-fuchsia-950/50 dark:text-fuchsia-100',
-  decided: 'bg-amber-100 text-amber-900 border-l-2 border-amber-500 dark:bg-amber-950/50 dark:text-amber-100',
-  recruit: 'bg-orange-100 text-orange-900 border-l-2 border-orange-500 dark:bg-orange-950/50 dark:text-orange-100'
+  session:
+    'bg-blue-100 text-blue-900 border-l-2 border-blue-500 dark:bg-blue-950/50 dark:text-blue-100',
+  intensive:
+    'bg-emerald-100 text-emerald-900 border-l-2 border-emerald-500 dark:bg-emerald-950/50 dark:text-emerald-100',
+  certification:
+    'bg-rose-100 text-rose-900 border-l-2 border-rose-500 dark:bg-rose-950/50 dark:text-rose-100',
+  orientation:
+    'bg-violet-100 text-violet-900 border-l-2 border-violet-500 dark:bg-violet-950/50 dark:text-violet-100',
+  preonline:
+    'bg-teal-100 text-teal-900 border-l-2 border-teal-500 dark:bg-teal-950/50 dark:text-teal-100',
+  selfstudy:
+    'bg-slate-100 text-slate-900 border-l-2 border-slate-500 dark:bg-slate-900/50 dark:text-slate-100',
+  notified:
+    'bg-fuchsia-100 text-fuchsia-900 border-l-2 border-fuchsia-500 dark:bg-fuchsia-950/50 dark:text-fuchsia-100',
+  decided:
+    'bg-amber-100 text-amber-900 border-l-2 border-amber-500 dark:bg-amber-950/50 dark:text-amber-100',
+  recruit:
+    'bg-orange-100 text-orange-900 border-l-2 border-orange-500 dark:bg-orange-950/50 dark:text-orange-100'
 };
 const KIND_LABEL: Record<EventKind, string> = {
   session: '수업',
@@ -221,7 +238,8 @@ export function Calendar({ year, month, cohorts, sessions, rounds, calendarEvent
       const mapped = cohortsByRound.get(r.id) ?? [];
       const count = mapped.length;
       const mappedList = mapped.map((c) => ({ id: c.id, name: c.name }));
-      const tooltipBase = mapped.length > 0 ? mapped.map((c) => c.name).join(', ') : '매핑된 과정 없음';
+      const tooltipBase =
+        mapped.length > 0 ? mapped.map((c) => c.name).join(', ') : '매핑된 과정 없음';
       const firstCohortId = mapped[0]?.id;
       const href = firstCohortId ? `/dashboard/cohorts/${firstCohortId}` : '#';
       const roundLabel = r.label ?? `${r.round_no}차 모집`;
@@ -252,7 +270,12 @@ export function Calendar({ year, month, cohorts, sessions, rounds, calendarEvent
           label: `${r.round_no}차 선발${count > 0 ? ` · ${count}개` : ''}`,
           tooltip: `[${roundLabel} 선발일] ${tooltipBase}`,
           href,
-          roundDetail: { roundLabel, kind: 'decided', dateLabel: formatDateLabel(r.selection_at), cohorts: mappedList }
+          roundDetail: {
+            roundLabel,
+            kind: 'decided',
+            dateLabel: formatDateLabel(r.selection_at),
+            cohorts: mappedList
+          }
         });
       }
       if (r.announce_at) {
@@ -266,7 +289,12 @@ export function Calendar({ year, month, cohorts, sessions, rounds, calendarEvent
           label: `${r.round_no}차 통보${count > 0 ? ` · ${count}개` : ''}`,
           tooltip: `[${roundLabel} 통보일] ${tooltipBase}`,
           href,
-          roundDetail: { roundLabel, kind: 'notified', dateLabel: formatDateLabel(r.announce_at), cohorts: mappedList }
+          roundDetail: {
+            roundLabel,
+            kind: 'notified',
+            dateLabel: formatDateLabel(r.announce_at),
+            cohorts: mappedList
+          }
         });
       }
     }
@@ -418,8 +446,7 @@ export function Calendar({ year, month, cohorts, sessions, rounds, calendarEvent
       const cohortName = cohortNameById.get(s.cohort_id) ?? '';
       const instr = s.instructors.join('·');
       // 보조강사 미배정 회차만 🎯로 표시 (배정 관리는 /assistants 페이지에서).
-      const headPrefix =
-        s.assistants.length === 0 && s.assistant_needed ? '🎯 ' : '';
+      const headPrefix = s.assistants.length === 0 && s.assistant_needed ? '🎯 ' : '';
       pushInstance({
         key: `session::${s.id}`,
         start: s.session_date,
@@ -428,9 +455,7 @@ export function Calendar({ year, month, cohorts, sessions, rounds, calendarEvent
         cohortId: s.cohort_id,
         cohortName,
         label: `${headPrefix}${cohortName}`,
-        tooltip: [`[수업] ${cohortName}`, s.title ?? '', instr]
-          .filter(Boolean)
-          .join(' · '),
+        tooltip: [`[수업] ${cohortName}`, s.title ?? '', instr].filter(Boolean).join(' · '),
         href: `/dashboard/cohorts/${s.cohort_id}/lessons/${s.id}`
       });
     }
@@ -471,8 +496,7 @@ export function Calendar({ year, month, cohorts, sessions, rounds, calendarEvent
         .toSorted((a, b) => {
           if (a.kind !== b.kind) return KIND_ORDER[a.kind] - KIND_ORDER[b.kind];
           if (a.start !== b.start) return a.start.localeCompare(b.start);
-          if (a.cohortName !== b.cohortName)
-            return a.cohortName.localeCompare(b.cohortName, 'ko');
+          if (a.cohortName !== b.cohortName) return a.cohortName.localeCompare(b.cohortName, 'ko');
           return b.end.localeCompare(a.end);
         });
 
@@ -582,10 +606,7 @@ export function Calendar({ year, month, cohorts, sessions, rounds, calendarEvent
       {/* 요일 헤더 */}
       <div className='grid grid-cols-7 overflow-hidden rounded-xl border bg-card [&>*]:border-b [&>*]:border-l [&>*:nth-child(7n+1)]:border-l-0'>
         {DOW.map((d, i) => (
-          <div
-            key={d}
-            className={`bg-card py-2 text-center text-xs font-semibold ${DOW_COLOR[i]}`}
-          >
+          <div key={d} className={`bg-card py-2 text-center text-xs font-semibold ${DOW_COLOR[i]}`}>
             {d}
           </div>
         ))}
@@ -678,12 +699,7 @@ export function Calendar({ year, month, cohorts, sessions, rounds, calendarEvent
                   }
 
                   return (
-                    <Link
-                      key={laneIdx}
-                      href={e.href}
-                      title={e.tooltip}
-                      className={cls}
-                    >
+                    <Link key={laneIdx} href={e.href} title={e.tooltip} className={cls}>
                       {typeMeta && (
                         <span
                           className={`h-1.5 w-1.5 shrink-0 rounded-full ${typeMeta.dot}`}
