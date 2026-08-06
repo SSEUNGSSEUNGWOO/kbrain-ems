@@ -588,6 +588,44 @@ export async function importApplicationsXls(
       '⑥': '기타'
     };
 
+    // ── 지원자 조회를 청크 단위로 일괄 처리 ──
+    // 예전엔 행마다 이름+전화, 이름+이메일로 각각 조회해서 행당 최대 2회 왕복이
+    // 발생했다. 청크의 전화·이메일을 모아 두 번만 조회하고 메모리에서 찾는다.
+    type ApplicantRow = {
+      id: string;
+      name: string;
+      phone: string | null;
+      email: string | null;
+      category: string | null;
+    };
+    const phones = [...new Set(preRows.map((r) => r.phone).filter((x): x is string => !!x))];
+    const emails = [...new Set(preRows.map((r) => r.email).filter((x): x is string => !!x))];
+    const preloaded: ApplicantRow[] = [];
+    for (const [col, values] of [
+      ['phone', phones],
+      ['email', emails]
+    ] as const) {
+      for (let i = 0; i < values.length; i += 200) {
+        const slice = values.slice(i, i + 200);
+        if (slice.length === 0) continue;
+        const { data } = (await supabase
+          .from('applicants')
+          .select('id, name, phone, email, category')
+          .in(col, slice)) as unknown as { data: ApplicantRow[] | null };
+        preloaded.push(...(data ?? []));
+      }
+    }
+    const byNamePhone = new Map<string, ApplicantRow>();
+    const byNameEmail = new Map<string, ApplicantRow>();
+    for (const a of preloaded) {
+      if (a.phone && !byNamePhone.has(`${a.name}|${a.phone}`)) {
+        byNamePhone.set(`${a.name}|${a.phone}`, a);
+      }
+      if (a.email && !byNameEmail.has(`${a.name}|${a.email}`)) {
+        byNameEmail.set(`${a.name}|${a.email}`, a);
+      }
+    }
+
     for (const row of preRows) {
       if (!row.name) {
         stats.skippedNoName++;
@@ -595,31 +633,11 @@ export async function importApplicationsXls(
       }
       const orgId = await getOrCreateOrg(row.organizationName);
 
-      // supabase types.ts 에 applicants.category 미반영 — 조회 결과만 캐스팅해서 사용
-      type ApplicantLookup = { data: { id: string; category: string | null }[] | null };
-
-      let applicantId: string | null = null;
-      let existingCategory: string | null = null;
-      if (row.phone) {
-        const { data } = (await supabase
-          .from('applicants')
-          .select('id, category')
-          .eq('name', row.name)
-          .eq('phone', row.phone)
-          .limit(1)) as unknown as ApplicantLookup;
-        applicantId = data?.[0]?.id ?? null;
-        existingCategory = data?.[0]?.category ?? null;
-      }
-      if (!applicantId && row.email) {
-        const { data } = (await supabase
-          .from('applicants')
-          .select('id, category')
-          .eq('name', row.name)
-          .eq('email', row.email)
-          .limit(1)) as unknown as ApplicantLookup;
-        applicantId = data?.[0]?.id ?? null;
-        existingCategory = data?.[0]?.category ?? null;
-      }
+      const hit =
+        (row.phone ? byNamePhone.get(`${row.name}|${row.phone}`) : undefined) ??
+        (row.email ? byNameEmail.get(`${row.name}|${row.email}`) : undefined);
+      let applicantId: string | null = hit?.id ?? null;
+      const existingCategory: string | null = hit?.category ?? null;
 
       const department = c3Idx >= 0 ? row.rawValues[c3Idx] || null : null;
       const jobRoleRaw = c5Idx >= 0 ? row.rawValues[c5Idx] || null : null;
@@ -685,6 +703,16 @@ export async function importApplicationsXls(
         if (error) throw new Error(error.message);
         applicantId = data.id;
         stats.newApplicants++;
+        // 같은 파일 안에 동일인이 또 나오면 중복 생성되지 않도록 조회 맵에 반영
+        const created = {
+          id: data.id,
+          name: row.name,
+          phone: row.phone || null,
+          email: row.email || null,
+          category: effectiveCategory
+        };
+        if (created.phone) byNamePhone.set(`${created.name}|${created.phone}`, created);
+        if (created.email) byNameEmail.set(`${created.name}|${created.email}`, created);
       }
 
       const { data: existingApp } = await supabase

@@ -79,7 +79,7 @@ export function UploadDialog({ cohortId, questions, trigger }: Props) {
     startTransition(async () => {
       // 행 단위로 DB 왕복이 많아 한 번에 다 보내면 서버리스 제한(300s)에 걸려
       // 조용히 잘린다. 나눠 보내고 통계를 합산한다.
-      const CHUNK = 60;
+      const CHUNK = 150;
       const totals = {
         newApplicants: 0,
         updatedApplicants: 0,
@@ -312,7 +312,7 @@ function RunningStage({ progress }: { progress: { done: number; total: number } 
     <div className='flex flex-col items-center gap-3 py-10'>
       <Icons.spinner className='text-primary size-6 animate-spin' />
       <div className='text-sm'>
-        import 진행 중{progress ? ` — ${progress.done} / ${progress.total}행` : '...'}
+        import 진행 중{progress ? ` — ${pct}%  (${progress.done} / ${progress.total}행)` : '...'}
       </div>
       {progress && progress.total > 0 && (
         <div className='bg-muted h-2 w-64 overflow-hidden rounded-full'>
