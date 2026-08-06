@@ -95,7 +95,6 @@ export function ApplicantSheet({ applicant, trigger }: ApplicantSheetProps) {
               <option value='광역지자체'>광역지자체</option>
               <option value='기초지자체'>기초지자체</option>
               <option value='공공기관'>공공기관</option>
-              <option value='지방공공기관'>지방공공기관</option>
               <option value='교육행정기관'>교육행정기관</option>
               <option value='기타'>기타</option>
             </select>

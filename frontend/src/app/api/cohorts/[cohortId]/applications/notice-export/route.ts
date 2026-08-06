@@ -79,8 +79,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ cohortI
     if (!r.applicants || isTestStudent(r.applicants.name)) return null;
     const a = r.applicants;
     const c2 = c2ChoiceByApp.get(r.id);
-    // 지원자 마스터 값 우선 — C2 ④번은 "공공기관 / 지방공공기관" 통합 선택지라
-    // 세분된 '지방공공기관'이 C2 라벨로 덮이면 안 된다.
+    // 지원자 마스터 값 우선 — 운영자가 직접 보정한 분류가 C2 원응답으로 덮이면 안 된다.
     const categoryLabel = a.category ?? (c2 && CATEGORY_LABEL_BY_C2[c2]) ?? '미분류';
     return {
       name: a.name,

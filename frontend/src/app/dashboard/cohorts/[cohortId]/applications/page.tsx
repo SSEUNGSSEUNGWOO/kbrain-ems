@@ -134,14 +134,11 @@ export default async function CohortApplicationsPage({ params, searchParams }: P
     education: '⑤',
     other: '⑥'
   };
-  // applicants.category 한글 라벨 → 내부 키. 신청서 C2 문항(6지선다)에는 없지만
-  // 지원자 마스터에는 '지방공공기관'이 별도 분류로 존재 → 누락 시 전부 미분류로 보임.
   const CATEGORY_TO_LABEL: Record<string, string> = {
     central: '중앙부처',
     metro_local: '광역지자체',
     basic_local: '기초지자체',
     public: '공공기관',
-    local_public: '지방공공기관',
     education: '교육행정기관',
     other: '기타'
   };
@@ -337,7 +334,6 @@ export default async function CohortApplicationsPage({ params, searchParams }: P
     metro_local: 0,
     basic_local: 0,
     public: 0,
-    local_public: 0,
     education: 0,
     other: 0
   };

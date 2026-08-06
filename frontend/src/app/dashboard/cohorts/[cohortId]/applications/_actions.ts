@@ -639,12 +639,8 @@ export async function importApplicationsXls(
         }
       }
 
-      // 신청서 C2 ④번은 "공공기관 / 지방공공기관" 통합 선택지라 항상 '공공기관'으로
-      // 내려온다. 이미 '지방공공기관'으로 세분된 지원자를 재업로드로 되돌리지 않는다.
-      const effectiveCategory =
-        existingCategory === '지방공공기관' && category === '공공기관'
-          ? existingCategory
-          : category;
+      // C2 응답이 없는 행(전문인재 등 운영자 직접 입력분)은 기존 분류를 지우지 않는다.
+      const effectiveCategory = category ?? existingCategory;
 
       const applicantFields = {
         name: row.name,

@@ -37,7 +37,7 @@ export type ExportApplication = {
   department: string | null;
   jobRole: string | null;
   c2Choice: string | null;
-  /** applicants.category — C2 보다 세분된 값(지방공공기관 등)이 들어 있다 */
+  /** applicants.category — 운영자 보정이 반영된 값. C2 원응답보다 우선한다 */
   applicantCategory?: string | null;
   knowledgeScore: number | null;
   knowledgeCorrect: number | null;
@@ -701,8 +701,7 @@ function renderValue(col: ColumnDef, r: ExportApplication, no: number): string |
     case 'name':
       return r.name;
     case 'category':
-      // 지원자 마스터 값 우선 — C2 ④번은 "공공기관 / 지방공공기관" 통합 선택지라
-      // 세분된 '지방공공기관'이 C2 라벨로 덮이면 안 된다.
+      // 지원자 마스터 값 우선 — 운영자가 직접 보정한 분류가 C2 원응답으로 덮이면 안 된다.
       return r.applicantCategory ?? (r.c2Choice ? (CATEGORY_LABEL[r.c2Choice] ?? '—') : '—');
     case 'organization':
       return r.organization ?? '—';
