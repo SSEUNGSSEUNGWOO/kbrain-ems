@@ -59,6 +59,7 @@ const DOMAINS = [
   { slug: 'assignments', label: '과제', icon: 'forms' as const },
   { slug: 'surveys', label: '만족도', icon: 'chat' as const },
   { slug: 'completion', label: '수료', icon: 'badgeCheck' as const },
+  { slug: 'certification', label: '인증', icon: 'certificate' as const },
   { slug: 'instructors', label: '강사', icon: 'user2' as const },
   { slug: 'diagnoses', label: '사전·사후 진단', icon: 'checks' as const },
   { slug: 'pretraining', label: '사전 세팅 체크', icon: 'circleCheck' as const },

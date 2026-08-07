@@ -90,6 +90,7 @@ export const STAGE_DOMAINS: Record<CohortStage, readonly string[]> = {
     'surveys',
     'diagnoses',
     'pretraining',
+    'certification',
     'instructors',
     'reports'
   ],
@@ -101,6 +102,7 @@ export const STAGE_DOMAINS: Record<CohortStage, readonly string[]> = {
     'surveys',
     'diagnoses',
     'pretraining',
+    'certification',
     'completion',
     'instructors',
     'reports'
@@ -116,6 +118,7 @@ export const STAGE_DOMAINS: Record<CohortStage, readonly string[]> = {
     'assignments',
     'surveys',
     'pretraining',
+    'certification',
     'completion',
     'instructors',
     'reports'
