@@ -42,3 +42,12 @@ docs/2차선발/
 docs/0529/
 docs/최종/
 docs/*.hwp
+
+# 개인정보 포함 데이터 덤프 — 절대 커밋 금지
+frontend/scripts/**/tmp_*.json
+frontend/scripts/**/_*-dump.txt
+frontend/scripts/**/_*-out.txt
+frontend/scripts/**/*-applicants.json
+frontend/scripts/**/*-roster.json
+*.xls
+*.xlsx
