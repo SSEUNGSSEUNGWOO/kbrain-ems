@@ -1,13 +1,7 @@
 // 마이그레이션 SQL(supabase/migrations/20260511000000_initial_schema.sql)을 기준으로 작성.
 // 향후 스키마가 변경되면 `bunx supabase gen types typescript --project-id ... > types.ts` 로 재생성 가능.
 
-export type Json =
-  | string
-  | number
-  | boolean
-  | null
-  | { [key: string]: Json | undefined }
-  | Json[];
+export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
 export type Database = {
   public: {
@@ -498,6 +492,9 @@ export type Database = {
           job_role: string | null;
           birth_date: string | null;
           notes: string | null;
+          category: string | null;
+          excluded_reason: string | null;
+          excluded_note: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -513,6 +510,9 @@ export type Database = {
           job_role?: string | null;
           birth_date?: string | null;
           notes?: string | null;
+          category?: string | null;
+          excluded_reason?: string | null;
+          excluded_note?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -528,6 +528,9 @@ export type Database = {
           job_role?: string | null;
           birth_date?: string | null;
           notes?: string | null;
+          category?: string | null;
+          excluded_reason?: string | null;
+          excluded_note?: string | null;
           created_at?: string;
           updated_at?: string;
         };

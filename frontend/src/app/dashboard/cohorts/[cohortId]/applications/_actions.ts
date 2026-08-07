@@ -2,6 +2,7 @@
 
 import { createAdminClient } from '@/lib/supabase/server';
 import { syncStudentSelected, removeStudentForCohort } from '@/lib/student-sync';
+import { isSelectionExcluded } from '@/lib/applicant-exclusion';
 import { revalidatePath } from 'next/cache';
 import { logActivity } from '@/lib/activity-log';
 import { type AppQuestion, type ParsedRow, mapAnswerValue } from '@/lib/applications-xls-parser';
@@ -115,6 +116,7 @@ export async function loadSelectionPool(
         name: string;
         phone: string | null;
         email: string | null;
+        excluded_reason: string | null;
         organizations: { name: string } | null;
       } | null;
     };
@@ -122,7 +124,7 @@ export async function loadSelectionPool(
     const { data: apps, error: appErr } = await supabase
       .from('applications')
       .select(
-        'id, status, knowledge_score, applicant_id, applicants(id, name, phone, email, organizations(name))'
+        'id, status, knowledge_score, applicant_id, applicants(id, name, phone, email, excluded_reason, organizations(name))'
       )
       .eq('cohort_id', cohortId)
       .in('status', ['applied', 'selected', 'rejected'])
@@ -376,7 +378,13 @@ export async function loadSelectionPool(
       return { force_select: false, force_reason: null };
     };
 
-    const candidates: CandidateRow[] = (apps ?? []).map((a) => {
+    // 예외 처리된 지원자(테스트·중복·대상 아님)는 자동선발 후보에서 제외.
+    // 이미 selected 인 건까지 되돌리진 않는다 — 소급 취소는 운영자 판단 영역.
+    const eligibleApps = (apps ?? []).filter(
+      (a) => !a.applicants || !isSelectionExcluded(a.applicants)
+    );
+
+    const candidates: CandidateRow[] = eligibleApps.map((a) => {
       const c2Key = c2Map.get(a.id) ?? '';
       const planText = planMap.get(a.id) ?? '';
       const multiCount = multiCountMap.get(a.id) ?? 0;
@@ -681,7 +689,6 @@ export async function importApplicationsXls(
       if (applicantId) {
         const { error } = await supabase
           .from('applicants')
-          // @ts-expect-error supabase types.ts에 applicants.category 미반영
           .update(applicantFields)
           .eq('id', applicantId);
         if (error) throw new Error(error.message);
@@ -696,7 +703,6 @@ export async function importApplicationsXls(
       } else {
         const { data, error } = await supabase
           .from('applicants')
-          // @ts-expect-error supabase types.ts에 applicants.category 미반영
           .insert(applicantFields)
           .select('id')
           .single();

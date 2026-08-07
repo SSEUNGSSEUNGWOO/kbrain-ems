@@ -81,9 +81,7 @@ export default async function ApplicantDetailPage({
 
   const { data: applicationRowsRaw, error: applicationError } = await supabase
     .from('applications')
-    .select(
-      'id, cohort_id, status, rejected_stage, applied_at, decided_at, note, cohorts(name)'
-    )
+    .select('id, cohort_id, status, rejected_stage, applied_at, decided_at, note, cohorts(name)')
     .eq('applicant_id', applicantId)
     .order('applied_at', { ascending: false })
     .returns<ApplicationRow[]>();
@@ -145,9 +143,7 @@ export default async function ApplicantDetailPage({
           <div className='mb-3 flex items-center justify-between'>
             <h2 className='text-sm font-medium'>
               지원 이력{' '}
-              <span className='text-muted-foreground ml-1 text-xs'>
-                ({applicationRows.length})
-              </span>
+              <span className='text-muted-foreground ml-1 text-xs'>({applicationRows.length})</span>
             </h2>
             {!hidePersonal && (
               <ApplicationSheet
@@ -168,13 +164,7 @@ export default async function ApplicantDetailPage({
   );
 }
 
-function Field({
-  label,
-  value
-}: {
-  label: string;
-  value: string | null | undefined;
-}) {
+function Field({ label, value }: { label: string; value: string | null | undefined }) {
   return (
     <div>
       <dt className='text-muted-foreground text-xs'>{label}</dt>

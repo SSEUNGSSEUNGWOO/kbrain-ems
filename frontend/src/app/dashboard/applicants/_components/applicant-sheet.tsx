@@ -15,6 +15,7 @@ import {
   SheetTrigger
 } from '@/components/ui/sheet';
 import { createApplicant, updateApplicant } from '../_actions';
+import { EXCLUSION_LABEL, EXCLUSION_REASONS } from '@/lib/applicant-exclusion';
 
 export type Applicant = {
   id: string;
@@ -29,6 +30,8 @@ export type Applicant = {
   personal_email: string | null;
   phone: string | null;
   notes: string | null;
+  excluded_reason?: string | null;
+  excluded_note?: string | null;
 };
 
 interface ApplicantSheetProps {
@@ -152,6 +155,35 @@ export function ApplicantSheet({ applicant, trigger }: ApplicantSheetProps) {
           <div className='grid gap-2'>
             <Label htmlFor='notes'>비고</Label>
             <Input id='notes' name='notes' defaultValue={applicant?.notes ?? ''} />
+          </div>
+          {/* 예외 처리 — 삭제하지 않고 표시로 남긴다 */}
+          <div className='grid gap-2 rounded-md border border-dashed p-3'>
+            <Label htmlFor='excluded_reason' className='text-xs'>
+              예외 처리
+            </Label>
+            <select
+              id='excluded_reason'
+              name='excluded_reason'
+              defaultValue={applicant?.excluded_reason ?? ''}
+              className='border-input bg-background flex h-9 w-full rounded-md border px-3 py-1 text-sm shadow-xs outline-none'
+            >
+              <option value=''>해당 없음 (정상 대상)</option>
+              {EXCLUSION_REASONS.map((r) => (
+                <option key={r} value={r}>
+                  {EXCLUSION_LABEL[r]}
+                </option>
+              ))}
+            </select>
+            <Input
+              id='excluded_note'
+              name='excluded_note'
+              placeholder='예외 근거 (예: 가천대 의과대학 — 사립대)'
+              defaultValue={applicant?.excluded_note ?? ''}
+            />
+            <p className='text-muted-foreground text-[11px]'>
+              테스트·중복은 모든 집계에서 빠지고, 대상 아님은 신청 건수엔 남되 선발 후보에서만
+              빠집니다.
+            </p>
           </div>
           {error && <div className='text-destructive text-sm'>{error}</div>}
           <SheetFooter>

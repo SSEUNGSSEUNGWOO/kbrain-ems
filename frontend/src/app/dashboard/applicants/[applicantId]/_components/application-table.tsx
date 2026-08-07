@@ -72,20 +72,11 @@ export function ApplicationTable({
     });
   };
 
-  const applyStatusChange = (
-    row: ApplicationRow,
-    nextStatus: string,
-    nextStage: string | null
-  ) => {
+  const applyStatusChange = (row: ApplicationRow, nextStatus: string, nextStage: string | null) => {
     setRowError(null);
     setPendingRowId(row.id);
     startTransition(async () => {
-      const result = await updateApplicationStatus(
-        row.id,
-        applicantId,
-        nextStatus,
-        nextStage
-      );
+      const result = await updateApplicationStatus(row.id, applicantId, nextStatus, nextStage);
       setPendingRowId(null);
       if (result?.error) {
         setRowError({ id: row.id, message: result.error });
@@ -228,9 +219,7 @@ export function ApplicationTable({
         </table>
       </div>
 
-      {rowError && (
-        <div className='text-destructive mt-2 text-sm'>{rowError.message}</div>
-      )}
+      {rowError && <div className='text-destructive mt-2 text-sm'>{rowError.message}</div>}
 
       <AlertDialog
         open={!!deleteTarget}
@@ -242,13 +231,11 @@ export function ApplicationTable({
           <AlertDialogHeader>
             <AlertDialogTitle>지원 이력 삭제</AlertDialogTitle>
             <AlertDialogDescription>
-              <strong>{deleteTarget?.cohortName ?? '이 기수'}</strong>의 지원 이력을 삭제하시겠습니까?
-              {' '}이 작업은 되돌릴 수 없습니다.
+              <strong>{deleteTarget?.cohortName ?? '이 기수'}</strong>의 지원 이력을
+              삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          {deleteError && (
-            <div className='text-destructive text-sm px-1'>{deleteError}</div>
-          )}
+          {deleteError && <div className='text-destructive text-sm px-1'>{deleteError}</div>}
           <AlertDialogFooter>
             <AlertDialogCancel disabled={pending}>취소</AlertDialogCancel>
             <AlertDialogAction

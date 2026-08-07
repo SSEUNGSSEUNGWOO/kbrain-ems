@@ -54,20 +54,11 @@ export function ApplicationsPopover({
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
-  const applyChange = (
-    appId: string,
-    nextStatus: string,
-    nextStage: string | null
-  ) => {
+  const applyChange = (appId: string, nextStatus: string, nextStage: string | null) => {
     setError(null);
     setPendingAppId(appId);
     startTransition(async () => {
-      const result = await updateApplicationStatus(
-        appId,
-        applicantId,
-        nextStatus,
-        nextStage
-      );
+      const result = await updateApplicationStatus(appId, applicantId, nextStatus, nextStage);
       setPendingAppId(null);
       if (result?.error) {
         setError(result.error);
@@ -84,9 +75,7 @@ export function ApplicationsPopover({
         <div className='border-b px-4 py-2.5'>
           <div className='flex items-baseline gap-2'>
             <span className='text-sm font-semibold'>{applicantName}</span>
-            <span className='text-muted-foreground text-xs'>
-              지원 이력 {applications.length}개
-            </span>
+            <span className='text-muted-foreground text-xs'>지원 이력 {applications.length}개</span>
           </div>
           <Link
             href={`/dashboard/applicants/${applicantId}`}

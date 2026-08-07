@@ -25,6 +25,7 @@ import { useDebouncedCallback } from '@/hooks/use-debounced-callback';
 import { deleteApplicant, deleteApplicants } from '../_actions';
 import { ApplicantSheet, type Applicant } from './applicant-sheet';
 import { ApplicationsPopover, type ApplicationSummary } from './applications-popover';
+import { EXCLUSION_LABEL, EXCLUSION_TONE, exclusionBadge } from '@/lib/applicant-exclusion';
 
 type ApplicantRow = Applicant & {
   applicationCount: number;
@@ -343,6 +344,7 @@ export function ApplicantTable({
               {applicants.map((a) => {
                 const catLabel = a.category ?? '미분류';
                 const catTone = CATEGORY_CLASS[catLabel] ?? CATEGORY_CLASS['미분류'];
+                const excl = exclusionBadge(a);
                 return (
                   <tr
                     key={a.id}
@@ -360,9 +362,20 @@ export function ApplicantTable({
                       </td>
                     )}
                     <td className='px-4 py-3 font-medium'>
-                      <Link href={`/dashboard/applicants/${a.id}`} className='hover:underline'>
-                        {a.name}
-                      </Link>
+                      <div className='flex items-center gap-1.5'>
+                        <Link href={`/dashboard/applicants/${a.id}`} className='hover:underline'>
+                          {a.name}
+                        </Link>
+                        {excl && (
+                          <Badge
+                            variant='outline'
+                            className={`font-normal ${EXCLUSION_TONE[excl]}`}
+                            title={a.excluded_note ?? EXCLUSION_LABEL[excl]}
+                          >
+                            {EXCLUSION_LABEL[excl]}
+                          </Badge>
+                        )}
+                      </div>
                     </td>
                     <td className='px-4 py-3'>
                       <Badge variant='outline' className={`font-normal ${catTone}`}>

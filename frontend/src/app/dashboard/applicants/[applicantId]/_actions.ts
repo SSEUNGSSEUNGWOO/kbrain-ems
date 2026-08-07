@@ -37,9 +37,7 @@ export async function createApplication(
   const rejectedStage =
     status === 'rejected' &&
     rejectedStageRaw &&
-    VALID_REJECTED_STAGES.includes(
-      rejectedStageRaw as (typeof VALID_REJECTED_STAGES)[number]
-    )
+    VALID_REJECTED_STAGES.includes(rejectedStageRaw as (typeof VALID_REJECTED_STAGES)[number])
       ? rejectedStageRaw
       : null;
 
@@ -81,9 +79,7 @@ export async function updateApplication(
   const rejectedStage =
     status === 'rejected' &&
     rejectedStageRaw &&
-    VALID_REJECTED_STAGES.includes(
-      rejectedStageRaw as (typeof VALID_REJECTED_STAGES)[number]
-    )
+    VALID_REJECTED_STAGES.includes(rejectedStageRaw as (typeof VALID_REJECTED_STAGES)[number])
       ? rejectedStageRaw
       : null;
 
@@ -124,9 +120,7 @@ export async function updateApplicationStatus(
   const rejectedStage =
     status === 'rejected' &&
     rejectedStageRaw &&
-    VALID_REJECTED_STAGES.includes(
-      rejectedStageRaw as (typeof VALID_REJECTED_STAGES)[number]
-    )
+    VALID_REJECTED_STAGES.includes(rejectedStageRaw as (typeof VALID_REJECTED_STAGES)[number])
       ? rejectedStageRaw
       : null;
 
@@ -170,10 +164,7 @@ export async function updateApplicationStatus(
   return {};
 }
 
-export async function deleteApplication(
-  id: string,
-  applicantId: string
-): Promise<ActionResult> {
+export async function deleteApplication(id: string, applicantId: string): Promise<ActionResult> {
   const supabase = createAdminClient();
 
   // 삭제 전 cohort_id 확보 — 해당 기수 student row 정리에 필요

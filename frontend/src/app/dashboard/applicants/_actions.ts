@@ -35,9 +35,7 @@ function formValue(formData: FormData, key: string): string | null {
   return v || null;
 }
 
-export async function createApplicant(
-  formData: FormData
-): Promise<ActionResult> {
+export async function createApplicant(formData: FormData): Promise<ActionResult> {
   const name = String(formData.get('name') ?? '').trim();
   if (!name) return { error: '이름은 필수입니다.' };
 
@@ -60,8 +58,9 @@ export async function createApplicant(
       job_role: formValue(formData, 'job_role'),
       birth_date: formValue(formData, 'birth_date'),
       notes: formValue(formData, 'notes'),
-      // @ts-expect-error supabase types.ts에 applicants.category 미반영
-      category: formValue(formData, 'category')
+      category: formValue(formData, 'category'),
+      excluded_reason: formValue(formData, 'excluded_reason'),
+      excluded_note: formValue(formData, 'excluded_note')
     })
     .select('id')
     .single();
@@ -78,10 +77,7 @@ export async function createApplicant(
   return {};
 }
 
-export async function updateApplicant(
-  id: string,
-  formData: FormData
-): Promise<ActionResult> {
+export async function updateApplicant(id: string, formData: FormData): Promise<ActionResult> {
   const name = String(formData.get('name') ?? '').trim();
   if (!name) return { error: '이름은 필수입니다.' };
 
@@ -102,18 +98,17 @@ export async function updateApplicant(
     job_role: formValue(formData, 'job_role'),
     birth_date: formValue(formData, 'birth_date'),
     notes: formValue(formData, 'notes'),
-    category: formValue(formData, 'category')
+    category: formValue(formData, 'category'),
+    excluded_reason: formValue(formData, 'excluded_reason'),
+    excluded_note: formValue(formData, 'excluded_note')
   };
 
-  const { error: applicantError } = await supabase
-    .from('applicants')
-    // @ts-expect-error supabase types.ts에 applicants.category 미반영
-    .update(fields)
-    .eq('id', id);
+  const { error: applicantError } = await supabase.from('applicants').update(fields).eq('id', id);
   if (applicantError) return { error: applicantError.message };
 
-  // 이 지원자의 모든 학생 enrollment 동기화 (students 에 category 없음 → 제외)
-  const { category: _unused, ...studentFields } = fields;
+  // 이 지원자의 모든 학생 enrollment 동기화
+  // (students 에 category·예외 컬럼이 없으므로 제외)
+  const { category: _cat, excluded_reason: _er, excluded_note: _en, ...studentFields } = fields;
   const { error: studentError } = await supabase
     .from('students')
     .update(studentFields)
@@ -230,16 +225,12 @@ export async function importMatchedLmsCompletions(
         rows: LmsRow[],
         opts: { onConflict: string }
       ) => {
-        select: (
-          cols: string
-        ) => Promise<{
+        select: (cols: string) => Promise<{
           data: { id: string; created_at: string; updated_at: string }[] | null;
           error: { message: string } | null;
         }>;
       };
-      insert: (
-        rows: LmsRow[]
-      ) => {
+      insert: (rows: LmsRow[]) => {
         select: (
           cols: string
         ) => Promise<{ data: { id: string }[] | null; error: { message: string } | null }>;

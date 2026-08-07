@@ -11,6 +11,7 @@ import { ATTENDED_STATUSES, ABSENT_STATUSES } from '@/lib/completion';
 import { STUDENT_KEEP_STATUSES } from '@/lib/student-sync';
 import { AFFILIATION_LABELS, UNCLASSIFIED_LABEL } from '@/lib/affiliation';
 import { isTestStudent } from '@/lib/students';
+import { isFullyExcluded, isSelectionExcluded } from '@/lib/applicant-exclusion';
 import { computeCohortStage, type CohortStage } from '@/lib/cohort-stage';
 
 export type AffiliationStatRow = {
@@ -117,6 +118,7 @@ type ApplicantRow = {
   name: string;
   category: string | null;
   organization_id: string | null;
+  excluded_reason: string | null;
 };
 type CertRow = { cohort_id: string; student_id: string | null; passed: boolean | null };
 
@@ -151,8 +153,10 @@ export async function computeBusinessStats(): Promise<BusinessStats> {
         .range(f, t)
     ),
     fetchAllRows<ApplicantRow>((f, t) =>
-      // @ts-expect-error supabase types.ts에 applicants.category 미반영
-      supabase.from('applicants').select('id, name, category, organization_id').range(f, t)
+      supabase
+        .from('applicants')
+        .select('id, name, category, organization_id, excluded_reason')
+        .range(f, t)
     ),
     fetchAllRows<{ id: string; name: string }>((f, t) =>
       supabase.from('organizations').select('id, name').range(f, t)
@@ -254,8 +258,9 @@ export async function computeBusinessStats(): Promise<BusinessStats> {
 
   for (const app of applications) {
     const applicant = applicantById.get(app.applicant_id);
-    if (!applicant || isTestStudent(applicant.name)) continue;
-    const isSelected = KEEP.has(app.status);
+    // 테스트·중복은 아예 없던 것으로, 대상 아님(not_eligible)은 신청 건수엔 남긴다
+    if (!applicant || isFullyExcluded(applicant)) continue;
+    const isSelected = KEEP.has(app.status) && !isSelectionExcluded(applicant);
     totalApplied++;
     if (isSelected) totalSelected++;
 

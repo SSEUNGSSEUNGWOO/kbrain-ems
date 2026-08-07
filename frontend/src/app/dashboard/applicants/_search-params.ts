@@ -1,4 +1,9 @@
-import { createSearchParamsCache, parseAsInteger, parseAsString, parseAsStringEnum } from 'nuqs/server';
+import {
+  createSearchParamsCache,
+  parseAsInteger,
+  parseAsString,
+  parseAsStringEnum
+} from 'nuqs/server';
 
 export const APPLICANTS_PAGE_SIZE = 20;
 

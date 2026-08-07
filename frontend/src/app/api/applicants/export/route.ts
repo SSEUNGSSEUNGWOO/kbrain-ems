@@ -103,7 +103,6 @@ export async function GET(req: NextRequest) {
         if (category === '미분류') {
           q = q.is('category', null);
         } else {
-          // @ts-expect-error supabase types.ts에 applicants.category 미반영
           q = q.eq('category', category);
         }
       }

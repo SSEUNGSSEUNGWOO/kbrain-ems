@@ -92,18 +92,12 @@ export function ApplicationSheet({
       <SheetContent className='overflow-y-auto'>
         <SheetHeader>
           <SheetTitle>{isEdit ? '지원 이력 수정' : '지원 이력 추가'}</SheetTitle>
-          <SheetDescription>
-            기수와 결과를 입력합니다.
-          </SheetDescription>
+          <SheetDescription>기수와 결과를 입력합니다.</SheetDescription>
         </SheetHeader>
         <form action={onSubmit} className='grid gap-4 px-4 py-4'>
           <input type='hidden' name='cohort_id' value={cohortId} />
           <input type='hidden' name='status' value={status} />
-          <input
-            type='hidden'
-            name='rejected_stage'
-            value={status === 'rejected' ? stage : ''}
-          />
+          <input type='hidden' name='rejected_stage' value={status === 'rejected' ? stage : ''} />
 
           <div className='grid gap-2'>
             <Label>기수 *</Label>
@@ -184,13 +178,7 @@ export function ApplicationSheet({
           {error && <div className='text-destructive text-sm'>{error}</div>}
           <SheetFooter>
             <Button type='submit' disabled={pending || !cohortId}>
-              {pending
-                ? isEdit
-                  ? '저장 중...'
-                  : '추가 중...'
-                : isEdit
-                  ? '저장'
-                  : '추가'}
+              {pending ? (isEdit ? '저장 중...' : '추가 중...') : isEdit ? '저장' : '추가'}
             </Button>
           </SheetFooter>
         </form>

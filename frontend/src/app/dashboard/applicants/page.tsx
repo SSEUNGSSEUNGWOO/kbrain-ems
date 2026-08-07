@@ -41,6 +41,8 @@ type RpcRow = {
   personal_email: string | null;
   phone: string | null;
   notes: string | null;
+  excluded_reason?: string | null;
+  excluded_note?: string | null;
   organizationName: string | null;
   applicationCount: number;
   selectedCount: number;
@@ -93,6 +95,22 @@ export default async function ApplicantsPage({ searchParams }: Props) {
       categoryCounts: {},
       facetTotal: 0
     }) as RpcResult;
+
+    // 예외 정보는 RPC 밖에서 이 페이지 행(20건)만 따로 조회 —
+    // RPC 시그니처를 바꾸지 않고 붙이기 위함.
+    const pageIds = result.rows.map((r) => r.id);
+    if (pageIds.length > 0) {
+      const { data: exRows } = await supabase
+        .from('applicants')
+        .select('id, excluded_reason, excluded_note')
+        .in('id', pageIds);
+      const exById = new Map((exRows ?? []).map((e) => [e.id, e]));
+      for (const r of result.rows) {
+        const ex = exById.get(r.id);
+        r.excluded_reason = ex?.excluded_reason ?? null;
+        r.excluded_note = ex?.excluded_note ?? null;
+      }
+    }
 
     const total = result.total;
     const pageCount = Math.max(1, Math.ceil(total / pageSize));
