@@ -98,6 +98,48 @@ export default async function ApplicantDetailPage({
     note: a.note
   }));
 
+  // ── 인증평가 결과 ──
+  // 문의가 오면 이름으로 찾아 바로 점수를 확인할 수 있어야 한다.
+  // 기존에는 기수별 인증 페이지에만 있어 어느 기수인지 알아야 조회 가능했음.
+  type CertRow = {
+    cohort_id: string;
+    student_id: string | null;
+    passed: boolean | null;
+    total_score: number | null;
+    grade: string | null;
+    section_scores: Record<string, number | string | null> | null;
+    cert_no: string | null;
+    exam_date: string | null;
+  };
+  const { data: studentRows } = await supabase
+    .from('students')
+    .select('id, cohort_id')
+    .eq('applicant_id', applicantId);
+  const studentIds = (studentRows ?? []).map((s) => s.id);
+  let certRows: CertRow[] = [];
+  if (studentIds.length > 0) {
+    const res = (await (
+      supabase.from('certification_results' as unknown as 'cohorts') as unknown as {
+        select: (cols: string) => {
+          in: (col: string, vals: string[]) => PromiseLike<{ data: CertRow[] | null }>;
+        };
+      }
+    )
+      .select(
+        'cohort_id, student_id, passed, total_score, grade, section_scores, cert_no, exam_date'
+      )
+      .in('student_id', studentIds)) as { data: CertRow[] | null };
+    certRows = res.data ?? [];
+  }
+  const cohortNameById = new Map((cohortRows ?? []).map((c) => [c.id, c.name]));
+  const certs = certRows
+    .map((c) => ({
+      ...c,
+      cohortName: cohortNameById.get(c.cohort_id) ?? '(기수 미상)',
+      sections: Object.entries(c.section_scores ?? {})
+    }))
+    .toSorted((a, b) => (b.exam_date ?? '').localeCompare(a.exam_date ?? ''));
+
   return (
     <PageContainer
       pageTitle={applicant.name}
@@ -138,6 +180,61 @@ export default async function ApplicantDetailPage({
             )}
           </dl>
         </section>
+
+        {certs.length > 0 && (
+          <section>
+            <h2 className='mb-3 text-sm font-medium'>
+              인증평가 결과{' '}
+              <span className='text-muted-foreground ml-1 text-xs'>({certs.length})</span>
+            </h2>
+            <div className='grid gap-2'>
+              {certs.map((c) => (
+                <div key={`${c.cohort_id}-${c.student_id}`} className='rounded-md border px-4 py-3'>
+                  <div className='flex flex-wrap items-center gap-2'>
+                    <span className='text-sm font-medium'>{c.cohortName}</span>
+                    {c.passed === true && (
+                      <span className='rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-xs text-emerald-700'>
+                        합격
+                      </span>
+                    )}
+                    {c.passed === false && (
+                      <span className='rounded border border-rose-200 bg-rose-50 px-1.5 py-0.5 text-xs text-rose-700'>
+                        불합격
+                      </span>
+                    )}
+                    {c.passed === null && (
+                      <span className='text-muted-foreground text-xs'>미채점</span>
+                    )}
+                    {c.exam_date && (
+                      <span className='text-muted-foreground text-xs tabular-nums'>
+                        {c.exam_date}
+                      </span>
+                    )}
+                  </div>
+                  <div className='mt-1.5 flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm'>
+                    <span>
+                      총점{' '}
+                      <span className='font-semibold tabular-nums'>{c.total_score ?? '—'}</span>
+                      {c.grade && (
+                        <span className='text-muted-foreground ml-1 text-xs'>({c.grade})</span>
+                      )}
+                    </span>
+                    {c.sections.map(([k, v]) => (
+                      <span key={k} className='text-muted-foreground text-xs'>
+                        {k} <span className='tabular-nums'>{v ?? '—'}</span>
+                      </span>
+                    ))}
+                    {c.cert_no && (
+                      <span className='text-muted-foreground text-xs tabular-nums'>
+                        인증번호 {c.cert_no}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         <section>
           <div className='mb-3 flex items-center justify-between'>
