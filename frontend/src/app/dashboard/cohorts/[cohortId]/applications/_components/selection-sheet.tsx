@@ -138,7 +138,17 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
       excludeNoCert
     );
     return { scored, autoSelectedIds: new Set(selectedIds) };
-  }, [filteredCandidates, weights, effectiveCapacity, knowledgeMax, quotaRatio, maxPerOrg, excludeNoPrereq, parentOrgCap, excludeNoCert]);
+  }, [
+    filteredCandidates,
+    weights,
+    effectiveCapacity,
+    knowledgeMax,
+    quotaRatio,
+    maxPerOrg,
+    excludeNoPrereq,
+    parentOrgCap,
+    excludeNoCert
+  ]);
 
   // 이미 selected/rejected가 있는 cohort라면, 시트 열릴 때 한 번만
   // manualToggles를 현재 DB 상태로 미리 채워서 알고리즘 추천이 덮어쓰지 않게 함.
@@ -286,7 +296,8 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
         <SheetHeader className='border-b'>
           <SheetTitle>자동 선발</SheetTitle>
           <SheetDescription>
-            사전학습 수료 단계 → 부처 쿼터 → 점수순으로 채웁니다. 쿼터 미달 시 아래 카테고리로 흘러내림.
+            사전학습 수료 단계 → 부처 쿼터 → 점수순으로 채웁니다. 쿼터 미달 시 아래 카테고리로
+            흘러내림.
           </SheetDescription>
         </SheetHeader>
 
@@ -369,9 +380,7 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
                 quotas={quotas}
                 totalCapacity={effectiveCapacity}
                 activeCategory={filterCategory}
-                onCategoryClick={(cat) =>
-                  setFilterCategory((prev) => (prev === cat ? null : cat))
-                }
+                onCategoryClick={(cat) => setFilterCategory((prev) => (prev === cat ? null : cat))}
               />
 
               <CandidateList
@@ -623,7 +632,8 @@ function AdditionalConstraintsPanel({
 
       <div className='flex flex-col gap-2'>
         <div className='text-muted-foreground text-xs font-medium'>
-          다른 cohort 합격자 제외 — 체크한 cohort에서 status=&apos;selected&apos;인 신청자는 후보 풀에서 빠짐
+          다른 cohort 합격자 제외 — 체크한 cohort에서 status=&apos;selected&apos;인 신청자는 후보
+          풀에서 빠짐
         </div>
         {availableExclusionCohorts.length === 0 ? (
           <div className='text-muted-foreground text-xs italic'>
@@ -655,9 +665,7 @@ function AdditionalConstraintsPanel({
       <div className='flex flex-col gap-1.5 border-t pt-2'>
         <label htmlFor='parent-org-cap' className='text-sm font-medium'>
           상위부처당 최대 인원
-          <span className='ml-1 text-[11px] font-normal text-muted-foreground'>
-            (0 = 비활성)
-          </span>
+          <span className='ml-1 text-[11px] font-normal text-muted-foreground'>(0 = 비활성)</span>
         </label>
         <div className='flex items-center gap-2'>
           <Input
@@ -671,7 +679,8 @@ function AdditionalConstraintsPanel({
             className='h-8 w-24 tabular-nums'
           />
           <span className='text-[11px] text-muted-foreground'>
-            기관명 첫 공백 앞으로 그룹핑 (예: &apos;경찰청 서울특별시경찰청&apos; → &apos;경찰청&apos;)
+            기관명 첫 공백 앞으로 그룹핑 (예: &apos;경찰청 서울특별시경찰청&apos; →
+            &apos;경찰청&apos;)
           </span>
         </div>
       </div>
@@ -805,9 +814,7 @@ function CandidateList({
   filterCategory: SelectionCategory | null;
 }) {
   const visible = filterCategory
-    ? scored
-        .map((c, i) => ({ c, i }))
-        .filter(({ c }) => c.category === filterCategory)
+    ? scored.map((c, i) => ({ c, i })).filter(({ c }) => c.category === filterCategory)
     : scored.map((c, i) => ({ c, i }));
   return (
     <div className='flex flex-col rounded-md border'>
@@ -877,7 +884,9 @@ function CandidateList({
                         {c.other_applications.map((o) => (
                           <div key={o.cohort_id}>
                             {o.cohort_name}
-                            <span className='ml-1 opacity-70'>· {STATUS_LABEL[o.status] ?? o.status}</span>
+                            <span className='ml-1 opacity-70'>
+                              · {STATUS_LABEL[o.status] ?? o.status}
+                            </span>
                           </div>
                         ))}
                       </div>

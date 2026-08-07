@@ -24,10 +24,7 @@ export function SelectionExportButton({ cohortId, disabled }: Props) {
         </a>
       </Button>
       <label className='flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground'>
-        <Checkbox
-          checked={includeCancel}
-          onCheckedChange={(v) => setIncludeCancel(v === true)}
-        />
+        <Checkbox checked={includeCancel} onCheckedChange={(v) => setIncludeCancel(v === true)} />
         당일취소자 포함
       </label>
     </div>

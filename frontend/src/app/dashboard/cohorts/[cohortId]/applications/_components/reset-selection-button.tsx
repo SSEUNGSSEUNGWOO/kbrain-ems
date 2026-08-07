@@ -59,7 +59,9 @@ export function ResetSelectionButton({ cohortId, disabled }: Props) {
         <AlertDialogHeader>
           <AlertDialogTitle>선발 결과 초기화</AlertDialogTitle>
           <AlertDialogDescription>
-            이 기수의 모든 신청자 상태를 <strong>신청(applied)</strong>으로 되돌립니다. 선발·탈락·심사중·취하 결정이 모두 사라지고 결정일·탈락 단계도 비워집니다. 이 작업은 되돌릴 수 없습니다.
+            이 기수의 모든 신청자 상태를 <strong>신청(applied)</strong>으로 되돌립니다.
+            선발·탈락·심사중·취하 결정이 모두 사라지고 결정일·탈락 단계도 비워집니다. 이 작업은
+            되돌릴 수 없습니다.
           </AlertDialogDescription>
         </AlertDialogHeader>
         {error && <div className='text-destructive text-sm px-1'>{error}</div>}

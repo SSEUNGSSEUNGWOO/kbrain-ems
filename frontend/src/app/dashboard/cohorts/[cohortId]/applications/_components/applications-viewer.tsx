@@ -57,7 +57,8 @@ const DIFFICULTY_LABEL: Record<string, string> = {
 };
 
 const DIFFICULTY_TONE: Record<string, string> = {
-  beginner: 'bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/30 dark:text-sky-300 dark:border-sky-900',
+  beginner:
+    'bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/30 dark:text-sky-300 dark:border-sky-900',
   intermediate:
     'bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/30 dark:text-amber-300 dark:border-amber-900',
   advanced:
@@ -149,9 +150,7 @@ function SummaryStats({
         {sections.map((s) => (
           <Stat key={s.key} label={s.label} value={s.count} />
         ))}
-        {knowledgeMax > 0 && (
-          <Stat label='역량점수 만점' value={`${knowledgeMax}점`} accent />
-        )}
+        {knowledgeMax > 0 && <Stat label='역량점수 만점' value={`${knowledgeMax}점`} accent />}
       </CardContent>
     </Card>
   );

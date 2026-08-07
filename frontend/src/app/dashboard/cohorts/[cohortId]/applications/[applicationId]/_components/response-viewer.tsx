@@ -181,8 +181,7 @@ function QuestionAnswerCard({ q, answer }: { q: Question; answer: Answer | undef
                       'border-rose-400 bg-rose-50 text-rose-900 dark:bg-rose-950/40 dark:text-rose-100 dark:border-rose-700',
                     knowledgeMissedCorrect &&
                       'border-emerald-200 bg-emerald-50/40 text-emerald-800 dark:bg-emerald-950/20 dark:text-emerald-200 dark:border-emerald-900',
-                    nonKnowledgePick &&
-                      'border-primary/50 bg-primary/5 text-foreground',
+                    nonKnowledgePick && 'border-primary/50 bg-primary/5 text-foreground',
                     !isCorrect && !isSelected && 'border-transparent'
                   )}
                 >
@@ -217,17 +216,13 @@ function QuestionAnswerCard({ q, answer }: { q: Question; answer: Answer | undef
           </ul>
         )}
 
-        {q.question_type === 'likert5' && (
-          <LikertScale value={likertValue} />
-        )}
+        {q.question_type === 'likert5' && <LikertScale value={likertValue} />}
 
         {q.question_type === 'text' && (
           <div
             className={cn(
               'rounded-md border px-3 py-3 text-sm leading-relaxed whitespace-pre-wrap',
-              textValue
-                ? 'bg-muted/30'
-                : 'border-dashed text-muted-foreground italic'
+              textValue ? 'bg-muted/30' : 'border-dashed text-muted-foreground italic'
             )}
           >
             {textValue ?? '미응답'}
