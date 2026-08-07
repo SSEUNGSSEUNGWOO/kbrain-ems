@@ -18,6 +18,7 @@ import {
 } from '@/lib/special-course-history';
 import { cn } from '@/lib/utils';
 import { SyncRetroButton } from './_components/sync-retro-button';
+import { CertResultsTable, type CertResultRow } from './_components/cert-results-table';
 
 type Props = {
   params: Promise<{ cohortId: string }>;
@@ -191,6 +192,23 @@ export default async function CertificationPage({ params }: Props) {
     }
   }
 
+  const certResultRows: CertResultRow[] = students.map((s) => {
+    const c = certByStudent.get(s.id) ?? null;
+    return {
+      studentId: s.id,
+      name: s.name,
+      organization: s.organizations?.name ?? null,
+      departmentTitle: [s.department, s.job_title].filter(Boolean).join(' · '),
+      totalScore: c?.total_score ?? null,
+      sectionScores: c?.section_scores ?? {},
+      passed: c?.passed ?? null,
+      certNo: c?.cert_no ?? null,
+      sourceCohortName: c?.source_cohort_id
+        ? (sourceCohortName.get(c.source_cohort_id) ?? '타 기수')
+        : null
+    };
+  });
+
   return (
     <PageContainer pageTitle='인증' pageDescription={cohortRow?.name ?? ''}>
       <div className='flex flex-col gap-6'>
@@ -345,87 +363,11 @@ export default async function CertificationPage({ params }: Props) {
           <section>
             <div className='mb-3 flex items-center gap-2'>
               <h2 className='text-sm font-medium'>학생별 결과</h2>
+              <span className='text-muted-foreground text-xs'>
+                — 이름·소속·인증번호로 검색해 개별 점수를 확인할 수 있습니다
+              </span>
             </div>
-            <div className='overflow-x-auto rounded-lg border'>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className='w-12'>NO</TableHead>
-                    <TableHead>이름</TableHead>
-                    <TableHead>소속기관</TableHead>
-                    <TableHead>부서·직책</TableHead>
-                    <TableHead className='text-right'>총점</TableHead>
-                    {sectionCols.map((sec) => (
-                      <TableHead key={sec} className='text-right whitespace-nowrap'>
-                        {sec}
-                      </TableHead>
-                    ))}
-                    <TableHead className='text-center'>결과</TableHead>
-                    <TableHead className='whitespace-nowrap'>인증번호</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {students.map((s, idx) => {
-                    const c = certByStudent.get(s.id) ?? null;
-                    return (
-                      <TableRow key={s.id}>
-                        <TableCell className='text-muted-foreground tabular-nums'>
-                          {idx + 1}
-                        </TableCell>
-                        <TableCell className='font-medium'>{s.name}</TableCell>
-                        <TableCell className='text-muted-foreground'>
-                          {s.organizations?.name ?? '—'}
-                        </TableCell>
-                        <TableCell className='text-muted-foreground text-sm'>
-                          {[s.department, s.job_title].filter(Boolean).join(' · ') || '—'}
-                        </TableCell>
-                        <TableCell className='text-right font-medium tabular-nums'>
-                          {c?.total_score ?? '—'}
-                        </TableCell>
-                        {sectionCols.map((sec) => (
-                          <TableCell key={sec} className='text-right tabular-nums text-sm'>
-                            {c?.section_scores?.[sec] ?? '—'}
-                          </TableCell>
-                        ))}
-                        <TableCell className='text-center'>
-                          {c === null ? (
-                            <span className='text-muted-foreground text-xs'>미응시</span>
-                          ) : (
-                            <div className='flex flex-col items-center gap-0.5'>
-                              {c.passed === true ? (
-                                <Badge
-                                  variant='outline'
-                                  className='border-emerald-200 bg-emerald-50 font-normal text-emerald-700'
-                                >
-                                  합격
-                                </Badge>
-                              ) : c.passed === false ? (
-                                <Badge
-                                  variant='outline'
-                                  className='border-rose-200 bg-rose-50 font-normal text-rose-700'
-                                >
-                                  불합격
-                                </Badge>
-                              ) : (
-                                <span className='text-muted-foreground text-xs'>—</span>
-                              )}
-                              {c.source_cohort_id && (
-                                <span className='text-[10px] text-blue-600 whitespace-nowrap'>
-                                  {sourceCohortName.get(c.source_cohort_id) ?? '타 기수'} 응시
-                                </span>
-                              )}
-                            </div>
-                          )}
-                        </TableCell>
-                        <TableCell className='text-muted-foreground text-xs tabular-nums'>
-                          {c?.cert_no ?? '—'}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
+            <CertResultsTable rows={certResultRows} sectionCols={sectionCols} />
           </section>
         )}
 
