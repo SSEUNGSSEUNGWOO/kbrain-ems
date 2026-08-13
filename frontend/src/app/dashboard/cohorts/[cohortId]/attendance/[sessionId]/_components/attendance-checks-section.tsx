@@ -202,14 +202,11 @@ export function AttendanceChecksSection({
     <div className='rounded-2xl border bg-white p-6 shadow-sm'>
       <div className='mb-4 flex items-center justify-between'>
         <div>
-          <h2 className='text-lg font-bold text-slate-900'>셀프 출석 체크</h2>
-          <p className='mt-0.5 text-xs text-slate-500'>
-            학생이 share 링크로 직접 체크인합니다. 한 세션에 여러 개(교육 시작/중간/마감) 만들 수 있어요. 학생은 언제든 체크인 가능하고, 지각 기준 시각만 지각 판정에 사용됩니다.
-          </p>
+          <h2 className='text-lg font-bold text-slate-900'>출석 체크</h2>
         </div>
         {!creating && (
           <Button onClick={() => setCreating(true)} variant='outline'>
-            + 체크포인트 추가
+            + 추가
           </Button>
         )}
       </div>
