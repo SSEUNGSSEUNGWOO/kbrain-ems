@@ -9,6 +9,7 @@ import { fileURLToPath } from 'url';
 import { createClient } from '@supabase/supabase-js';
 import {
   recommendByQuotas,
+  runExclusions,
   C2_TO_SELECTION,
   type CandidateRow,
   type SelectionCategory
@@ -167,8 +168,9 @@ async function main() {
   }
 }
 
-// baseline(리팩터 전) 시점의 실행 어댑터 — 구 시그니처 호출.
-// Task 4에서 이 함수만 새 파이프라인 호출로 교체한다.
+// compare(리팩터 후) 시점의 실행 어댑터 — 새 파이프라인 호출.
+// 구 flags=true → runExclusions의 no_prereq·no_cert 단계와 동일해야 함.
+// (cohortTrack: null → 인증자 단계 비활성, 나머지 조건 없음 → 두 필터만 작동)
 function runOnce(
   cands: CandidateRow[],
   weights: { knowledge: number; plan: number },
@@ -179,17 +181,26 @@ function runOnce(
   parentCap: number,
   flags: boolean
 ): string[] {
-  const { selectedIds } = recommendByQuotas(
-    cands,
+  const pool = flags
+    ? runExclusions(cands, {
+        cohortTrack: null,
+        excludedCohortIds: new Set(),
+        exceptions: new Set()
+      }).pool
+    : cands;
+  const { selectedIds, decisions } = recommendByQuotas(
+    pool,
     weights,
     capacity,
     kMax,
     ratio,
     maxPerOrg,
-    flags, // excludeNoPrereq
-    parentCap,
-    flags // excludeNoCert
+    parentCap
   );
+  // 결정 사유 완전성 — 풀의 모든 후보에 decision이 있어야 함
+  if (decisions.size !== pool.length) {
+    throw new Error(`decision 누락: pool ${pool.length} vs decisions ${decisions.size}`);
+  }
   return selectedIds;
 }
 
