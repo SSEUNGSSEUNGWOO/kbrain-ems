@@ -242,7 +242,7 @@ export function runExclusions(
 // 배분 결과의 후보별 결정 사유 — Step 3 사유 배지·감사 자료용
 export type Decision =
   | { kind: 'selected'; via: 'force' | 'quota' | 'overflow' | 'tie' }
-  | { kind: 'rejected'; why: 'org_cap' | 'parent_cap' | 'score_cut'; cutoff?: number };
+  | { kind: 'rejected'; why: 'org_cap' | 'parent_cap' | 'quota_filled' | 'score_cut'; cutoff?: number };
 
 type DecisionReasonKey =
   | Extract<Decision, { kind: 'selected' }>['via']
@@ -255,6 +255,7 @@ export const DECISION_LABEL: Record<DecisionReasonKey, string> = {
   tie: '동점자 선발',
   org_cap: '기관 cap 초과',
   parent_cap: '상위부처 cap 초과',
+  quota_filled: '쿼터 마감 (기관 분산 후순위)',
   score_cut: '점수 미달'
 };
 
@@ -472,20 +473,21 @@ export function recommendByQuotas(
   // 미선발 사유 사후 판정 — 종료 시점 상태 기준의 근사치.
   // 쿼터 소진으로 순회가 일찍 끝난 후보도 기관/상위부처가 결과적으로 cap에 차 있으면
   // org_cap/parent_cap으로 표기된다 (실제 결정 요인은 점수였을 수 있음). 감사용 표시 목적.
+  // 컷보다 점수가 높거나 같은데 미선발인 경우는 점수 문제가 아니라 점진적 cap 라운드에서
+  // 기관 분산 순번이 밀리는 사이 쿼터가 소진된 것 → quota_filled 로 구분 (점수 미달 오표기 방지).
   for (const c of scored) {
     if (selectedSet.has(c.application_id)) continue;
     const orgKey = c.organization ?? '';
     const parent = parentOrgKey(c.organization);
+    const cutoff = cutoffScoreByCategory.get(c.category);
     if (orgKey && (orgCount.get(orgKey) ?? 0) >= finalCap) {
       decisions.set(c.application_id, { kind: 'rejected', why: 'org_cap' });
     } else if (parent && (parentCount.get(parent) ?? 0) >= pCap) {
       decisions.set(c.application_id, { kind: 'rejected', why: 'parent_cap' });
+    } else if (cutoff !== undefined && c.final_score >= cutoff) {
+      decisions.set(c.application_id, { kind: 'rejected', why: 'quota_filled' });
     } else {
-      decisions.set(c.application_id, {
-        kind: 'rejected',
-        why: 'score_cut',
-        cutoff: cutoffScoreByCategory.get(c.category)
-      });
+      decisions.set(c.application_id, { kind: 'rejected', why: 'score_cut', cutoff });
     }
   }
 
