@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
+import { useEffect, useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -101,7 +101,6 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
     })();
   }, [open, stage, cohortId]);
 
-  const initializedTogglesRef = useRef(false);
 
   // 지원 페이지에서 이미 수동 선발(selected) 처리된 사람은 확정으로 취급 —
   // 강제선발 선처리를 재사용해 정원·카테고리 쿼터에서 자리를 차감하고,
@@ -161,30 +160,9 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
     };
   }, [pool, weights, effectiveCapacity, knowledgeMax, quotaRatio, maxPerOrg, parentOrgCapInput]);
 
-  // 이미 selected/rejected가 있는 cohort라면 시트 열릴 때 한 번만
-  // manualToggles를 DB 상태로 채워 알고리즘 추천이 덮어쓰지 않게 함.
-  useEffect(() => {
-    if (!open) {
-      initializedTogglesRef.current = false;
-      return;
-    }
-    if (stage !== 'editing' || candidates.length === 0) return;
-    if (initializedTogglesRef.current) return;
-    initializedTogglesRef.current = true;
-
-    const hasExisting = candidates.some(
-      (c) => c.current_status === 'selected' || c.current_status === 'rejected'
-    );
-    if (!hasExisting) return;
-
-    const next = new Map<string, boolean>();
-    for (const c of candidates) {
-      const inDb = c.current_status === 'selected';
-      const inAuto = autoSelectedIds.has(c.application_id);
-      if (inDb !== inAuto) next.set(c.application_id, inDb);
-    }
-    if (next.size > 0) setManualToggles(next);
-  }, [open, stage, candidates, autoSelectedIds]);
+  // DB의 기존 선발자 유지는 heldCandidates(강제선발 선처리)가 담당한다.
+  // 과거의 "DB 상태 복원" 토글 시딩은 부분 수동선발 시 자동추천 전원을
+  // 수동-제외로 꺼버리는 충돌이 있어 제거함 — 전체 재선발은 '선발 초기화' 후 실행.
 
   // 최종 선택 = 자동추천 ⊕ 수동토글 오버라이드
   const effectiveSelectedIds = useMemo(() => {
