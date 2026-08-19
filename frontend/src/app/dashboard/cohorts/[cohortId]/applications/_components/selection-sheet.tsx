@@ -103,11 +103,24 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
 
   const initializedTogglesRef = useRef(false);
 
+  // 지원 페이지에서 이미 수동 선발(selected) 처리된 사람은 확정으로 취급 —
+  // 강제선발 선처리를 재사용해 정원·카테고리 쿼터에서 자리를 차감하고,
+  // 자동선발은 남은 자리만 채운다. 순수 재선발을 원하면 '선발 초기화' 후 실행.
+  const heldCandidates = useMemo(
+    () =>
+      candidates.map((c) =>
+        c.current_status === 'selected' && !c.force_select
+          ? { ...c, force_select: true, force_reason: '기존 선발 유지' }
+          : c
+      ),
+    [candidates]
+  );
+
   // Step 1 깔때기 — 하드 제외 규칙 적용
   const cohortTrack = useMemo(() => cohortTrackFromName(cohortName), [cohortName]);
   const { pool, stages: exclusionStages } = useMemo(
-    () => runExclusions(candidates, { cohortTrack, excludedCohortIds, exceptions }),
-    [candidates, cohortTrack, excludedCohortIds, exceptions]
+    () => runExclusions(heldCandidates, { cohortTrack, excludedCohortIds, exceptions }),
+    [heldCandidates, cohortTrack, excludedCohortIds, exceptions]
   );
 
   // 다른 cohort 목록 — candidates의 other_applications에서 추출
