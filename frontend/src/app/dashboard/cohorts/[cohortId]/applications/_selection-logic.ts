@@ -100,14 +100,16 @@ export type SelectionConfigSnapshot = {
   weights: ScoreWeights;
   quotaRatio: QuotaRatio;
   maxPerOrg: number; // 0 = 무제한
+  /** 하드 규칙화됨 — 항상 true로 기록 (구 스냅샷 하위호환용 필드 유지) */
   excludeNoPrereq: boolean;
-  /** 자격연계형 cohort 에서 자격증 미보유자 자동 제외 여부 (default true 권장) */
   excludeNoCert: boolean;
   totalCapacity: number; // 사용자가 입력한 정원
   withReserve: boolean; // 110% 예비 적용 여부
   effectiveCapacity: number; // withReserve 적용 후 실제 사용된 정원
-  parentOrgCapPct?: number; // 상위부처(공백 prefix) 캡, 정원 대비 % (예: 10) — 미설정/0=비활성
+  parentOrgCap?: number; // 상위부처(공백 prefix) 캡, 절대 인원수 — 미설정/0=비활성
   excludedCohortIds?: string[]; // 이 cohort들의 selected 신청자는 제외
+  exclusionCounts?: Partial<Record<ExclusionStageKey, number>>; // 깔때기 단계별 제외 인원
+  exceptions?: string[]; // 예외 허용된 application_id
   appliedAt: string; // ISO timestamp
 };
 
@@ -235,6 +237,21 @@ export function runExclusions(
   return { pool, stages };
 }
 
+// 배분 결과의 후보별 결정 사유 — Step 3 사유 배지·감사 자료용
+export type Decision =
+  | { kind: 'selected'; via: 'force' | 'quota' | 'overflow' | 'tie' }
+  | { kind: 'rejected'; why: 'org_cap' | 'parent_cap' | 'score_cut'; cutoff?: number };
+
+export const DECISION_LABEL: Record<string, string> = {
+  force: '강제선발',
+  quota: '쿼터 선발',
+  overflow: '흘러내림 선발',
+  tie: '동점자 선발',
+  org_cap: '기관 cap 초과',
+  parent_cap: '상위부처 cap 초과',
+  score_cut: '점수 미달'
+};
+
 /**
  * 두 부분의 가중합 — 부처는 점수에 포함하지 않고 쿼터로만 처리.
  *  - 지식점수: knowledge_score / knowledgeMax (clamp 0~1)
@@ -303,29 +320,26 @@ export function computeQuotas(
 
 /**
  * 카테고리별 쿼터 + 사전학습 단계 + 단방향 흘러내림 + **점진적 기관 cap**.
+ * 제외(인증자·사전학습·자격증 등)는 상류 runExclusions에서 이미 끝났다고 가정 —
+ * 이 함수는 배분과 결정 사유 기록만 담당한다.
  *
  * 정렬 키 (cohort에 prereq가 있는 경우):
  *  1) prereq_done_count desc (2개수료 > 1개 > 0)
  *  2) 종합점수(원점수) desc
  *  3) 지식점수 desc
  *  4) 정성평가 글자수 desc
- * cohort prereq_max=0이면 prereq 정렬·제외 비활성.
  *
  * **점진적 cap 라운드** (maxPerOrg > 0인 경우):
  *  round 1: cap=1 → 풀 얕은 기관까지 1자리 보장
  *  round 2: cap=2 → 잔여 쿼터를 풀 깊은 기관에서 추가 충원
- *  ...
- *  round maxPerOrg: cap=maxPerOrg 까지 누적 진행, 정원 차면 조기 종료.
- * 이전 라운드 결과는 그대로 유지된 채 잔여 쿼터만 다음 라운드로 이월.
- * maxPerOrg=0(무제한)이면 라운드 1회 cap=∞로 기존 1-pass 동작.
+ *  ... round maxPerOrg까지 누적, 정원 차면 조기 종료.
+ * maxPerOrg=0(무제한)이면 라운드 1회 cap=∞.
  *
- * 라운드 내부 흐름:
- *  Phase 1: 각 카테고리 풀에서 잔여 쿼터까지 점수순으로 채움.
- *  Phase 2: 미달 쿼터는 우선순위 아래 카테고리 풀에서 보충 (단방향).
+ * 라운드 내부: Phase 1 카테고리 쿼터 채움 → Phase 2 단방향 흘러내림.
+ * 종료 후 Phase 3 동점자 구제 (cap은 hard limit 유지).
  *
- * @param maxPerOrg 기관당 최대 (0 = 무제한 — 한 라운드만 cap=∞로 진행)
- * @param excludeNoPrereq cohort prereq가 있고 true면 부분 수료(1/2 등)·미수료(0) 모두 강제 제외
- *                        — 전체 수료(prereq_done_count >= prereq_max)만 통과
+ * 미선발 사유는 종료 시점 상태로 사후 판정: 기관 cap 소진 → org_cap,
+ * 상위부처 cap 소진 → parent_cap, 그 외 → score_cut (카테고리 컷 점수 첨부).
  */
 export function recommendByQuotas(
   candidates: CandidateRow[],
@@ -334,23 +348,11 @@ export function recommendByQuotas(
   knowledgeMax: number,
   ratio: QuotaRatio,
   maxPerOrg: number = 0,
-  excludeNoPrereq: boolean = false,
-  parentOrgCap: number = 0, // 상위부처(공백 prefix) 절대 인원수, 0=비활성
-  excludeNoCert: boolean = false // 자격연계형: 자격증 미보유자 강제 제외
-): { selectedIds: string[]; scored: ScoredCandidate[] } {
+  parentOrgCap: number = 0 // 상위부처(공백 prefix) 절대 인원수, 0=비활성
+): { selectedIds: string[]; scored: ScoredCandidate[]; decisions: Map<string, Decision> } {
   const hasPrereq = candidates.some((c) => c.prereq_max > 0);
-  const hasCertQ = candidates.some((c) => c.has_cert !== null);
-  let filtered = candidates;
-  if (excludeNoPrereq && hasPrereq) {
-    // force_select는 사전학습 미이수여도 통과
-    filtered = filtered.filter((c) => c.force_select || c.prereq_done_count >= c.prereq_max);
-  }
-  if (excludeNoCert && hasCertQ) {
-    // force_select는 자격증 미보유여도 통과
-    filtered = filtered.filter((c) => c.force_select || c.has_cert === true);
-  }
 
-  const scored = scoreAll(filtered, weights, knowledgeMax).toSorted((a, b) => {
+  const scored = scoreAll(candidates, weights, knowledgeMax).toSorted((a, b) => {
     if (hasPrereq && b.prereq_done_count !== a.prereq_done_count) {
       return b.prereq_done_count - a.prereq_done_count;
     }
@@ -365,6 +367,7 @@ export function recommendByQuotas(
   const parentCount = new Map<string, number>();
   const selectedSet = new Set<string>();
   const selectedIds: string[] = [];
+  const decisions = new Map<string, Decision>();
 
   // 강제선발 대상 우선 통과 — 카테고리 쿼터·기관 cap·상위부처 cap 모두 무시.
   // 정원(totalCapacity)에서는 자리 차지 (일반 후보용 잔여 정원 감소).
@@ -376,7 +379,7 @@ export function recommendByQuotas(
     if (parent) parentCount.set(parent, (parentCount.get(parent) ?? 0) + 1);
     selectedSet.add(c.application_id);
     selectedIds.push(c.application_id);
-    // 카테고리 쿼터 차감 (일반 후보 자리 축소)
+    decisions.set(c.application_id, { kind: 'selected', via: 'force' });
     if (quotas[c.category] > 0) quotas[c.category]--;
   }
 
@@ -387,7 +390,7 @@ export function recommendByQuotas(
     if (selectedIds.length >= totalCapacity) break;
     const roundCap = capUnlimited ? Number.POSITIVE_INFINITY : round;
 
-    const tryAdd = (c: ScoredCandidate): boolean => {
+    const tryAdd = (c: ScoredCandidate, via: 'quota' | 'overflow'): boolean => {
       if (selectedSet.has(c.application_id)) return false;
       const orgKey = c.organization ?? '';
       const parent = parentOrgKey(c.organization);
@@ -403,6 +406,7 @@ export function recommendByQuotas(
       if (parent) parentCount.set(parent, (parentCount.get(parent) ?? 0) + 1);
       selectedSet.add(c.application_id);
       selectedIds.push(c.application_id);
+      decisions.set(c.application_id, { kind: 'selected', via });
       return true;
     };
 
@@ -412,15 +416,11 @@ export function recommendByQuotas(
       for (const c of scored) {
         if (quotas[cat] === 0) break;
         if (c.category !== cat) continue;
-        if (tryAdd(c)) quotas[cat]--;
+        if (tryAdd(c, 'quota')) quotas[cat]--;
       }
     }
 
     // Phase 2: 단방향 흘러내림 — sourceCat의 남은 쿼터를 우선순위 순으로 보충.
-    // 예: 중앙 부족 → local 풀에서 점수순으로 먼저 채우고, 거기서도 모자라면
-    //     public_edu, 그 다음 other 순으로 진행. 단순히 downstream 풀을 한 번에
-    //     섞어 점수만 보면 더 낮은 카테고리(예: other)의 고득점자가 중간
-    //     카테고리(local)보다 먼저 들어와 의도와 다름.
     for (let i = 0; i < SELECTION_CATEGORY_ORDER.length; i++) {
       const sourceCat = SELECTION_CATEGORY_ORDER[i];
       if (quotas[sourceCat] === 0) continue;
@@ -430,33 +430,28 @@ export function recommendByQuotas(
         for (const c of scored) {
           if (quotas[sourceCat] === 0) break;
           if (c.category !== targetCat) continue;
-          if (tryAdd(c)) quotas[sourceCat]--;
+          if (tryAdd(c, 'overflow')) quotas[sourceCat]--;
         }
       }
     }
   }
 
-  // 동점자 컷오프(Phase 3)는 라운드 종료 후 한 번만 적용. 마지막 라운드의 cap(=maxPerOrg
-  // 또는 ∞)을 기준으로 동점자도 cap·parentCap을 못 넘는다.
   const finalCap = capUnlimited ? Number.POSITIVE_INFINITY : maxPerOrg;
 
-  // Phase 3: 커트라인 동점자 포함 — 카테고리별로 합격자 중 가장 낮은 점수 튜플
-  // (= 그 카테고리의 컷오프)과 동일한 미선발자를 같은 카테고리 안에서만 통과시킨다.
-  // 글자수까지 동일하면 알고리즘이 구분할 수 없으니 형평성 차원에서 추가.
-  // 단, 기관 cap·상위부처 cap은 동점자라도 그대로 적용 — hard limit.
+  // Phase 3: 커트라인 동점자 포함 — 기관 cap·상위부처 cap은 동점자라도 hard limit.
   const tieKey = (c: ScoredCandidate) =>
     `${c.prereq_done_count}|${c.final_score}|${c.knowledge_score}|${c.plan_char_count}`;
   const cutoffByCategory = new Map<SelectionCategory, string>();
-  // scored는 점수 desc로 정렬돼 있으므로, 카테고리별 마지막 합격자 = 컷오프
+  const cutoffScoreByCategory = new Map<SelectionCategory, number>();
   for (const c of scored) {
     if (!selectedSet.has(c.application_id)) continue;
     cutoffByCategory.set(c.category, tieKey(c));
+    cutoffScoreByCategory.set(c.category, c.final_score);
   }
   for (const c of scored) {
     if (selectedSet.has(c.application_id)) continue;
     const cutoff = cutoffByCategory.get(c.category);
     if (!cutoff || cutoff !== tieKey(c)) continue;
-    // 동점자 추가도 cap 체크 — 상위부처/기관 cap이 hard limit으로 작동
     const orgKey = c.organization ?? '';
     const parent = parentOrgKey(c.organization);
     if (orgKey && (orgCount.get(orgKey) ?? 0) >= finalCap) continue;
@@ -465,9 +460,29 @@ export function recommendByQuotas(
     if (parent) parentCount.set(parent, (parentCount.get(parent) ?? 0) + 1);
     selectedSet.add(c.application_id);
     selectedIds.push(c.application_id);
+    decisions.set(c.application_id, { kind: 'selected', via: 'tie' });
+    cutoffScoreByCategory.set(c.category, c.final_score);
   }
 
-  return { selectedIds, scored };
+  // 미선발 사유 사후 판정
+  for (const c of scored) {
+    if (selectedSet.has(c.application_id)) continue;
+    const orgKey = c.organization ?? '';
+    const parent = parentOrgKey(c.organization);
+    if (orgKey && (orgCount.get(orgKey) ?? 0) >= finalCap) {
+      decisions.set(c.application_id, { kind: 'rejected', why: 'org_cap' });
+    } else if (parent && (parentCount.get(parent) ?? 0) >= pCap) {
+      decisions.set(c.application_id, { kind: 'rejected', why: 'parent_cap' });
+    } else {
+      decisions.set(c.application_id, {
+        kind: 'rejected',
+        why: 'score_cut',
+        cutoff: cutoffScoreByCategory.get(c.category)
+      });
+    }
+  }
+
+  return { selectedIds, scored, decisions };
 }
 
 /** 선택된 후보들의 분류별 인원 분포 카운트 */
