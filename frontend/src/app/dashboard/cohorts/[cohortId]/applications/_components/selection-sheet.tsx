@@ -243,6 +243,7 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
     setError(null);
     const exclusionCounts: SelectionConfigSnapshot['exclusionCounts'] = {};
     for (const s of exclusionStages) exclusionCounts[s.key] = s.excluded.length;
+    if (preExcluded.length > 0) exclusionCounts.pre_excluded = preExcluded.length;
     const snapshot: SelectionConfigSnapshot = {
       weights,
       quotaRatio,

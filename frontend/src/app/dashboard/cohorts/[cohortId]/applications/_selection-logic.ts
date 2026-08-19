@@ -109,7 +109,8 @@ export type SelectionConfigSnapshot = {
   effectiveCapacity: number; // withReserve 적용 후 실제 사용된 정원
   parentOrgCap?: number; // 상위부처(공백 prefix) 캡, 절대 인원수 — 미설정/0=비활성
   excludedCohortIds?: string[]; // 이 cohort들의 selected 신청자는 제외
-  exclusionCounts?: Partial<Record<ExclusionStageKey, number>>; // 깔때기 단계별 제외 인원
+  // 깔때기 단계별 제외 인원 + 서버 사전제외(테스트·대상아님·중복) 인원
+  exclusionCounts?: Partial<Record<ExclusionStageKey | 'pre_excluded', number>>;
   exceptions?: string[]; // 예외 허용된 application_id
   appliedAt: string; // ISO timestamp
 };
