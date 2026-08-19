@@ -100,8 +100,9 @@ export type SelectionConfigSnapshot = {
   weights: ScoreWeights;
   quotaRatio: QuotaRatio;
   maxPerOrg: number; // 0 = 무제한
-  /** 하드 규칙화됨 — 항상 true로 기록 (구 스냅샷 하위호환용 필드 유지) */
+  /** 하드 규칙화됨 — 둘 다 항상 true로 기록 (구 스냅샷 하위호환용 필드 유지) */
   excludeNoPrereq: boolean;
+  // 하드 규칙화됨 — 항상 true로 기록 (구 스냅샷 하위호환용 필드 유지)
   excludeNoCert: boolean;
   totalCapacity: number; // 사용자가 입력한 정원
   withReserve: boolean; // 110% 예비 적용 여부
@@ -242,7 +243,11 @@ export type Decision =
   | { kind: 'selected'; via: 'force' | 'quota' | 'overflow' | 'tie' }
   | { kind: 'rejected'; why: 'org_cap' | 'parent_cap' | 'score_cut'; cutoff?: number };
 
-export const DECISION_LABEL: Record<string, string> = {
+type DecisionReasonKey =
+  | Extract<Decision, { kind: 'selected' }>['via']
+  | Extract<Decision, { kind: 'rejected' }>['why'];
+
+export const DECISION_LABEL: Record<DecisionReasonKey, string> = {
   force: '강제선발',
   quota: '쿼터 선발',
   overflow: '흘러내림 선발',
@@ -461,10 +466,11 @@ export function recommendByQuotas(
     selectedSet.add(c.application_id);
     selectedIds.push(c.application_id);
     decisions.set(c.application_id, { kind: 'selected', via: 'tie' });
-    cutoffScoreByCategory.set(c.category, c.final_score);
   }
 
-  // 미선발 사유 사후 판정
+  // 미선발 사유 사후 판정 — 종료 시점 상태 기준의 근사치.
+  // 쿼터 소진으로 순회가 일찍 끝난 후보도 기관/상위부처가 결과적으로 cap에 차 있으면
+  // org_cap/parent_cap으로 표기된다 (실제 결정 요인은 점수였을 수 있음). 감사용 표시 목적.
   for (const c of scored) {
     if (selectedSet.has(c.application_id)) continue;
     const orgKey = c.organization ?? '';
