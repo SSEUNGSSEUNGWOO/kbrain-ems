@@ -4,19 +4,32 @@ import { useState } from 'react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 import { Icons } from '@/components/icons';
-import type { ExclusionStage } from '../_selection-logic';
+import type { CandidateRow, CohortTrack, ExclusionStage } from '../_selection-logic';
 
 type Props = {
   totalApplicants: number; // 서버 사전제외 포함 전체 지원자 수
   preExcluded: { name: string; reason: string }[];
   stages: ExclusionStage[];
   poolCount: number;
+  cohortTrack: CohortTrack;
   exceptions: Set<string>;
   onToggleException: (applicationId: string) => void;
   availableExclusionCohorts: { id: string; name: string }[];
   excludedCohortIds: Set<string>;
   onToggleExclusionCohort: (id: string) => void;
 };
+
+// 인증자 제외 행에서 제외 사유가 된 인증(같은 트랙)을 텍스트로 표시
+function matchedCertLabel(c: CandidateRow, track: CohortTrack): string {
+  const label = track === 'green' ? '그린' : '블루';
+  return c.prior_certs
+    .filter((p) => p.track === track)
+    .map(
+      (p) =>
+        `${p.year} ${label}${p.round ? ` ${p.round}회차` : ''}${p.kind ? ` ${p.kind}` : ''} · ${p.cert_no}`
+    )
+    .join(', ');
+}
 
 /**
  * Step 1 — 깔때기: 하드 제외 규칙을 위에서 아래로 통과시키며
@@ -28,6 +41,7 @@ export function SelectionFunnelStep({
   preExcluded,
   stages,
   poolCount,
+  cohortTrack,
   exceptions,
   onToggleException,
   availableExclusionCohorts,
@@ -118,6 +132,11 @@ export function SelectionFunnelStep({
                     />
                     <span className='font-medium'>{c.name}</span>
                     <span className='text-muted-foreground truncate'>{c.organization ?? '—'}</span>
+                    {stage.key === 'certified' && (
+                      <span className='shrink-0 rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[11px] text-emerald-700'>
+                        {matchedCertLabel(c, cohortTrack)}
+                      </span>
+                    )}
                     <span className='text-muted-foreground ml-auto shrink-0 opacity-70'>
                       예외 허용
                     </span>

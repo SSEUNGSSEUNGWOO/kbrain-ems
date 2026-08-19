@@ -334,6 +334,7 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
                   preExcluded={preExcluded}
                   stages={exclusionStages}
                   poolCount={pool.length}
+                  cohortTrack={cohortTrack}
                   exceptions={exceptions}
                   onToggleException={(id) => {
                     setExceptions((prev) => {
