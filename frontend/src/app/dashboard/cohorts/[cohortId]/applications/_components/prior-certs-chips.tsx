@@ -62,9 +62,13 @@ export function PriorCertsChips({ certs }: { certs: PriorCert[] }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span
+        <button
+          type='button'
           className='inline-flex flex-wrap items-center justify-center gap-0.5'
-          onClick={(e) => e.preventDefault()}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
         >
           {sorted.map((c) => (
             <span
@@ -77,7 +81,7 @@ export function PriorCertsChips({ certs }: { certs: PriorCert[] }) {
               {certShort(c)}
             </span>
           ))}
-        </span>
+        </button>
       </TooltipTrigger>
       <TooltipContent side='top' className='max-w-xs'>
         <div className='flex flex-col gap-0.5 text-xs'>

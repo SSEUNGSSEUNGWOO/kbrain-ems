@@ -56,14 +56,10 @@ export function SelectionConfigStep(p: Props) {
             />
             <span>110% 선발</span>
             {p.withReserve && p.effectiveCapacity !== p.totalCapacity && (
-              <span className='text-muted-foreground tabular-nums'>
-                ({p.effectiveCapacity}명)
-              </span>
+              <span className='text-muted-foreground tabular-nums'>({p.effectiveCapacity}명)</span>
             )}
           </label>
-          <span className='text-muted-foreground ml-auto text-xs'>
-            선발 대상 풀 {p.poolSize}명
-          </span>
+          <span className='text-muted-foreground ml-auto text-xs'>선발 대상 풀 {p.poolSize}명</span>
         </div>
       </div>
 
@@ -71,6 +67,7 @@ export function SelectionConfigStep(p: Props) {
         <button
           type='button'
           onClick={() => setAdvancedOpen((v) => !v)}
+          aria-expanded={advancedOpen}
           className='hover:bg-muted/40 flex w-full items-center gap-2 px-3 py-2 text-left text-sm'
         >
           <Icons.chevronRight

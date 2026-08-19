@@ -110,16 +110,18 @@ export function SelectionFunnelStep({
           ) : (
             <ul className='flex max-h-48 flex-col gap-0.5 overflow-y-auto text-xs'>
               {stage.excluded.map((c) => (
-                <li key={c.application_id} className='flex items-center gap-2'>
-                  <Checkbox
-                    checked={exceptions.has(c.application_id)}
-                    onCheckedChange={() => onToggleException(c.application_id)}
-                  />
-                  <span className='font-medium'>{c.name}</span>
-                  <span className='text-muted-foreground truncate'>{c.organization ?? '—'}</span>
-                  <span className='text-muted-foreground ml-auto shrink-0 opacity-70'>
-                    예외 허용
-                  </span>
+                <li key={c.application_id}>
+                  <label className='flex cursor-pointer items-center gap-2'>
+                    <Checkbox
+                      checked={exceptions.has(c.application_id)}
+                      onCheckedChange={() => onToggleException(c.application_id)}
+                    />
+                    <span className='font-medium'>{c.name}</span>
+                    <span className='text-muted-foreground truncate'>{c.organization ?? '—'}</span>
+                    <span className='text-muted-foreground ml-auto shrink-0 opacity-70'>
+                      예외 허용
+                    </span>
+                  </label>
                 </li>
               ))}
             </ul>
@@ -160,6 +162,7 @@ function FunnelRow({
       <button
         type='button'
         onClick={onToggleOpen}
+        aria-expanded={open}
         className='hover:bg-muted/40 flex w-full items-center gap-2 px-2 py-1.5 text-left text-sm'
       >
         <Icons.chevronRight
