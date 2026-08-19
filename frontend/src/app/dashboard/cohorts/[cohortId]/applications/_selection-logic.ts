@@ -145,6 +145,96 @@ export function parentOrgKey(org: string | null | undefined): string {
   return idx === -1 ? trimmed : trimmed.slice(0, idx);
 }
 
+// =============================================================
+// 깔때기 제외 파이프라인 (Step 1) — 하드 규칙. 노브가 아니라 항상 적용.
+// 예외(exceptions)에 담긴 application_id는 모든 규칙을 통과한다.
+// =============================================================
+
+export type CohortTrack = 'green' | 'blue' | null;
+
+/** 기수명으로 트랙 판정 — certification/page.tsx와 동일 규칙 */
+export function cohortTrackFromName(name: string | null | undefined): CohortTrack {
+  if (!name) return null;
+  if (name.includes('그린')) return 'green';
+  if (name.includes('블루')) return 'blue';
+  return null;
+}
+
+export type ExclusionStageKey = 'certified' | 'other_cohort' | 'no_prereq' | 'no_cert';
+
+export type ExclusionStage = {
+  key: ExclusionStageKey;
+  label: string;
+  excluded: CandidateRow[];
+};
+
+export type ExclusionContext = {
+  cohortTrack: CohortTrack;
+  /** 이 cohort들에서 status='selected'인 지원자를 제외 (현행 동작 유지) */
+  excludedCohortIds: Set<string>;
+  /** 예외 허용된 application_id — 모든 제외 규칙 통과 */
+  exceptions: Set<string>;
+};
+
+/**
+ * 제외 단계를 순서대로 적용해 선발 대상 풀과 단계별 제외 명단을 반환.
+ * 한 사람은 첫 번째로 걸린 단계에만 잡힌다 (깔때기 시맨틱).
+ *
+ * force_select는 인증자·사전학습·자격증 제외를 통과하지만
+ * 타 기수 기선발 제외는 통과하지 못한다 — 기존 filteredCandidates가
+ * force 구분 없이 필터했으므로 동작 보존.
+ */
+export function runExclusions(
+  candidates: CandidateRow[],
+  ctx: ExclusionContext
+): { pool: CandidateRow[]; stages: ExclusionStage[] } {
+  const hasPrereq = candidates.some((c) => c.prereq_max > 0);
+  const hasCertQ = candidates.some((c) => c.has_cert !== null);
+
+  const stages: ExclusionStage[] = [];
+  if (ctx.cohortTrack) {
+    stages.push({
+      key: 'certified',
+      label: `인증자 제외 (${ctx.cohortTrack === 'green' ? '그린' : '블루'} 트랙 · 연도 무관)`,
+      excluded: []
+    });
+  }
+  stages.push({ key: 'other_cohort', label: '타 기수 기선발 제외', excluded: [] });
+  if (hasPrereq) {
+    stages.push({ key: 'no_prereq', label: '사전학습 미이수 제외', excluded: [] });
+  }
+  if (hasCertQ) {
+    stages.push({ key: 'no_cert', label: '자격증 미보유 제외', excluded: [] });
+  }
+
+  const hit = (key: ExclusionStageKey, c: CandidateRow): boolean => {
+    switch (key) {
+      case 'certified':
+        return !c.force_select && c.prior_certs.some((p) => p.track === ctx.cohortTrack);
+      case 'other_cohort':
+        return c.other_applications.some(
+          (o) => o.status === 'selected' && ctx.excludedCohortIds.has(o.cohort_id)
+        );
+      case 'no_prereq':
+        return !c.force_select && c.prereq_done_count < c.prereq_max;
+      case 'no_cert':
+        return !c.force_select && c.has_cert !== true;
+    }
+  };
+
+  const pool: CandidateRow[] = [];
+  for (const c of candidates) {
+    if (ctx.exceptions.has(c.application_id)) {
+      pool.push(c);
+      continue;
+    }
+    const stage = stages.find((s) => hit(s.key, c));
+    if (stage) stage.excluded.push(c);
+    else pool.push(c);
+  }
+  return { pool, stages };
+}
+
 /**
  * 두 부분의 가중합 — 부처는 점수에 포함하지 않고 쿼터로만 처리.
  *  - 지식점수: knowledge_score / knowledgeMax (clamp 0~1)
