@@ -295,6 +295,7 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
                 <button
                   key={s}
                   type='button'
+                  disabled={stage === 'applying'}
                   onClick={() => setStep(s)}
                   className={cn(
                     'rounded px-2 py-1 text-xs',
