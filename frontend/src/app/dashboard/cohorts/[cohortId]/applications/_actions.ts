@@ -2,7 +2,7 @@
 
 import { createAdminClient } from '@/lib/supabase/server';
 import { syncStudentSelected, removeStudentForCohort } from '@/lib/student-sync';
-import { isSelectionExcluded } from '@/lib/applicant-exclusion';
+import { isSelectionExcluded, exclusionBadge, EXCLUSION_LABEL } from '@/lib/applicant-exclusion';
 import { revalidatePath } from 'next/cache';
 import { logActivity } from '@/lib/activity-log';
 import { type AppQuestion, type ParsedRow, mapAnswerValue } from '@/lib/applications-xls-parser';
@@ -99,9 +99,14 @@ const FORCE_SELECT_CONFIG: Record<
   }
 };
 
-export async function loadSelectionPool(
-  cohortId: string
-): Promise<{ error?: string; candidates?: CandidateRow[]; knowledgeMax?: number }> {
+export async function loadSelectionPool(cohortId: string): Promise<{
+  error?: string;
+  candidates?: CandidateRow[];
+  knowledgeMax?: number;
+  cohortName?: string | null;
+  /** 서버에서 걸러진 지원자 (테스트·내부, 대상 아님, 중복) — 깔때기 표시용 */
+  preExcluded?: { name: string; reason: string }[];
+}> {
   try {
     const supabase = createAdminClient();
 
@@ -134,11 +139,15 @@ export async function loadSelectionPool(
     // 1) cohort.prereq_course_codes — 이 cohort에서 필수로 요구하는 과목 list
     const { data: cohortMeta } = await supabase
       .from('cohorts')
-      .select('prereq_course_codes')
+      .select('prereq_course_codes, name')
       .eq('id', cohortId)
       .maybeSingle();
-    const prereqCodes: string[] =
-      (cohortMeta as { prereq_course_codes: string[] | null } | null)?.prereq_course_codes ?? [];
+    const cohortMetaTyped = cohortMeta as {
+      prereq_course_codes: string[] | null;
+      name: string | null;
+    } | null;
+    const prereqCodes: string[] = cohortMetaTyped?.prereq_course_codes ?? [];
+    const cohortName = cohortMetaTyped?.name ?? null;
     const prereqMax = prereqCodes.length;
 
     // 2) lms_completions 조회 — 후보군의 phone/email 로만 좁혀서 in() 매칭.
@@ -383,6 +392,12 @@ export async function loadSelectionPool(
     const eligibleApps = (apps ?? []).filter(
       (a) => !a.applicants || !isSelectionExcluded(a.applicants)
     );
+    const preExcluded = (apps ?? [])
+      .filter((a) => a.applicants && isSelectionExcluded(a.applicants))
+      .map((a) => ({
+        name: a.applicants?.name ?? '(이름 없음)',
+        reason: EXCLUSION_LABEL[exclusionBadge(a.applicants ?? {}) ?? 'test']
+      }));
 
     const candidates: CandidateRow[] = eligibleApps.map((a) => {
       const c2Key = c2Map.get(a.id) ?? '';
@@ -421,7 +436,7 @@ export async function loadSelectionPool(
       };
     });
 
-    return { candidates, knowledgeMax };
+    return { candidates, knowledgeMax, cohortName, preExcluded };
   } catch (e) {
     return { error: e instanceof Error ? e.message : '풀 로드 실패' };
   }
