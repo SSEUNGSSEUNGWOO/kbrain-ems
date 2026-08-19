@@ -170,7 +170,8 @@ async function main() {
 
 // compare(리팩터 후) 시점의 실행 어댑터 — 새 파이프라인 호출.
 // 구 flags=true → runExclusions의 no_prereq·no_cert 단계와 동일해야 함.
-// (cohortTrack: null → 인증자 단계 비활성, 나머지 조건 없음 → 두 필터만 작동)
+// (cohortTrack: null → 인증자 단계 비활성. 두 필터는 변형이 prereq/cert 신호를
+//  가질 때만 활성 — base·withForce 변형에선 no-op, combined에서 둘 다 작동)
 function runOnce(
   cands: CandidateRow[],
   weights: { knowledge: number; plan: number },
