@@ -63,6 +63,7 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
   const [quotaRatio, setQuotaRatio] = useState<QuotaRatio>(DEFAULT_QUOTA_RATIO);
   const [totalCapacity, setTotalCapacity] = useState(defaultCapacity);
   const [withReserve, setWithReserve] = useState(true);
+  const [excludeBelowAvg, setExcludeBelowAvg] = useState(true);
   const [maxPerOrg, setMaxPerOrg] = useState(3);
   const [filterCategory, setFilterCategory] = useState<SelectionCategory | null>(null);
   const [excludedCohortIds, setExcludedCohortIds] = useState<Set<string>>(new Set());
@@ -101,7 +102,6 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
     })();
   }, [open, stage, cohortId]);
 
-
   // 지원 페이지에서 이미 수동 선발(selected) 처리된 사람은 확정으로 취급 —
   // 강제선발 선처리를 재사용해 정원·카테고리 쿼터에서 자리를 차감하고,
   // 자동선발은 남은 자리만 채운다. 순수 재선발을 원하면 '선발 초기화' 후 실행.
@@ -136,12 +136,13 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
   }, [candidates]);
 
   // 조건이 변하면 자동 추천 재계산 (수동 토글이 있는 사람은 그 결정을 유지)
-  const { scored, autoSelectedIds, decisions } = useMemo(() => {
+  const { scored, autoSelectedIds, decisions, avgScore } = useMemo(() => {
     if (pool.length === 0) {
       return {
         scored: [] as ReturnType<typeof recommendByQuotas>['scored'],
         autoSelectedIds: new Set<string>(),
-        decisions: new Map() as ReturnType<typeof recommendByQuotas>['decisions']
+        decisions: new Map() as ReturnType<typeof recommendByQuotas>['decisions'],
+        avgScore: null as number | null
       };
     }
     const res = recommendByQuotas(
@@ -151,14 +152,25 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
       knowledgeMax,
       quotaRatio,
       maxPerOrg,
-      parentOrgCapInput
+      parentOrgCapInput,
+      excludeBelowAvg
     );
     return {
       scored: res.scored,
       autoSelectedIds: new Set(res.selectedIds),
-      decisions: res.decisions
+      decisions: res.decisions,
+      avgScore: res.avgScore
     };
-  }, [pool, weights, effectiveCapacity, knowledgeMax, quotaRatio, maxPerOrg, parentOrgCapInput]);
+  }, [
+    pool,
+    weights,
+    effectiveCapacity,
+    knowledgeMax,
+    quotaRatio,
+    maxPerOrg,
+    parentOrgCapInput,
+    excludeBelowAvg
+  ]);
 
   // DB의 기존 선발자 유지는 heldCandidates(강제선발 선처리)가 담당한다.
   // 과거의 "DB 상태 복원" 토글 시딩은 부분 수동선발 시 자동추천 전원을
@@ -208,6 +220,7 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
     setQuotaRatio(DEFAULT_QUOTA_RATIO);
     setTotalCapacity(defaultCapacity);
     setWithReserve(true);
+    setExcludeBelowAvg(true);
     setMaxPerOrg(3);
     setExcludedCohortIds(new Set());
     setExceptions(new Set());
@@ -246,6 +259,8 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
       effectiveCapacity,
       parentOrgCap: parentOrgCapInput,
       excludedCohortIds: [...excludedCohortIds],
+      excludeBelowAvg,
+      avgScore,
       exclusionCounts,
       exceptions: [...exceptions],
       appliedAt: new Date().toISOString()
@@ -363,6 +378,12 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
                     resetToggles();
                   }}
                   effectiveCapacity={effectiveCapacity}
+                  excludeBelowAvg={excludeBelowAvg}
+                  onExcludeBelowAvgChange={(v) => {
+                    setExcludeBelowAvg(v);
+                    resetToggles();
+                  }}
+                  avgScore={avgScore}
                   weights={weights}
                   onWeightChange={(key, value) => {
                     setWeights((prev) => ({ ...prev, [key]: Math.max(0, Math.min(100, value)) }));

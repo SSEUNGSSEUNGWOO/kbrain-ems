@@ -14,6 +14,9 @@ type Props = {
   withReserve: boolean;
   onWithReserveChange: (v: boolean) => void;
   effectiveCapacity: number;
+  excludeBelowAvg: boolean;
+  onExcludeBelowAvgChange: (v: boolean) => void;
+  avgScore: number | null;
   weights: ScoreWeights;
   onWeightChange: (key: keyof ScoreWeights, value: number) => void;
   quotaRatio: QuotaRatio;
@@ -61,6 +64,23 @@ export function SelectionConfigStep(p: Props) {
           </label>
           <span className='text-muted-foreground ml-auto text-xs'>선발 대상 풀 {p.poolSize}명</span>
         </div>
+        <label
+          htmlFor='exclude-below-avg'
+          className='flex cursor-pointer items-center gap-1.5 text-sm'
+          title='강제·수동 선발자를 제외한 경쟁 후보의 종합점수 평균 미만은 선발하지 않습니다'
+        >
+          <Checkbox
+            id='exclude-below-avg'
+            checked={p.excludeBelowAvg}
+            onCheckedChange={(v) => p.onExcludeBelowAvgChange(v === true)}
+          />
+          <span>종합점수 평균 미만 배제</span>
+          {p.excludeBelowAvg && p.avgScore !== null && (
+            <span className='text-muted-foreground tabular-nums'>
+              (현재 평균 {p.avgScore.toFixed(1)}점)
+            </span>
+          )}
+        </label>
       </div>
 
       <div className='rounded-md border'>

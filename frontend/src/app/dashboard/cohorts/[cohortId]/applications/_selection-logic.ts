@@ -112,6 +112,8 @@ export type SelectionConfigSnapshot = {
   // 깔때기 단계별 제외 인원 + 서버 사전제외(테스트·대상아님·중복) 인원
   exclusionCounts?: Partial<Record<ExclusionStageKey | 'pre_excluded', number>>;
   exceptions?: string[]; // 예외 허용된 application_id
+  excludeBelowAvg?: boolean; // 종합점수 평균 미만 배제 적용 여부
+  avgScore?: number | null; // 적용 시점 평균 (하한선)
   appliedAt: string; // ISO timestamp
 };
 
@@ -242,7 +244,11 @@ export function runExclusions(
 // 배분 결과의 후보별 결정 사유 — Step 3 사유 배지·감사 자료용
 export type Decision =
   | { kind: 'selected'; via: 'force' | 'quota' | 'overflow' | 'tie' }
-  | { kind: 'rejected'; why: 'org_cap' | 'parent_cap' | 'quota_filled' | 'score_cut'; cutoff?: number };
+  | {
+      kind: 'rejected';
+      why: 'org_cap' | 'parent_cap' | 'quota_filled' | 'below_avg' | 'score_cut';
+      cutoff?: number;
+    };
 
 type DecisionReasonKey =
   | Extract<Decision, { kind: 'selected' }>['via']
@@ -256,6 +262,7 @@ export const DECISION_LABEL: Record<DecisionReasonKey, string> = {
   org_cap: '기관 cap 초과',
   parent_cap: '상위부처 cap 초과',
   quota_filled: '쿼터 마감 (기관 분산 후순위)',
+  below_avg: '평균 미달',
   score_cut: '점수 미달'
 };
 
@@ -347,6 +354,11 @@ export function computeQuotas(
  *
  * 미선발 사유는 종료 시점 상태로 사후 판정: 기관 cap 소진 → org_cap,
  * 상위부처 cap 소진 → parent_cap, 그 외 → score_cut (카테고리 컷 점수 첨부).
+ *
+ * excludeBelowAvg=true 면 종합점수 하한선을 적용한다: 강제선발(force)을 제외한
+ * 경쟁 후보들의 종합점수 평균을 계산해, 평균 미만인 후보는 쿼터·흘러내림·동점자
+ * 어느 경로로도 선발하지 않는다 (분산 우선이 저득점자를 끌어올리는 것 방지).
+ * 강제선발·수동 선발자는 하한선의 영향을 받지 않는다.
  */
 export function recommendByQuotas(
   candidates: CandidateRow[],
@@ -355,8 +367,14 @@ export function recommendByQuotas(
   knowledgeMax: number,
   ratio: QuotaRatio,
   maxPerOrg: number = 0,
-  parentOrgCap: number = 0 // 상위부처(공백 prefix) 절대 인원수, 0=비활성
-): { selectedIds: string[]; scored: ScoredCandidate[]; decisions: Map<string, Decision> } {
+  parentOrgCap: number = 0, // 상위부처(공백 prefix) 절대 인원수, 0=비활성
+  excludeBelowAvg: boolean = false // 종합점수 평균 미만 배제
+): {
+  selectedIds: string[];
+  scored: ScoredCandidate[];
+  decisions: Map<string, Decision>;
+  avgScore: number | null;
+} {
   const hasPrereq = candidates.some((c) => c.prereq_max > 0);
 
   const scored = scoreAll(candidates, weights, knowledgeMax).toSorted((a, b) => {
@@ -375,6 +393,14 @@ export function recommendByQuotas(
   const selectedSet = new Set<string>();
   const selectedIds: string[] = [];
   const decisions = new Map<string, Decision>();
+
+  // 종합점수 하한선 — 강제선발 제외한 경쟁 후보의 평균 (수동 등록자 0점이 평균을 왜곡하지 않게)
+  const competitors = scored.filter((c) => !c.force_select);
+  const avgScore =
+    excludeBelowAvg && competitors.length > 0
+      ? competitors.reduce((sum, c) => sum + c.final_score, 0) / competitors.length
+      : null;
+  const belowFloor = (c: ScoredCandidate) => avgScore !== null && c.final_score < avgScore;
 
   // 강제선발 대상 우선 통과 — 카테고리 쿼터·기관 cap·상위부처 cap 모두 무시.
   // 정원(totalCapacity)에서는 자리 차지 (일반 후보용 잔여 정원 감소).
@@ -399,6 +425,7 @@ export function recommendByQuotas(
 
     const tryAdd = (c: ScoredCandidate, via: 'quota' | 'overflow'): boolean => {
       if (selectedSet.has(c.application_id)) return false;
+      if (belowFloor(c)) return false;
       const orgKey = c.organization ?? '';
       const parent = parentOrgKey(c.organization);
       if (orgKey) {
@@ -457,6 +484,7 @@ export function recommendByQuotas(
   }
   for (const c of scored) {
     if (selectedSet.has(c.application_id)) continue;
+    if (belowFloor(c)) continue;
     const cutoff = cutoffByCategory.get(c.category);
     if (!cutoff || cutoff !== tieKey(c)) continue;
     const orgKey = c.organization ?? '';
@@ -480,7 +508,13 @@ export function recommendByQuotas(
     const orgKey = c.organization ?? '';
     const parent = parentOrgKey(c.organization);
     const cutoff = cutoffScoreByCategory.get(c.category);
-    if (orgKey && (orgCount.get(orgKey) ?? 0) >= finalCap) {
+    if (belowFloor(c)) {
+      decisions.set(c.application_id, {
+        kind: 'rejected',
+        why: 'below_avg',
+        cutoff: avgScore ?? undefined
+      });
+    } else if (orgKey && (orgCount.get(orgKey) ?? 0) >= finalCap) {
       decisions.set(c.application_id, { kind: 'rejected', why: 'org_cap' });
     } else if (parent && (parentCount.get(parent) ?? 0) >= pCap) {
       decisions.set(c.application_id, { kind: 'rejected', why: 'parent_cap' });
@@ -491,7 +525,7 @@ export function recommendByQuotas(
     }
   }
 
-  return { selectedIds, scored, decisions };
+  return { selectedIds, scored, decisions, avgScore };
 }
 
 /** 선택된 후보들의 분류별 인원 분포 카운트 */

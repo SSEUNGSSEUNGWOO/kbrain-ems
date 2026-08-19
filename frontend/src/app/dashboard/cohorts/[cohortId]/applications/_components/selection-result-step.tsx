@@ -160,7 +160,9 @@ function DecisionBadge({
   const label =
     decision.why === 'score_cut' && decision.cutoff != null
       ? `점수 미달 (컷 ${decision.cutoff.toFixed(1)})`
-      : DECISION_LABEL[decision.why];
+      : decision.why === 'below_avg' && decision.cutoff != null
+        ? `평균 미달 (평균 ${decision.cutoff.toFixed(1)})`
+        : DECISION_LABEL[decision.why];
   return (
     <span className='inline-flex items-center rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-medium text-slate-600'>
       {label}
