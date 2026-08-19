@@ -3,9 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   Sheet,
   SheetContent,
@@ -20,19 +18,21 @@ import { cn } from '@/lib/utils';
 import { loadSelectionPool, applySelections } from '../_actions';
 import {
   type CandidateRow,
-  type PriorCert,
   type QuotaRatio,
-  type ScoredCandidate,
   type ScoreWeights,
   type SelectionCategory,
+  type SelectionConfigSnapshot,
   DEFAULT_QUOTA_RATIO,
   DEFAULT_WEIGHTS,
-  SELECTION_CATEGORY_LABEL,
-  SELECTION_CATEGORY_ORDER,
+  cohortTrackFromName,
   computeQuotas,
   distributeByCategory,
-  recommendByQuotas
+  recommendByQuotas,
+  runExclusions
 } from '../_selection-logic';
+import { SelectionFunnelStep } from './selection-funnel-step';
+import { SelectionConfigStep } from './selection-config-step';
+import { SelectionResultStep } from './selection-result-step';
 
 type Props = {
   cohortId: string;
@@ -41,39 +41,44 @@ type Props = {
 };
 
 type Stage = 'idle' | 'loading' | 'editing' | 'applying' | 'done';
+type Step = 1 | 2 | 3;
+
+const STEP_TITLES: Record<Step, string> = {
+  1: '제외 확인',
+  2: '선발 조건',
+  3: '결과 검토'
+};
 
 export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [stage, setStage] = useState<Stage>('idle');
+  const [step, setStep] = useState<Step>(1);
   const [error, setError] = useState<string | null>(null);
   const [candidates, setCandidates] = useState<CandidateRow[]>([]);
+  const [preExcluded, setPreExcluded] = useState<{ name: string; reason: string }[]>([]);
+  const [cohortName, setCohortName] = useState<string | null>(null);
   const [knowledgeMax, setKnowledgeMax] = useState(10);
   const [weights, setWeights] = useState<ScoreWeights>(DEFAULT_WEIGHTS);
   const [quotaRatio, setQuotaRatio] = useState<QuotaRatio>(DEFAULT_QUOTA_RATIO);
   const [totalCapacity, setTotalCapacity] = useState(defaultCapacity);
   const [withReserve, setWithReserve] = useState(true);
   const [maxPerOrg, setMaxPerOrg] = useState(3);
-  const [excludeNoPrereq, setExcludeNoPrereq] = useState(true);
-  const [excludeNoCert, setExcludeNoCert] = useState(true);
   const [filterCategory, setFilterCategory] = useState<SelectionCategory | null>(null);
-  // 다른 cohort에서 status='selected'인 신청자를 후보 풀에서 제외
   const [excludedCohortIds, setExcludedCohortIds] = useState<Set<string>>(new Set());
-  // 상위부처 cap (절대 인원수 직접 입력, 0=비활성)
+  const [exceptions, setExceptions] = useState<Set<string>>(new Set());
   const [parentOrgCapInput, setParentOrgCapInput] = useState(0);
-
-  // 110% 선발 시 실제 사용되는 정원 (예: 100 → 110). 미체크면 입력값 그대로.
-  const effectiveCapacity = useMemo(
-    // 100 * 1.1 = 110.00000000000001 (부동소수점) → Math.ceil이면 111로 잘못 올림.
-    // Math.round로 110 정상 처리. 80→88, 60→66은 둘 다 동일하게 정상.
-    () => (withReserve ? Math.round(totalCapacity * 1.1) : totalCapacity),
-    [totalCapacity, withReserve]
-  );
   const [manualToggles, setManualToggles] = useState<Map<string, boolean>>(new Map());
   const [rejectOthers, setRejectOthers] = useState(true);
   const [pending, startTransition] = useTransition();
   const [result, setResult] = useState<{ selectedCount?: number; rejectedCount?: number } | null>(
     null
+  );
+
+  // 110% 선발 시 실제 사용되는 정원. 부동소수점(100*1.1=110.000...01) 때문에 round.
+  const effectiveCapacity = useMemo(
+    () => (withReserve ? Math.round(totalCapacity * 1.1) : totalCapacity),
+    [totalCapacity, withReserve]
   );
 
   // 시트 열림 → 풀 로드
@@ -89,6 +94,8 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
         return;
       }
       setCandidates(res.candidates);
+      setPreExcluded(res.preExcluded ?? []);
+      setCohortName(res.cohortName ?? null);
       if (res.knowledgeMax && res.knowledgeMax > 0) setKnowledgeMax(res.knowledgeMax);
       setStage('editing');
     })();
@@ -96,18 +103,14 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
 
   const initializedTogglesRef = useRef(false);
 
-  // candidates에서 추가 제약(다른 cohort 합격자 제외) 적용한 필터링된 풀
-  const filteredCandidates = useMemo(() => {
-    if (excludedCohortIds.size === 0) return candidates;
-    return candidates.filter(
-      (c) =>
-        !c.other_applications.some(
-          (o) => o.status === 'selected' && excludedCohortIds.has(o.cohort_id)
-        )
-    );
-  }, [candidates, excludedCohortIds]);
+  // Step 1 깔때기 — 하드 제외 규칙 적용
+  const cohortTrack = useMemo(() => cohortTrackFromName(cohortName), [cohortName]);
+  const { pool, stages: exclusionStages } = useMemo(
+    () => runExclusions(candidates, { cohortTrack, excludedCohortIds, exceptions }),
+    [candidates, cohortTrack, excludedCohortIds, exceptions]
+  );
 
-  // 다른 cohort 목록 — candidates의 other_applications에서 추출 (cohort_id + name dedup)
+  // 다른 cohort 목록 — candidates의 other_applications에서 추출
   const availableExclusionCohorts = useMemo(() => {
     const seen = new Map<string, string>();
     for (const c of candidates) {
@@ -120,39 +123,33 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
       .toSorted((a, b) => a.name.localeCompare(b.name, 'ko'));
   }, [candidates]);
 
-  // 가중치·정원·쿼터 변하면 자동 추천 (수동 토글이 있는 사람은 그 결정을 유지)
-  const parentOrgCap = parentOrgCapInput;
-  const { scored, autoSelectedIds } = useMemo(() => {
-    if (filteredCandidates.length === 0) {
-      return { scored: [] as ScoredCandidate[], autoSelectedIds: new Set<string>() };
+  // 조건이 변하면 자동 추천 재계산 (수동 토글이 있는 사람은 그 결정을 유지)
+  const { scored, autoSelectedIds, decisions } = useMemo(() => {
+    if (pool.length === 0) {
+      return {
+        scored: [] as ReturnType<typeof recommendByQuotas>['scored'],
+        autoSelectedIds: new Set<string>(),
+        decisions: new Map() as ReturnType<typeof recommendByQuotas>['decisions']
+      };
     }
-    const { selectedIds, scored } = recommendByQuotas(
-      filteredCandidates,
+    const res = recommendByQuotas(
+      pool,
       weights,
       effectiveCapacity,
       knowledgeMax,
       quotaRatio,
       maxPerOrg,
-      excludeNoPrereq,
-      parentOrgCap,
-      excludeNoCert
+      parentOrgCapInput
     );
-    return { scored, autoSelectedIds: new Set(selectedIds) };
-  }, [
-    filteredCandidates,
-    weights,
-    effectiveCapacity,
-    knowledgeMax,
-    quotaRatio,
-    maxPerOrg,
-    excludeNoPrereq,
-    parentOrgCap,
-    excludeNoCert
-  ]);
+    return {
+      scored: res.scored,
+      autoSelectedIds: new Set(res.selectedIds),
+      decisions: res.decisions
+    };
+  }, [pool, weights, effectiveCapacity, knowledgeMax, quotaRatio, maxPerOrg, parentOrgCapInput]);
 
-  // 이미 selected/rejected가 있는 cohort라면, 시트 열릴 때 한 번만
-  // manualToggles를 현재 DB 상태로 미리 채워서 알고리즘 추천이 덮어쓰지 않게 함.
-  // 가중치/쿼터를 바꾸면 manualToggles가 비워지므로 그때부턴 순수 알고리즘 추천.
+  // 이미 selected/rejected가 있는 cohort라면 시트 열릴 때 한 번만
+  // manualToggles를 DB 상태로 채워 알고리즘 추천이 덮어쓰지 않게 함.
   useEffect(() => {
     if (!open) {
       initializedTogglesRef.current = false;
@@ -203,13 +200,16 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
       public_edu: 0,
       other: 0
     };
-    for (const c of candidates) result[c.category]++;
+    for (const c of pool) result[c.category]++;
     return result;
-  }, [candidates]);
+  }, [pool]);
 
   const reset = () => {
     setStage('idle');
+    setStep(1);
     setCandidates([]);
+    setPreExcluded([]);
+    setCohortName(null);
     setManualToggles(new Map());
     setResult(null);
     setError(null);
@@ -218,33 +218,22 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
     setTotalCapacity(defaultCapacity);
     setWithReserve(true);
     setMaxPerOrg(3);
-    setExcludeNoPrereq(true);
-    setExcludeNoCert(true);
+    setExcludedCohortIds(new Set());
+    setExceptions(new Set());
+    setParentOrgCapInput(0);
     setFilterCategory(null);
   };
 
-  const onWeightChange = (key: keyof ScoreWeights, value: number) => {
-    setWeights((prev) => ({ ...prev, [key]: Math.max(0, Math.min(100, value)) }));
-    setManualToggles(new Map()); // 가중치 바꾸면 수동 토글 초기화
-  };
-
-  const onQuotaChange = (key: keyof QuotaRatio, value: number) => {
-    setQuotaRatio((prev) => ({ ...prev, [key]: Math.max(0, value) }));
-    setManualToggles(new Map());
-  };
+  const resetToggles = () => setManualToggles(new Map());
 
   const toggle = (id: string) => {
     setManualToggles((prev) => {
       const next = new Map(prev);
       const currentAuto = autoSelectedIds.has(id);
       const currentEffective = effectiveSelectedIds.has(id);
-      // 다음 상태는 현재 effective의 반대
       const desired = !currentEffective;
-      if (desired === currentAuto) {
-        next.delete(id); // 자동과 일치 → 오버라이드 해제
-      } else {
-        next.set(id, desired);
-      }
+      if (desired === currentAuto) next.delete(id);
+      else next.set(id, desired);
       return next;
     });
   };
@@ -252,17 +241,21 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
   const onConfirm = () => {
     setStage('applying');
     setError(null);
-    const snapshot = {
+    const exclusionCounts: SelectionConfigSnapshot['exclusionCounts'] = {};
+    for (const s of exclusionStages) exclusionCounts[s.key] = s.excluded.length;
+    const snapshot: SelectionConfigSnapshot = {
       weights,
       quotaRatio,
       maxPerOrg,
-      excludeNoPrereq,
-      excludeNoCert,
+      excludeNoPrereq: true, // 하드 규칙화 — 항상 적용됨을 기록
+      excludeNoCert: true,
       totalCapacity,
       withReserve,
       effectiveCapacity,
       parentOrgCap: parentOrgCapInput,
       excludedCohortIds: [...excludedCohortIds],
+      exclusionCounts,
+      exceptions: [...exceptions],
       appliedAt: new Date().toISOString()
     };
     startTransition(async () => {
@@ -295,10 +288,26 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
       <SheetContent className='flex w-full max-w-5xl flex-col gap-0 overflow-hidden sm:max-w-5xl'>
         <SheetHeader className='border-b'>
           <SheetTitle>자동 선발</SheetTitle>
-          <SheetDescription>
-            사전학습 수료 단계 → 부처 쿼터 → 점수순으로 채웁니다. 쿼터 미달 시 아래 카테고리로
-            흘러내림.
-          </SheetDescription>
+          <SheetDescription>제외 확인 → 선발 조건 → 결과 검토 3단계로 진행합니다.</SheetDescription>
+          {(stage === 'editing' || stage === 'applying') && (
+            <div className='flex items-center gap-1 pt-1'>
+              {([1, 2, 3] as Step[]).map((s) => (
+                <button
+                  key={s}
+                  type='button'
+                  onClick={() => setStep(s)}
+                  className={cn(
+                    'rounded px-2 py-1 text-xs',
+                    step === s
+                      ? 'bg-foreground text-background font-medium'
+                      : 'text-muted-foreground hover:bg-muted'
+                  )}
+                >
+                  {s}. {STEP_TITLES[s]}
+                </button>
+              ))}
+            </div>
+          )}
         </SheetHeader>
 
         <div className='flex-1 overflow-y-auto'>
@@ -316,81 +325,89 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
           )}
 
           {(stage === 'editing' || stage === 'applying') && (
-            <div className='flex flex-col gap-4 p-4'>
-              <WeightPanel
-                weights={weights}
-                onChange={onWeightChange}
-                quotaRatio={quotaRatio}
-                onQuotaChange={onQuotaChange}
-                totalCapacity={totalCapacity}
-                onTotalChange={(v) => {
-                  setTotalCapacity(Math.max(0, v));
-                  setManualToggles(new Map());
-                }}
-                withReserve={withReserve}
-                onWithReserveChange={(v) => {
-                  setWithReserve(v);
-                  setManualToggles(new Map());
-                }}
-                effectiveCapacity={effectiveCapacity}
-                maxPerOrg={maxPerOrg}
-                onMaxPerOrgChange={(v) => {
-                  setMaxPerOrg(Math.max(0, v));
-                  setManualToggles(new Map());
-                }}
-                excludeNoPrereq={excludeNoPrereq}
-                onExcludeNoPrereqChange={(v) => {
-                  setExcludeNoPrereq(v);
-                  setManualToggles(new Map());
-                }}
-                hasCertQuestion={candidates.some((c) => c.has_cert !== null)}
-                excludeNoCert={excludeNoCert}
-                onExcludeNoCertChange={(v) => {
-                  setExcludeNoCert(v);
-                  setManualToggles(new Map());
-                }}
-                poolSize={filteredCandidates.length}
-                selectedCount={effectiveSelectedIds.size}
-              />
-
-              <AdditionalConstraintsPanel
-                availableExclusionCohorts={availableExclusionCohorts}
-                excludedCohortIds={excludedCohortIds}
-                onToggleExclusion={(id) => {
-                  setExcludedCohortIds((prev) => {
-                    const next = new Set(prev);
-                    if (next.has(id)) next.delete(id);
-                    else next.add(id);
-                    return next;
-                  });
-                  setManualToggles(new Map());
-                }}
-                parentOrgCapInput={parentOrgCapInput}
-                onParentOrgCapInputChange={(v) => {
-                  setParentOrgCapInput(Math.max(0, v));
-                  setManualToggles(new Map());
-                }}
-                effectiveCapacity={effectiveCapacity}
-                excludedCount={candidates.length - filteredCandidates.length}
-              />
-
-              <DistributionRow
-                distribution={distribution}
-                poolByCategory={poolByCategory}
-                quotas={quotas}
-                totalCapacity={effectiveCapacity}
-                activeCategory={filterCategory}
-                onCategoryClick={(cat) => setFilterCategory((prev) => (prev === cat ? null : cat))}
-              />
-
-              <CandidateList
-                scored={scored}
-                autoSelectedIds={autoSelectedIds}
-                effectiveSelectedIds={effectiveSelectedIds}
-                onToggle={toggle}
-                totalCapacity={effectiveCapacity}
-                filterCategory={filterCategory}
-              />
+            <div className='p-4'>
+              {step === 1 && (
+                <SelectionFunnelStep
+                  totalApplicants={candidates.length + preExcluded.length}
+                  preExcluded={preExcluded}
+                  stages={exclusionStages}
+                  poolCount={pool.length}
+                  exceptions={exceptions}
+                  onToggleException={(id) => {
+                    setExceptions((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(id)) next.delete(id);
+                      else next.add(id);
+                      return next;
+                    });
+                    resetToggles();
+                  }}
+                  availableExclusionCohorts={availableExclusionCohorts}
+                  excludedCohortIds={excludedCohortIds}
+                  onToggleExclusionCohort={(id) => {
+                    setExcludedCohortIds((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(id)) next.delete(id);
+                      else next.add(id);
+                      return next;
+                    });
+                    resetToggles();
+                  }}
+                />
+              )}
+              {step === 2 && (
+                <SelectionConfigStep
+                  poolSize={pool.length}
+                  totalCapacity={totalCapacity}
+                  onTotalChange={(v) => {
+                    setTotalCapacity(Math.max(0, v));
+                    resetToggles();
+                  }}
+                  withReserve={withReserve}
+                  onWithReserveChange={(v) => {
+                    setWithReserve(v);
+                    resetToggles();
+                  }}
+                  effectiveCapacity={effectiveCapacity}
+                  weights={weights}
+                  onWeightChange={(key, value) => {
+                    setWeights((prev) => ({ ...prev, [key]: Math.max(0, Math.min(100, value)) }));
+                    resetToggles();
+                  }}
+                  quotaRatio={quotaRatio}
+                  onQuotaChange={(key, value) => {
+                    setQuotaRatio((prev) => ({ ...prev, [key]: Math.max(0, value) }));
+                    resetToggles();
+                  }}
+                  maxPerOrg={maxPerOrg}
+                  onMaxPerOrgChange={(v) => {
+                    setMaxPerOrg(Math.max(0, v));
+                    resetToggles();
+                  }}
+                  parentOrgCapInput={parentOrgCapInput}
+                  onParentOrgCapInputChange={(v) => {
+                    setParentOrgCapInput(Math.max(0, v));
+                    resetToggles();
+                  }}
+                />
+              )}
+              {step === 3 && (
+                <SelectionResultStep
+                  scored={scored}
+                  decisions={decisions}
+                  autoSelectedIds={autoSelectedIds}
+                  effectiveSelectedIds={effectiveSelectedIds}
+                  onToggle={toggle}
+                  totalCapacity={effectiveCapacity}
+                  filterCategory={filterCategory}
+                  onCategoryClick={(cat) =>
+                    setFilterCategory((prev) => (prev === cat ? null : cat))
+                  }
+                  distribution={distribution}
+                  poolByCategory={poolByCategory}
+                  quotas={quotas}
+                />
+              )}
             </div>
           )}
 
@@ -410,23 +427,43 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
         <SheetFooter className='border-t'>
           {stage === 'editing' && (
             <div className='flex w-full items-center justify-between gap-3'>
-              <div className='flex items-center gap-2 text-sm'>
-                <Checkbox
-                  id='reject-others'
-                  checked={rejectOthers}
-                  onCheckedChange={(v) => setRejectOthers(v === true)}
-                />
-                <label htmlFor='reject-others' className='cursor-pointer'>
-                  미선택자 자동 탈락
-                </label>
-              </div>
+              {step === 3 ? (
+                <div className='flex items-center gap-2 text-sm'>
+                  <Checkbox
+                    id='reject-others'
+                    checked={rejectOthers}
+                    onCheckedChange={(v) => setRejectOthers(v === true)}
+                  />
+                  <label htmlFor='reject-others' className='cursor-pointer'>
+                    미선택자 자동 탈락
+                  </label>
+                </div>
+              ) : (
+                <span className='text-muted-foreground text-xs'>
+                  선발 대상 풀 {pool.length}명 · 현재 선택 {effectiveSelectedIds.size}명
+                </span>
+              )}
               <div className='flex gap-2'>
-                <Button variant='outline' onClick={() => setOpen(false)} disabled={pending}>
-                  취소
-                </Button>
-                <Button onClick={onConfirm} disabled={pending || effectiveSelectedIds.size === 0}>
-                  {effectiveSelectedIds.size}명 선발 확정
-                </Button>
+                {step > 1 && (
+                  <Button variant='outline' onClick={() => setStep((s) => (s - 1) as Step)}>
+                    이전
+                  </Button>
+                )}
+                {step < 3 ? (
+                  <Button onClick={() => setStep((s) => (s + 1) as Step)}>다음</Button>
+                ) : (
+                  <>
+                    <Button variant='outline' onClick={() => setOpen(false)} disabled={pending}>
+                      취소
+                    </Button>
+                    <Button
+                      onClick={onConfirm}
+                      disabled={pending || effectiveSelectedIds.size === 0}
+                    >
+                      {effectiveSelectedIds.size}명 선발 확정
+                    </Button>
+                  </>
+                )}
               </div>
             </div>
           )}
@@ -444,609 +481,5 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
         </SheetFooter>
       </SheetContent>
     </Sheet>
-  );
-}
-
-function WeightPanel({
-  weights,
-  onChange,
-  quotaRatio,
-  onQuotaChange,
-  totalCapacity,
-  onTotalChange,
-  withReserve,
-  onWithReserveChange,
-  effectiveCapacity,
-  maxPerOrg,
-  onMaxPerOrgChange,
-  excludeNoPrereq,
-  onExcludeNoPrereqChange,
-  hasCertQuestion,
-  excludeNoCert,
-  onExcludeNoCertChange,
-  poolSize,
-  selectedCount
-}: {
-  weights: ScoreWeights;
-  onChange: (key: keyof ScoreWeights, value: number) => void;
-  quotaRatio: QuotaRatio;
-  onQuotaChange: (key: keyof QuotaRatio, value: number) => void;
-  totalCapacity: number;
-  onTotalChange: (v: number) => void;
-  withReserve: boolean;
-  onWithReserveChange: (v: boolean) => void;
-  effectiveCapacity: number;
-  maxPerOrg: number;
-  onMaxPerOrgChange: (v: number) => void;
-  excludeNoPrereq: boolean;
-  onExcludeNoPrereqChange: (v: boolean) => void;
-  hasCertQuestion: boolean;
-  excludeNoCert: boolean;
-  onExcludeNoCertChange: (v: boolean) => void;
-  poolSize: number;
-  selectedCount: number;
-}) {
-  const wSum = weights.knowledge + weights.plan;
-  const rSum = quotaRatio.central + quotaRatio.local + quotaRatio.public_edu;
-  return (
-    <div className='flex flex-col gap-3 rounded-md border bg-muted/30 p-3'>
-      <div className='flex items-center gap-3'>
-        <label htmlFor='total-capacity' className='text-sm font-medium'>
-          총 정원
-        </label>
-        <Input
-          id='total-capacity'
-          type='number'
-          value={totalCapacity}
-          onChange={(e) => onTotalChange(Number(e.target.value) || 0)}
-          className='h-8 w-20 tabular-nums'
-        />
-        <label
-          htmlFor='with-reserve'
-          className='flex cursor-pointer items-center gap-1.5 text-xs'
-          title='정원의 110%를 선발 (예비합격자 포함)'
-        >
-          <Checkbox
-            id='with-reserve'
-            checked={withReserve}
-            onCheckedChange={(v) => onWithReserveChange(v === true)}
-          />
-          <span>110% 선발</span>
-          {withReserve && effectiveCapacity !== totalCapacity && (
-            <span className='text-muted-foreground tabular-nums'>({effectiveCapacity}명)</span>
-          )}
-        </label>
-        <label htmlFor='max-per-org' className='text-sm font-medium ml-3'>
-          기관당 최대
-        </label>
-        <Input
-          id='max-per-org'
-          type='number'
-          value={maxPerOrg}
-          min={0}
-          onChange={(e) => onMaxPerOrgChange(Number(e.target.value) || 0)}
-          className='h-8 w-16 tabular-nums'
-          title='0 = 무제한'
-        />
-        <span className='text-muted-foreground text-xs'>지원자 {poolSize}명</span>
-        <span className='ml-auto text-sm'>
-          현재 선택 <span className='font-semibold tabular-nums'>{selectedCount}</span>명
-        </span>
-      </div>
-
-      <div className='flex flex-col gap-1.5'>
-        <div className='text-muted-foreground text-xs font-medium'>점수 가중치</div>
-        <div className='grid grid-cols-2 gap-2'>
-          <WeightInput
-            id='w-knowledge'
-            label='시험 점수 (지식)'
-            value={weights.knowledge}
-            onChange={(v) => onChange('knowledge', v)}
-          />
-          <WeightInput
-            id='w-plan'
-            label='정성평가 (체크, 글자수)'
-            value={weights.plan}
-            onChange={(v) => onChange('plan', v)}
-          />
-        </div>
-        <div className='text-muted-foreground text-xs'>
-          합계 {wSum} · 합이 100이 아니어도 자동 정규화됩니다.
-        </div>
-      </div>
-
-      <div className='flex flex-col gap-1.5'>
-        <div className='text-muted-foreground text-xs font-medium'>부처 정원 비율</div>
-        <div className='grid grid-cols-3 gap-2'>
-          <WeightInput
-            id='r-central'
-            label='중앙부처'
-            value={quotaRatio.central}
-            onChange={(v) => onQuotaChange('central', v)}
-          />
-          <WeightInput
-            id='r-local'
-            label='지자체 (광역+기초)'
-            value={quotaRatio.local}
-            onChange={(v) => onQuotaChange('local', v)}
-          />
-          <WeightInput
-            id='r-public'
-            label='공공·교육'
-            value={quotaRatio.public_edu}
-            onChange={(v) => onQuotaChange('public_edu', v)}
-          />
-        </div>
-        <div className='text-muted-foreground text-xs'>
-          합계 {rSum} · 비율 기준으로 쿼터 분배 (기본 5:3:2)
-        </div>
-      </div>
-
-      <div className='flex items-center justify-end gap-2 text-sm'>
-        <Checkbox
-          id='exclude-no-prereq'
-          checked={excludeNoPrereq}
-          onCheckedChange={(v) => onExcludeNoPrereqChange(v === true)}
-        />
-        <label htmlFor='exclude-no-prereq' className='cursor-pointer'>
-          사전학습 미수료자 강제 제외 (부분 수료 포함)
-        </label>
-      </div>
-
-      {hasCertQuestion && (
-        <div className='flex items-center justify-end gap-2 text-sm'>
-          <Checkbox
-            id='exclude-no-cert'
-            checked={excludeNoCert}
-            onCheckedChange={(v) => onExcludeNoCertChange(v === true)}
-          />
-          <label htmlFor='exclude-no-cert' className='cursor-pointer'>
-            자격증 미보유자 강제 제외 (예정·미보유 모두)
-          </label>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function AdditionalConstraintsPanel({
-  availableExclusionCohorts,
-  excludedCohortIds,
-  onToggleExclusion,
-  parentOrgCapInput,
-  onParentOrgCapInputChange,
-  effectiveCapacity,
-  excludedCount
-}: {
-  availableExclusionCohorts: { id: string; name: string }[];
-  excludedCohortIds: Set<string>;
-  onToggleExclusion: (id: string) => void;
-  parentOrgCapInput: number;
-  onParentOrgCapInputChange: (v: number) => void;
-  effectiveCapacity: number;
-  excludedCount: number;
-}) {
-  return (
-    <div className='flex flex-col gap-3 rounded-md border bg-slate-50/40 p-3'>
-      <div className='text-xs font-semibold'>추가 제약</div>
-
-      <div className='flex flex-col gap-2'>
-        <div className='text-muted-foreground text-xs font-medium'>
-          다른 cohort 합격자 제외 — 체크한 cohort에서 status=&apos;selected&apos;인 신청자는 후보
-          풀에서 빠짐
-        </div>
-        {availableExclusionCohorts.length === 0 ? (
-          <div className='text-muted-foreground text-xs italic'>
-            중복 지원자가 있는 다른 cohort가 없습니다.
-          </div>
-        ) : (
-          <div className='flex max-h-32 flex-col gap-1 overflow-y-auto rounded border bg-white p-2'>
-            {availableExclusionCohorts.map((c) => (
-              <label
-                key={c.id}
-                className='flex cursor-pointer items-center gap-2 rounded px-1.5 py-0.5 text-xs hover:bg-slate-50'
-              >
-                <Checkbox
-                  checked={excludedCohortIds.has(c.id)}
-                  onCheckedChange={() => onToggleExclusion(c.id)}
-                />
-                <span>{c.name}</span>
-              </label>
-            ))}
-          </div>
-        )}
-        {excludedCount > 0 && (
-          <div className='text-xs text-amber-700'>
-            제외된 신청자 {excludedCount}명 (선택한 cohort에서 이미 합격)
-          </div>
-        )}
-      </div>
-
-      <div className='flex flex-col gap-1.5 border-t pt-2'>
-        <label htmlFor='parent-org-cap' className='text-sm font-medium'>
-          상위부처당 최대 인원
-          <span className='ml-1 text-[11px] font-normal text-muted-foreground'>(0 = 비활성)</span>
-        </label>
-        <div className='flex items-center gap-2'>
-          <Input
-            id='parent-org-cap'
-            type='number'
-            min={0}
-            max={effectiveCapacity}
-            value={parentOrgCapInput || ''}
-            onChange={(e) => onParentOrgCapInputChange(Number(e.target.value) || 0)}
-            placeholder='예: 7'
-            className='h-8 w-24 tabular-nums'
-          />
-          <span className='text-[11px] text-muted-foreground'>
-            기관명 첫 공백 앞으로 그룹핑 (예: &apos;경찰청 서울특별시경찰청&apos; →
-            &apos;경찰청&apos;)
-          </span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function WeightInput({
-  id,
-  label,
-  value,
-  onChange
-}: {
-  id: string;
-  label: string;
-  value: number;
-  onChange: (v: number) => void;
-}) {
-  return (
-    <div className='flex flex-col gap-1'>
-      <label htmlFor={id} className='text-muted-foreground text-xs'>
-        {label}
-      </label>
-      <Input
-        id={id}
-        type='number'
-        value={value}
-        min={0}
-        max={100}
-        onChange={(e) => onChange(Number(e.target.value) || 0)}
-        className='h-8 w-full tabular-nums'
-      />
-    </div>
-  );
-}
-
-// 분포 박스에 표시할 카테고리 — 'other'(기타)는 흘러내림에만 쓰고 UI에서 숨김
-const DISPLAY_CATEGORIES: SelectionCategory[] = ['central', 'local', 'public_edu'];
-
-function DistributionRow({
-  distribution,
-  poolByCategory,
-  quotas,
-  totalCapacity,
-  activeCategory,
-  onCategoryClick
-}: {
-  distribution: Record<SelectionCategory, number>;
-  poolByCategory: Record<SelectionCategory, number>;
-  quotas: Record<SelectionCategory, number>;
-  totalCapacity: number;
-  activeCategory: SelectionCategory | null;
-  onCategoryClick: (cat: SelectionCategory) => void;
-}) {
-  const sum = SELECTION_CATEGORY_ORDER.reduce((s, k) => s + (distribution[k] ?? 0), 0);
-  return (
-    <div className='flex flex-col gap-2 rounded-md border p-3'>
-      <div className='flex items-center justify-between'>
-        <div className='text-xs font-medium'>분류별 선발 분포 (합격/지원 · 배정)</div>
-        {activeCategory && (
-          <button
-            type='button'
-            onClick={() => onCategoryClick(activeCategory)}
-            className='text-muted-foreground hover:text-foreground text-xs underline-offset-2 hover:underline'
-          >
-            필터 해제
-          </button>
-        )}
-      </div>
-      <div className='grid grid-cols-3 gap-2 text-xs'>
-        {DISPLAY_CATEGORIES.map((cat) => {
-          const count = distribution[cat] ?? 0;
-          const pool = poolByCategory[cat] ?? 0;
-          const quota = quotas[cat] ?? 0;
-          const pct = sum > 0 ? Math.round((count / sum) * 100) : 0;
-          const isActive = activeCategory === cat;
-          return (
-            <button
-              type='button'
-              key={cat}
-              onClick={() => onCategoryClick(cat)}
-              className={cn(
-                'flex flex-col items-center gap-0.5 rounded border px-2 py-2 transition-colors',
-                'hover:bg-muted/60',
-                isActive && 'border-emerald-500 bg-emerald-50/60 ring-1 ring-emerald-300'
-              )}
-            >
-              <span className='text-muted-foreground'>{SELECTION_CATEGORY_LABEL[cat]}</span>
-              <span className='text-base font-semibold tabular-nums'>
-                {count}
-                <span className='text-muted-foreground text-xs font-normal'>/{pool}</span>
-                <span className='ml-1 text-emerald-700 text-xs font-medium'>{pct}%</span>
-              </span>
-              <span className='text-muted-foreground tabular-nums'>
-                배정 {quota > 0 ? `${quota}명` : '—'}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-      {sum !== totalCapacity && (
-        <div className='text-amber-600 text-xs'>
-          선택 합계 {sum} · 정원 {totalCapacity} (수동 조정 또는 풀 부족으로 차이 발생)
-        </div>
-      )}
-    </div>
-  );
-}
-
-const STATUS_LABEL: Record<string, string> = {
-  applied: '신청',
-  pending: '검토중',
-  selected: '선발',
-  rejected: '탈락',
-  withdrawn: '취하'
-};
-
-function CandidateList({
-  scored,
-  autoSelectedIds,
-  effectiveSelectedIds,
-  onToggle,
-  totalCapacity,
-  filterCategory
-}: {
-  scored: ScoredCandidate[];
-  autoSelectedIds: Set<string>;
-  effectiveSelectedIds: Set<string>;
-  onToggle: (id: string) => void;
-  totalCapacity: number;
-  filterCategory: SelectionCategory | null;
-}) {
-  const visible = filterCategory
-    ? scored.map((c, i) => ({ c, i })).filter(({ c }) => c.category === filterCategory)
-    : scored.map((c, i) => ({ c, i }));
-  return (
-    <div className='flex flex-col rounded-md border'>
-      <div className='bg-muted/40 flex items-center gap-3 border-b px-3 py-2 text-xs font-medium'>
-        <span className='w-6'>#</span>
-        <span className='w-6' />
-        <span className='w-20'>이름</span>
-        <span className='w-12 text-center'>타과정</span>
-        <span className='w-20 text-center'>인증</span>
-        <span className='w-20'>분류</span>
-        <span className='flex-1'>소속</span>
-        <span className='w-10 text-center'>사전</span>
-        <span className='w-12 text-right'>지식</span>
-        <span className='w-12 text-right'>체크</span>
-        <span className='w-12 text-right'>글자</span>
-        <span className='w-14 text-right'>종합</span>
-      </div>
-      <div className='max-h-[40vh] divide-y overflow-y-auto'>
-        {visible.map(({ c, i }) => {
-          const checked = effectiveSelectedIds.has(c.application_id);
-          const wasAuto = autoSelectedIds.has(c.application_id);
-          const isManual = checked !== wasAuto;
-          const inCapacity = i < totalCapacity;
-          return (
-            <label
-              key={c.application_id}
-              className={cn(
-                'hover:bg-muted/40 flex cursor-pointer items-center gap-3 px-3 py-2 text-sm',
-                checked && 'bg-emerald-50/60',
-                isManual && 'border-l-2 border-amber-400'
-              )}
-            >
-              <span className='text-muted-foreground w-6 text-xs tabular-nums'>{i + 1}</span>
-              <Checkbox checked={checked} onCheckedChange={() => onToggle(c.application_id)} />
-              <span className='flex w-20 items-center gap-1 truncate font-medium'>
-                <span className='truncate'>{c.name}</span>
-                {c.force_select && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span className='inline-flex items-center rounded bg-rose-100 px-1 py-0.5 text-[10px] font-semibold text-rose-700'>
-                        강제
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent side='top'>
-                      강제선발 대상 ({c.force_reason ?? '지정'})
-                      <br />
-                      사전학습·자격증·정원 조건 무시
-                    </TooltipContent>
-                  </Tooltip>
-                )}
-              </span>
-              <span className='w-12 text-center text-xs'>
-                {c.other_applications.length > 0 ? (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button
-                        type='button'
-                        onClick={(e) => e.preventDefault()}
-                        className='inline-flex cursor-default items-center justify-center rounded bg-amber-100 px-1.5 py-0.5 font-medium text-amber-700'
-                      >
-                        +{c.other_applications.length}
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent side='top' className='max-w-xs'>
-                      <div className='flex flex-col gap-0.5 text-xs'>
-                        <div className='mb-0.5 font-semibold opacity-90'>다른 기수 지원</div>
-                        {c.other_applications.map((o) => (
-                          <div key={o.cohort_id}>
-                            {o.cohort_name}
-                            <span className='ml-1 opacity-70'>
-                              · {STATUS_LABEL[o.status] ?? o.status}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </TooltipContent>
-                  </Tooltip>
-                ) : (
-                  <span className='text-muted-foreground'>—</span>
-                )}
-              </span>
-              <span className='w-20 text-center text-xs'>
-                <PriorCertsChips certs={c.prior_certs} />
-              </span>
-              <span className='text-muted-foreground w-20 truncate text-xs'>
-                {SELECTION_CATEGORY_LABEL[c.category]}
-              </span>
-              {c.organization ? (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className='text-muted-foreground flex-1 truncate text-xs'>
-                      {c.organization}
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent side='top' className='max-w-md break-all'>
-                    {c.organization}
-                  </TooltipContent>
-                </Tooltip>
-              ) : (
-                <span className='text-muted-foreground flex-1 truncate text-xs'>—</span>
-              )}
-              <span
-                className={cn(
-                  'w-10 text-center text-xs font-medium tabular-nums',
-                  c.prereq_max === 0
-                    ? 'text-muted-foreground'
-                    : c.prereq_done_count === c.prereq_max
-                      ? 'text-emerald-600'
-                      : c.prereq_done_count > 0
-                        ? 'text-amber-600'
-                        : 'text-muted-foreground'
-                )}
-                title={
-                  c.prereq_max === 0
-                    ? 'cohort에 사전학습 요구 없음'
-                    : `사전학습 ${c.prereq_done_count}/${c.prereq_max} 수료`
-                }
-              >
-                {c.prereq_max === 0 ? '—' : `${c.prereq_done_count}/${c.prereq_max}`}
-              </span>
-              <span className='w-12 text-right tabular-nums text-xs'>{c.knowledge_score}</span>
-              <span className='w-12 text-right tabular-nums text-xs'>
-                {c.multi_selected_count}
-                {c.multi_choices_max > 0 && (
-                  <span className='text-muted-foreground'>/{c.multi_choices_max}</span>
-                )}
-              </span>
-              <span className='w-12 text-right tabular-nums text-xs'>{c.plan_char_count}</span>
-              <span
-                className={cn(
-                  'w-14 text-right font-medium tabular-nums',
-                  inCapacity ? 'text-emerald-700' : 'text-muted-foreground'
-                )}
-              >
-                {c.final_score.toFixed(1)}
-              </span>
-            </label>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-const TRACK_LETTER: Record<PriorCert['track'], string> = {
-  green: 'G',
-  blue: 'B',
-  expert: 'E',
-  continuing: 'C'
-};
-
-const TRACK_LABEL: Record<PriorCert['track'], string> = {
-  green: '그린',
-  blue: '블루',
-  expert: '전문인재',
-  continuing: '보수교육'
-};
-
-const TRACK_TONE: Record<PriorCert['track'], string> = {
-  green: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  blue: 'bg-blue-50 text-blue-700 border-blue-200',
-  expert: 'bg-violet-50 text-violet-700 border-violet-200',
-  continuing: 'bg-slate-100 text-slate-600 border-slate-300'
-};
-
-const EVENT_LETTER: Record<NonNullable<PriorCert['event']>, string> = {
-  hackathon: 'H',
-  miniproject: 'M',
-  private: 'P'
-};
-
-const EVENT_LABEL: Record<NonNullable<PriorCert['event']>, string> = {
-  hackathon: '해커톤',
-  miniproject: '미니프로젝트',
-  private: '민간협업'
-};
-
-function certShort(c: PriorCert): string {
-  const t = TRACK_LETTER[c.track] ?? '?';
-  const r = c.round ? String(c.round) : '';
-  const e = c.event ? EVENT_LETTER[c.event] : '';
-  return `${t}${r}${e}`;
-}
-
-function certFull(c: PriorCert): string {
-  const parts = [`${c.year}`, TRACK_LABEL[c.track] ?? c.track];
-  if (c.round) parts.push(`${c.round}회차`);
-  if (c.event) parts.push(EVENT_LABEL[c.event]);
-  if (c.kind) parts.push(`(${c.kind})`);
-  return parts.join(' ');
-}
-
-function PriorCertsChips({ certs }: { certs: PriorCert[] }) {
-  if (!certs || certs.length === 0) {
-    return <span className='text-muted-foreground'>—</span>;
-  }
-  // 트랙·회차 순으로 정렬해 일관된 노출
-  const sorted = [...certs].toSorted((a, b) => {
-    if (a.track !== b.track) return a.track.localeCompare(b.track);
-    return (a.round ?? 0) - (b.round ?? 0);
-  });
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span
-          className='inline-flex flex-wrap items-center justify-center gap-0.5'
-          onClick={(e) => e.preventDefault()}
-        >
-          {sorted.map((c) => (
-            <span
-              key={c.cert_no}
-              className={cn(
-                'inline-flex items-center rounded border px-1 py-px text-[10px] font-semibold leading-tight tabular-nums',
-                TRACK_TONE[c.track]
-              )}
-            >
-              {certShort(c)}
-            </span>
-          ))}
-        </span>
-      </TooltipTrigger>
-      <TooltipContent side='top' className='max-w-xs'>
-        <div className='flex flex-col gap-0.5 text-xs'>
-          <div className='mb-0.5 font-semibold opacity-90'>작년 인증 이력</div>
-          {sorted.map((c) => (
-            <div key={c.cert_no}>
-              {certFull(c)}
-              <span className='ml-1 opacity-60'>· {c.cert_no}</span>
-            </div>
-          ))}
-        </div>
-      </TooltipContent>
-    </Tooltip>
   );
 }
