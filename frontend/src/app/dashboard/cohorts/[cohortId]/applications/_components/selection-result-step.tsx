@@ -25,12 +25,23 @@ type Props = {
   distribution: Record<SelectionCategory, number>;
   poolByCategory: Record<SelectionCategory, number>;
   quotas: Record<SelectionCategory, number>;
+  avgScore: number | null; // 평균 하한선 (null = 미적용)
 };
 
 /** Step 3 — 결과 검토: 분포 + 후보 리스트(사유 배지) + 수동 토글 */
 export function SelectionResultStep(p: Props) {
+  const belowAvgCount = [...p.decisions.values()].filter(
+    (d) => d.kind === 'rejected' && d.why === 'below_avg'
+  ).length;
   return (
     <div className='flex flex-col gap-4'>
+      {p.avgScore !== null && (
+        <div className='rounded-md border border-amber-200 bg-amber-50/60 px-3 py-2 text-xs text-amber-800'>
+          종합점수 평균 하한선 <b className='tabular-nums'>{p.avgScore.toFixed(1)}점</b> 적용 중 —
+          평균 미만 <b className='tabular-nums'>{belowAvgCount}명</b>은 기관 분산에서 후순위 처리
+          (정원이 남을 때만 점수순 충원)
+        </div>
+      )}
       <DistributionRow
         distribution={p.distribution}
         poolByCategory={p.poolByCategory}

@@ -421,6 +421,7 @@ export function SelectionSheet({ cohortId, defaultCapacity, trigger }: Props) {
                   distribution={distribution}
                   poolByCategory={poolByCategory}
                   quotas={quotas}
+                  avgScore={excludeBelowAvg ? avgScore : null}
                 />
               )}
             </div>
