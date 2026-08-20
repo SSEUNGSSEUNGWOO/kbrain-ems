@@ -168,6 +168,17 @@ export function cohortTrackFromName(name: string | null | undefined): CohortTrac
 
 export type ExclusionStageKey = 'certified' | 'other_cohort' | 'no_prereq' | 'no_cert';
 
+/**
+ * 트랙별 인증자 제외 대상 인증 트랙.
+ * 그린(하위 과정)은 그린·블루 인증자 모두 제외 — 상위(블루) 인증자가 하위 과정을
+ * 다시 들을 이유가 없음. 블루는 블루 인증자만 제외 — 그린 인증자의 승급 지원은 허용.
+ */
+export function excludedCertTracks(track: CohortTrack): PriorCert['track'][] {
+  if (track === 'green') return ['green', 'blue'];
+  if (track === 'blue') return ['blue'];
+  return [];
+}
+
 export type ExclusionStage = {
   key: ExclusionStageKey;
   label: string;
@@ -197,11 +208,12 @@ export function runExclusions(
   const hasPrereq = candidates.some((c) => c.prereq_max > 0);
   const hasCertQ = candidates.some((c) => c.has_cert !== null);
 
+  const bannedTracks = excludedCertTracks(ctx.cohortTrack);
   const stages: ExclusionStage[] = [];
   if (ctx.cohortTrack) {
     stages.push({
       key: 'certified',
-      label: `인증자 제외 (${ctx.cohortTrack === 'green' ? '그린' : '블루'} 트랙 · 연도 무관)`,
+      label: `인증자 제외 (${ctx.cohortTrack === 'green' ? '그린·블루' : '블루'} 인증 보유 · 연도 무관)`,
       excluded: []
     });
   }
@@ -216,7 +228,7 @@ export function runExclusions(
   const hit = (key: ExclusionStageKey, c: CandidateRow): boolean => {
     switch (key) {
       case 'certified':
-        return !c.force_select && c.prior_certs.some((p) => p.track === ctx.cohortTrack);
+        return !c.force_select && c.prior_certs.some((p) => bannedTracks.includes(p.track));
       case 'other_cohort':
         return c.other_applications.some(
           (o) => o.status === 'selected' && ctx.excludedCohortIds.has(o.cohort_id)

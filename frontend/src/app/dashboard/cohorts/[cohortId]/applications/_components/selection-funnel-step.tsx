@@ -4,7 +4,12 @@ import { useState } from 'react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 import { Icons } from '@/components/icons';
-import type { CandidateRow, CohortTrack, ExclusionStage } from '../_selection-logic';
+import {
+  excludedCertTracks,
+  type CandidateRow,
+  type CohortTrack,
+  type ExclusionStage
+} from '../_selection-logic';
 
 type Props = {
   totalApplicants: number; // 서버 사전제외 포함 전체 지원자 수
@@ -19,14 +24,15 @@ type Props = {
   onToggleExclusionCohort: (id: string) => void;
 };
 
-// 인증자 제외 행에서 제외 사유가 된 인증(같은 트랙)을 텍스트로 표시
+// 인증자 제외 행에서 제외 사유가 된 인증(제외 대상 트랙)을 텍스트로 표시
 function matchedCertLabel(c: CandidateRow, track: CohortTrack): string {
-  const label = track === 'green' ? '그린' : '블루';
+  const banned = excludedCertTracks(track);
+  const trackLabel = (t: string) => (t === 'green' ? '그린' : '블루');
   return c.prior_certs
-    .filter((p) => p.track === track)
+    .filter((p) => banned.includes(p.track))
     .map(
       (p) =>
-        `${p.year} ${label}${p.round ? ` ${p.round}회차` : ''}${p.kind ? ` ${p.kind}` : ''} · ${p.cert_no}`
+        `${p.year} ${trackLabel(p.track)}${p.round ? ` ${p.round}회차` : ''}${p.kind ? ` ${p.kind}` : ''} · ${p.cert_no}`
     )
     .join(', ');
 }
