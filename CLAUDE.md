@@ -25,6 +25,19 @@ bun run format      # oxfmt
 
 No test suite configured yet.
 
+## Git 작업 규칙
+
+**모든 커밋과 push 는 `feat/yezin` 브랜치에만 한다. `main` 에 직접 커밋하거나 push 하지 않는다.**
+
+```bash
+git switch feat/yezin        # 작업 시작 전 항상 확인
+git push origin feat/yezin   # push 대상도 항상 이 브랜치
+```
+
+- 작업 시작 전 `git branch --show-current` 로 `feat/yezin` 인지 확인한다. 아니면 먼저 옮긴다.
+- `main` 으로 병합하는 것은 사용자가 직접 하거나, 명시적으로 지시한 경우에만 한다.
+- `--force` push, `reset --hard`, `branch -D` 등 파괴적 명령은 항상 사용자 명시적 허락 후 실행한다.
+
 ## Architecture
 
 **Operator dashboard + token-based public response pages.** 6–7 operators manage 2 concurrent cohorts (~24 students each) via `/dashboard/*` (Supabase Auth 적용, RLS는 미적용). 신청자·교육생은 무인증으로 슬러그/토큰 기반 공개 라우트(`/apply/[slug]`, `/survey/[token]`, `/survey/share/[code]`, `/diagnosis/[token]`)에서 응답한다.
