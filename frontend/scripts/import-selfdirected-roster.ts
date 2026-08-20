@@ -29,8 +29,10 @@ const TARGETS = [
     file: '2026년 AI 챔피언 블루(중급) 수행평가 2회차 (8월 26일, 자기주도형).xls' }
 ];
 const EXAM_DATE = '2026-08-26';
-// 서술형 답이 전부 "테스트"인 운영진 확인용 행
-const TEST_EMAILS = new Set(['[비공개]']);
+// 서술형 답이 전부 "테스트"인 운영진 확인용 행 — 제외할 이메일을 env로 지정 (쉼표 구분)
+const TEST_EMAILS = new Set(
+  (process.env.IMPORT_TEST_EMAILS ?? '').split(',').map((e) => e.trim()).filter(Boolean)
+);
 
 const S = (v: unknown) => String(v ?? '').trim();
 const stripNo = (v: string) => v.replace(/^\s*\d+\.\s*/, '').trim();

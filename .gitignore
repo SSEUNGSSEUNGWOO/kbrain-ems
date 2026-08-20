@@ -34,8 +34,13 @@
 /assistant_instructor_schedule.xlsx
 /보조강사_필요회차_*.xlsx
 
+# 일회성 스크립트 아카이브 — 실명·로컬 절대경로 하드코딩 다수, 로컬 보관만
+frontend/scripts/archive/
+
+# 운영 중 생성되는 점검·백업 산출물 (로컬 보관)
+/tools/
+
 # 개인정보 포함 백업·산출물 (DB 복구용 로컬 보관)
-frontend/scripts/archive/backups/
 __pycache__/
 docs/*.xlsx
 docs/2차선발/

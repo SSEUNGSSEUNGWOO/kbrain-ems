@@ -150,7 +150,8 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=...
 SUPABASE_SERVICE_ROLE_KEY=...    # server-only, RLS bypass
 ```
 
-Seed data: 루트 `seed_students.sql` (Supabase Studio에서 실행).
+Seed data: `supabase/seed.sql` (Supabase Studio에서 1회 실행). 실제 교육생 데이터를 익명화한 것으로
+이름은 가명(`교육생01`…), 생년월일은 비어 있다. 소속·부서는 화면 현실성을 위해 남겨둠.
 
 ### Server Actions
 

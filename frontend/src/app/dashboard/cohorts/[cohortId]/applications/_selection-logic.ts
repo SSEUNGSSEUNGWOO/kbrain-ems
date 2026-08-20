@@ -156,13 +156,14 @@ export function parentOrgKey(org: string | null | undefined): string {
 // 예외(exceptions)에 담긴 application_id는 모든 규칙을 통과한다.
 // =============================================================
 
-export type CohortTrack = 'green' | 'blue' | null;
+export type CohortTrack = 'green' | 'blue' | 'cert_linked' | null;
 
-/** 기수명으로 트랙 판정 — certification/page.tsx와 동일 규칙 */
+/** 기수명으로 트랙 판정 — certification/page.tsx와 동일 규칙 + 자격연계형(⑦⑧) 식별 */
 export function cohortTrackFromName(name: string | null | undefined): CohortTrack {
   if (!name) return null;
   if (name.includes('그린')) return 'green';
   if (name.includes('블루')) return 'blue';
+  if (name.includes('데이터분석 심화') || name.includes('바이브 코딩')) return 'cert_linked';
   return null;
 }
 
@@ -172,10 +173,11 @@ export type ExclusionStageKey = 'certified' | 'other_cohort' | 'no_prereq' | 'no
  * 트랙별 인증자 제외 대상 인증 트랙.
  * 그린(하위 과정)은 그린·블루 인증자 모두 제외 — 상위(블루) 인증자가 하위 과정을
  * 다시 들을 이유가 없음. 블루는 블루 인증자만 제외 — 그린 인증자의 승급 지원은 허용.
+ * 자격연계형(⑦⑧)도 블루 인증자만 제외 — 그린 인증자의 지원은 허용.
  */
 export function excludedCertTracks(track: CohortTrack): PriorCert['track'][] {
   if (track === 'green') return ['green', 'blue'];
-  if (track === 'blue') return ['blue'];
+  if (track === 'blue' || track === 'cert_linked') return ['blue'];
   return [];
 }
 

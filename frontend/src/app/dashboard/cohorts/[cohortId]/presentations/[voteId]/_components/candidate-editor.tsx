@@ -128,7 +128,7 @@ export function CandidateEditor({ cohortId, voteId, initial }: Props) {
             onChange={(e) => setPasteText(e.target.value)}
             rows={4}
             placeholder={
-              '[비공개]_AI 콘텐츠 제작 및 자동화 경험 공유\n[비공개]_지속가능한 AX의 이해와 실천\n...'
+              '홍길동_AI 콘텐츠 제작 및 자동화 경험 공유\n김철수_지속가능한 AX의 이해와 실천\n...'
             }
             className='font-mono text-xs'
           />
