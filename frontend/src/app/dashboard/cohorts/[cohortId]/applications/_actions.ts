@@ -95,7 +95,11 @@ const FORCE_SELECT_CONFIG: Record<
       '2b265ae5-814d-404b-83e8-e1c810a62825', // 전문인재 26-1기
       '256c5c6f-ef95-4073-8a27-a9b5fbc44316' // 전문인재 26-2기
     ],
-    individualNames: ['[비공개]', '[비공개]']
+    // 개별지정 대상 실명은 env로 관리 (comma 구분) — 코드에 개인정보 남기지 않음
+    individualNames: (process.env.FORCE_SELECT_NAMES ?? '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
   }
 };
 

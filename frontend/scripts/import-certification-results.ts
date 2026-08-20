@@ -105,7 +105,7 @@ async function processSheet(
   const byName = new Map<string, string[]>();
   for (const s of students ?? []) {
     // 응시자가 개인 이메일로 가입하는 경우가 있어 공식·개인 이메일 둘 다 등록
-    // (블루 2회차 [비공개] 미매칭 사례 재발 방지)
+    // (블루 2회차 미매칭 사례 재발 방지)
     for (const raw of [s.email, s.personal_email]) {
       const e = normEmail(raw);
       if (e && !byEmail.has(e)) byEmail.set(e, s.id);

@@ -31,7 +31,7 @@ if (!FILE) {
 
 // 동명이인 자동 확정 실패분 수동 매핑: cert_no → applicant_id
 const MANUAL_MAP: Record<string, string> = {
-  // [비공개] — 한국동서발전(주) 동일인 중복 applicant 2건 중 선등록 row (병합은 추후 merge-duplicate-applicants.ts)
+  // 한국동서발전(주) 동일인 중복 applicant 2건 중 선등록 row (병합은 추후 merge-duplicate-applicants.ts)
   '2026-BC0345': 'e6436900-c267-4ce9-8fee-ec4f8014858c'
 };
 

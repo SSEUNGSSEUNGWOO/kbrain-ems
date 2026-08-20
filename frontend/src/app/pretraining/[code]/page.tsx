@@ -34,13 +34,18 @@ export default async function PretrainingPublicPage({ params }: Props) {
     .select('name, category')
     .eq('id', checklist.cohort_id)
     .maybeSingle();
+  // env 예: INQUIRY_PHONES_GENERAL=010-0000-0000 / INQUIRY_PHONES_CHAMPION=010-…,010-…
+  const phonesFromEnv = (v: string | undefined) =>
+    (v ?? '').split(',').map((s) => s.trim()).filter(Boolean);
   const INQUIRY_PHONES_BY_CATEGORY: Record<string, string[]> = {
-    general: ['[비공개]'],
-    champion: ['[비공개]', '[비공개]']
+    general: phonesFromEnv(process.env.INQUIRY_PHONES_GENERAL),
+    champion: phonesFromEnv(process.env.INQUIRY_PHONES_CHAMPION)
   };
-  const inquiryPhones: string[] | null = cohortRow?.category
+  const categoryPhones = cohortRow?.category
     ? INQUIRY_PHONES_BY_CATEGORY[cohortRow.category] ?? null
     : null;
+  const inquiryPhones: string[] | null =
+    categoryPhones && categoryPhones.length > 0 ? categoryPhones : null;
   if (checklist.closes_at && new Date(checklist.closes_at) <= new Date()) {
     return (
       <div className='border-border bg-card text-muted-foreground rounded-xl border px-6 py-12 text-center shadow-sm'>
