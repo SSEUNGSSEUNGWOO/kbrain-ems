@@ -67,7 +67,7 @@ export function SelectionConfigStep(p: Props) {
         <label
           htmlFor='exclude-below-avg'
           className='flex cursor-pointer items-center gap-1.5 text-sm'
-          title='강제·수동 선발자를 제외한 경쟁 후보의 종합점수 평균 미만은 선발하지 않습니다'
+          title='기관 분산 단계에서 평균 미만을 후순위로 강등 — 평균 이상만으로 정원이 안 찰 때만 점수순 충원. 강제·수동 선발자는 영향 없음'
         >
           <Checkbox
             id='exclude-below-avg'

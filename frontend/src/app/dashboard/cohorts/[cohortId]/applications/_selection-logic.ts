@@ -355,9 +355,10 @@ export function computeQuotas(
  * 미선발 사유는 종료 시점 상태로 사후 판정: 기관 cap 소진 → org_cap,
  * 상위부처 cap 소진 → parent_cap, 그 외 → score_cut (카테고리 컷 점수 첨부).
  *
- * excludeBelowAvg=true 면 종합점수 하한선을 적용한다: 강제선발(force)을 제외한
- * 경쟁 후보들의 종합점수 평균을 계산해, 평균 미만인 후보는 쿼터·흘러내림·동점자
- * 어느 경로로도 선발하지 않는다 (분산 우선이 저득점자를 끌어올리는 것 방지).
+ * excludeBelowAvg=true 면 종합점수 하한선을 기관 분산 단계의 우선순위로 적용한다:
+ * 강제선발(force)을 제외한 경쟁 후보들의 평균을 계산해, 1차 패스에서는 평균 이상만
+ * 분산 라운드에 참여시키고 (분산 우선이 저득점자를 끌어올리는 것 방지),
+ * 평균 이상만으로 정원·쿼터가 안 차면 2차 패스에서 평균 미만도 점수순으로 충원한다.
  * 강제선발·수동 선발자는 하한선의 영향을 받지 않는다.
  */
 export function recommendByQuotas(
@@ -419,52 +420,60 @@ export function recommendByQuotas(
   const capUnlimited = maxPerOrg <= 0;
   const maxRound = capUnlimited ? 1 : maxPerOrg;
 
-  for (let round = 1; round <= maxRound; round++) {
+  // 평균 하한선은 기관 분산(라운드) 단계의 우선순위 규칙으로만 작동한다:
+  // 1차 패스는 평균 이상만으로 채우고, 정원·쿼터가 남으면 2차 패스에서
+  // 평균 미만도 점수순으로 충원한다 (하한선 때문에 정원 미달이 나지 않게).
+  const floorPasses = avgScore === null ? [false] : [true, false];
+  for (const applyFloor of floorPasses) {
     if (selectedIds.length >= totalCapacity) break;
-    const roundCap = capUnlimited ? Number.POSITIVE_INFINITY : round;
 
-    const tryAdd = (c: ScoredCandidate, via: 'quota' | 'overflow'): boolean => {
-      if (selectedSet.has(c.application_id)) return false;
-      if (belowFloor(c)) return false;
-      const orgKey = c.organization ?? '';
-      const parent = parentOrgKey(c.organization);
-      if (orgKey) {
-        const used = orgCount.get(orgKey) ?? 0;
-        if (used >= roundCap) return false;
-      }
-      if (parent) {
-        const pused = parentCount.get(parent) ?? 0;
-        if (pused >= pCap) return false;
-      }
-      if (orgKey) orgCount.set(orgKey, (orgCount.get(orgKey) ?? 0) + 1);
-      if (parent) parentCount.set(parent, (parentCount.get(parent) ?? 0) + 1);
-      selectedSet.add(c.application_id);
-      selectedIds.push(c.application_id);
-      decisions.set(c.application_id, { kind: 'selected', via });
-      return true;
-    };
+    for (let round = 1; round <= maxRound; round++) {
+      if (selectedIds.length >= totalCapacity) break;
+      const roundCap = capUnlimited ? Number.POSITIVE_INFINITY : round;
 
-    // Phase 1: 카테고리별 잔여 쿼터 채우기 (이번 라운드 cap 한도 내)
-    for (const cat of SELECTION_CATEGORY_ORDER) {
-      if (quotas[cat] === 0) continue;
-      for (const c of scored) {
-        if (quotas[cat] === 0) break;
-        if (c.category !== cat) continue;
-        if (tryAdd(c, 'quota')) quotas[cat]--;
-      }
-    }
+      const tryAdd = (c: ScoredCandidate, via: 'quota' | 'overflow'): boolean => {
+        if (selectedSet.has(c.application_id)) return false;
+        if (applyFloor && belowFloor(c)) return false;
+        const orgKey = c.organization ?? '';
+        const parent = parentOrgKey(c.organization);
+        if (orgKey) {
+          const used = orgCount.get(orgKey) ?? 0;
+          if (used >= roundCap) return false;
+        }
+        if (parent) {
+          const pused = parentCount.get(parent) ?? 0;
+          if (pused >= pCap) return false;
+        }
+        if (orgKey) orgCount.set(orgKey, (orgCount.get(orgKey) ?? 0) + 1);
+        if (parent) parentCount.set(parent, (parentCount.get(parent) ?? 0) + 1);
+        selectedSet.add(c.application_id);
+        selectedIds.push(c.application_id);
+        decisions.set(c.application_id, { kind: 'selected', via });
+        return true;
+      };
 
-    // Phase 2: 단방향 흘러내림 — sourceCat의 남은 쿼터를 우선순위 순으로 보충.
-    for (let i = 0; i < SELECTION_CATEGORY_ORDER.length; i++) {
-      const sourceCat = SELECTION_CATEGORY_ORDER[i];
-      if (quotas[sourceCat] === 0) continue;
-      for (let j = i + 1; j < SELECTION_CATEGORY_ORDER.length; j++) {
-        const targetCat = SELECTION_CATEGORY_ORDER[j];
-        if (quotas[sourceCat] === 0) break;
+      // Phase 1: 카테고리별 잔여 쿼터 채우기 (이번 라운드 cap 한도 내)
+      for (const cat of SELECTION_CATEGORY_ORDER) {
+        if (quotas[cat] === 0) continue;
         for (const c of scored) {
+          if (quotas[cat] === 0) break;
+          if (c.category !== cat) continue;
+          if (tryAdd(c, 'quota')) quotas[cat]--;
+        }
+      }
+
+      // Phase 2: 단방향 흘러내림 — sourceCat의 남은 쿼터를 우선순위 순으로 보충.
+      for (let i = 0; i < SELECTION_CATEGORY_ORDER.length; i++) {
+        const sourceCat = SELECTION_CATEGORY_ORDER[i];
+        if (quotas[sourceCat] === 0) continue;
+        for (let j = i + 1; j < SELECTION_CATEGORY_ORDER.length; j++) {
+          const targetCat = SELECTION_CATEGORY_ORDER[j];
           if (quotas[sourceCat] === 0) break;
-          if (c.category !== targetCat) continue;
-          if (tryAdd(c, 'overflow')) quotas[sourceCat]--;
+          for (const c of scored) {
+            if (quotas[sourceCat] === 0) break;
+            if (c.category !== targetCat) continue;
+            if (tryAdd(c, 'overflow')) quotas[sourceCat]--;
+          }
         }
       }
     }
@@ -484,7 +493,6 @@ export function recommendByQuotas(
   }
   for (const c of scored) {
     if (selectedSet.has(c.application_id)) continue;
-    if (belowFloor(c)) continue;
     const cutoff = cutoffByCategory.get(c.category);
     if (!cutoff || cutoff !== tieKey(c)) continue;
     const orgKey = c.organization ?? '';
