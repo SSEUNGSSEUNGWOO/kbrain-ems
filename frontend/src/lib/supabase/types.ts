@@ -318,6 +318,8 @@ export type Database = {
           selection_config: Record<string, unknown> | null;
           prereq_course_codes: string[] | null;
           min_attendance: number | null;
+          zoom_meeting_id: string | null;
+          zoom_password: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -347,6 +349,8 @@ export type Database = {
           selection_config?: Record<string, unknown> | null;
           prereq_course_codes?: string[] | null;
           min_attendance?: number | null;
+          zoom_meeting_id?: string | null;
+          zoom_password?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -376,6 +380,8 @@ export type Database = {
           selection_config?: Record<string, unknown> | null;
           prereq_course_codes?: string[] | null;
           min_attendance?: number | null;
+          zoom_meeting_id?: string | null;
+          zoom_password?: string | null;
           created_at?: string;
           updated_at?: string;
         };

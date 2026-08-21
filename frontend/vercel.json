@@ -3,7 +3,10 @@
     {
       "path": "/api/cron/close-overtime-diagnoses",
       "schedule": "0 15 * * *"
+    },
+    {
+      "path": "/api/cron/send-sms",
+      "schedule": "30 22 * * *"
     }
   ]
 }
-

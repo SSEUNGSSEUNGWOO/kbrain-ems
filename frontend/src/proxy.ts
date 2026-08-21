@@ -11,7 +11,10 @@ const PUBLIC_PATH_PREFIXES = [
   '/exam',
   '/vote'
 ];
-const PUBLIC_API_PREFIXES = ['/api/auth', '/api/exam'];
+// /api/cron 은 Vercel Cron 이 부르는 경로다. 세션이 없으니 여기서 막으면 /lock 으로
+// 리다이렉트되는데, Cron 은 리다이렉트를 따라가지 않아 그대로 실패한다(로그도 안 남는다).
+// 인증은 각 라우트가 CRON_SECRET Bearer 헤더로 직접 대조한다.
+const PUBLIC_API_PREFIXES = ['/api/auth', '/api/exam', '/api/cron'];
 
 // bfcache·브라우저 캐시로 이전 응시자 정보가 남지 않게 no-store 강제.
 // exam 관련 페이지·share 진입 페이지·done 페이지 전부 적용.
