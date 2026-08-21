@@ -1,6 +1,9 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
+  // 빌드 산출물 폴더. 개발 서버가 .next 를 쓰는 중에 빌드를 돌리면 읽던 파일이
+  // 사라져 서버가 죽는다. NEXT_BUILD_DIR 을 주면 딴 폴더에 써서 둘이 안 부딪힌다.
+  distDir: process.env.NEXT_BUILD_DIR || '.next',
   output: process.env.BUILD_STANDALONE === 'true' ? 'standalone' : undefined,
   images: {
     remotePatterns: [
