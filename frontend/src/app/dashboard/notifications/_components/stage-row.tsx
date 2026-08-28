@@ -1,8 +1,13 @@
 import { Badge } from '@/components/ui/badge';
 import { Icons } from '@/components/icons';
-import { stateLabel, type DispatchStageGroup, type DispatchStageState } from '@/lib/dispatch-stages';
+import {
+  stateLabel,
+  type DispatchStageGroup,
+  type DispatchStageState
+} from '@/lib/dispatch-stages';
 import { StageActionPopover } from './stage-action-popover';
 import { DispatchMaterialTrigger } from './dispatch-material-trigger';
+import { AutoDispatchTrigger } from './auto-dispatch-trigger';
 
 const stateToneClass = (s: DispatchStageState): string => {
   switch (s) {
@@ -66,11 +71,18 @@ export function StageRow({ cohortId, group, operatorNameById }: Props) {
       </div>
       <div className='flex shrink-0 items-center gap-2'>
         {group.state !== 'sent' && (
-          <DispatchMaterialTrigger
-            cohortId={cohortId}
-            templates={group.templates}
-            stageLabel={label}
-          />
+          <>
+            <DispatchMaterialTrigger
+              cohortId={cohortId}
+              templates={group.templates}
+              stageLabel={label}
+            />
+            <AutoDispatchTrigger
+              cohortId={cohortId}
+              templates={group.templates}
+              stageLabel={label}
+            />
+          </>
         )}
         <StageActionPopover
           cohortId={cohortId}
