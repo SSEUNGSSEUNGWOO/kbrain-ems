@@ -80,7 +80,7 @@ export default async function CertifiedPage({ searchParams }: Props) {
 
   return (
     <PageContainer
-      pageTitle='인증자'
+      pageTitle='인증자 명단'
       pageDescription='AI챔피언 공식 인증자 통합 명단 (연도 무관 전체)'
       pageHeaderAction={
         <Button asChild variant='outline'>

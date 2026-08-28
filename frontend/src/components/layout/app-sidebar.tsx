@@ -408,12 +408,12 @@ export default function AppSidebar() {
               <SidebarMenuItem>
                 <SidebarMenuButton
                   asChild
-                  tooltip='인증자'
+                  tooltip='인증자 명단'
                   isActive={pathname.startsWith('/dashboard/certified')}
                 >
                   <Link href='/dashboard/certified'>
                     <Icons.certificate />
-                    <span>인증자</span>
+                    <span>인증자 명단</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
