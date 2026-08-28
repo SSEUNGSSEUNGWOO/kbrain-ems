@@ -403,6 +403,22 @@ export default function AppSidebar() {
               </SidebarMenuItem>
             )}
 
+            {/* 인증자 — 글로벌 (연도 무관 공식 인증자 명단) */}
+            {!isAssistant && (
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  tooltip='인증자'
+                  isActive={pathname.startsWith('/dashboard/certified')}
+                >
+                  <Link href='/dashboard/certified'>
+                    <Icons.certificate />
+                    <span>인증자</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )}
+
             {/* 실전평가 — 글로벌 (CBT) */}
             {!isAssistant && (
               <SidebarMenuItem>
