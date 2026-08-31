@@ -49,6 +49,9 @@ bunx supabase db push
 로컬 개발용 더미 데이터가 필요하면 `supabase/seed.sql`을 **1회만** 실행한다
 (재실행 시 applicants/students에 중복 row 발생).
 
+개발 DB의 인원수가 운영과 어긋나면 `node scripts/sync-prod-to-dev.mjs`로 차이를 확인하고
+`--apply`로 맞춘다. 운영은 조회만 하며, 연락처(email·phone)는 개발의 마스킹 값을 유지한다.
+
 **4. 개발 서버**
 
 ```bash
