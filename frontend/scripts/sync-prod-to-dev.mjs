@@ -32,6 +32,12 @@ const ONLY = args.find((a) => a.startsWith('--only='))?.slice(7).split(',').filt
  */
 const CONTACT_COLUMNS = ['email', 'personal_email', 'phone', 'phone_last4', 'mobile', 'tel'];
 
+/**
+ * 개발과 운영은 인증 사용자가 별개다. 운영의 auth_user_id 를 넣으면 개발에 없는 계정을
+ * 가리켜 FK 위반으로 거부된다 (operators 24건이 그렇게 실패했다). 동기화 대상에서 뺀다.
+ */
+const LOCAL_ONLY_COLUMNS = ['auth_user_id'];
+
 let maskSeq = Date.now() % 100000;
 function maskRow(row, cols) {
   const out = { ...row };
@@ -184,7 +190,9 @@ async function main() {
 
     // 연락처와 updated_at 은 비교·반영에서 뺀다. 마스킹 유지 + 갱신시각 차이로 인한 전량 오탐 방지.
     const masked = CONTACT_COLUMNS.filter((c) => cols.includes(c));
-    const compare = cols.filter((c) => !masked.includes(c) && c !== 'updated_at');
+    const local = LOCAL_ONLY_COLUMNS.filter((c) => cols.includes(c));
+    const keep = [...masked, ...local];
+    const compare = cols.filter((c) => !keep.includes(c) && c !== 'updated_at');
 
     const insert = pRows.filter((r) => !dMap.has(keyOf(r, pk)));
     const update = pRows
@@ -196,7 +204,7 @@ async function main() {
       .map((r) => {
         const d = dMap.get(keyOf(r, pk));
         const out = { ...r };
-        for (const c of masked) out[c] = d[c];
+        for (const c of keep) out[c] = d[c];
         return out;
       });
     const remove = dRows.filter((r) => !pMap.has(keyOf(r, pk)));
@@ -206,7 +214,11 @@ async function main() {
       pk,
       cols,
       masked,
-      insert: insert.map((r) => (masked.length ? maskRow(r, masked) : r)),
+      insert: insert.map((r) => {
+        const out = masked.length ? maskRow(r, masked) : { ...r };
+        for (const c of local) out[c] = null;
+        return out;
+      }),
       update,
       remove,
       prod: pRows.length,
