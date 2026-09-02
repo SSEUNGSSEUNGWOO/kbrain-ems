@@ -15,6 +15,39 @@ import type { Database } from '@/lib/supabase/types';
 /** students row 를 유지해야 하는 application status */
 export const STUDENT_KEEP_STATUSES = ['selected', 'same_day_cancel'] as const;
 
+const EMAIL_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/;
+
+/** 사전문항 C-EMAIL(외부 메일 계정) 답변에서 개인이메일 추출. 없으면 null. */
+export async function fetchApplicationPersonalEmail(
+  supabase: SupabaseClient<Database>,
+  applicantId: string,
+  cohortId: string
+): Promise<string | null> {
+  const { data: qs } = await supabase
+    .from('application_questions')
+    .select('id')
+    .eq('cohort_id', cohortId)
+    .eq('question_no', 'C-EMAIL')
+    .limit(1);
+  if (!qs?.[0]) return null;
+  const { data: apps } = await supabase
+    .from('applications')
+    .select('id')
+    .eq('applicant_id', applicantId)
+    .eq('cohort_id', cohortId)
+    .limit(1);
+  if (!apps?.[0]) return null;
+  const { data: answers } = await supabase
+    .from('application_answers')
+    .select('answer_value')
+    .eq('application_id', apps[0].id)
+    .eq('question_id', qs[0].id)
+    .limit(1);
+  const raw = answers?.[0]?.answer_value;
+  if (typeof raw !== 'string') return null;
+  return raw.match(EMAIL_RE)?.[0]?.toLowerCase() ?? null;
+}
+
 export async function syncStudentSelected(
   supabase: SupabaseClient<Database>,
   applicantId: string,
@@ -38,6 +71,8 @@ export async function syncStudentSelected(
     .eq('cohort_id', cohortId)
     .limit(1);
 
+  const personalEmail = await fetchApplicationPersonalEmail(supabase, applicantId, cohortId);
+
   const fields = {
     name: a.name,
     organization_id: a.organization_id,
@@ -47,7 +82,9 @@ export async function syncStudentSelected(
     birth_date: a.birth_date,
     email: a.email,
     phone: a.phone,
-    notes: a.notes
+    notes: a.notes,
+    // C-EMAIL 답변이 없으면 기존 personal_email 을 지우지 않는다
+    ...(personalEmail ? { personal_email: personalEmail } : {})
   };
 
   if (existing && existing[0]) {

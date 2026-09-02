@@ -5,6 +5,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/lib/supabase/types';
 import { revalidatePath } from 'next/cache';
 import { logActivity } from '@/lib/activity-log';
+import { fetchApplicationPersonalEmail } from '@/lib/student-sync';
 
 type ActionResult = { error?: string };
 
@@ -236,6 +237,8 @@ export async function promoteApplicant(
     .maybeSingle();
   if (!applicant) return { error: '지원자 정보를 찾을 수 없습니다.' };
 
+  const personalEmail = await fetchApplicationPersonalEmail(supabase, applicantId, cohortId);
+
   // students INSERT (이미 있으면 conflict → 무시)
   const { error: stuErr } = await supabase.from('students').insert({
     applicant_id: applicant.id,
@@ -243,6 +246,7 @@ export async function promoteApplicant(
     organization_id: applicant.organization_id,
     name: applicant.name,
     email: applicant.email,
+    personal_email: personalEmail,
     phone: applicant.phone,
     department: applicant.department,
     job_title: applicant.job_title,
